@@ -53,10 +53,9 @@ const createLiveTaskHandler = (
 ): TaskHandler<any> => {
   return async ({ input }: { input?: unknown }) => {
     if (!runtime.payload) {
-      return {
-        state: 'failed',
-        errorMessage: `payload-notifications: task ${taskSlug} cannot run before plugin initialization`,
-      } as TaskHandlerResult<any>
+      throw new Error(
+        `payload-notifications: task ${taskSlug} cannot run before plugin initialization`,
+      )
     }
 
     if (taskSlug === 'notification:process-event') {

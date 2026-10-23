@@ -161,6 +161,8 @@ export const NotificationTemplatesCollection = ({
   overrides,
 }: BuildNotificationTemplatesCollectionArgs = {}): CollectionConfig => ({
   slug,
+  versions: false,
+  authorship: false,
   labels: {
     singular: 'Notification Template',
     plural: 'Notification Templates',

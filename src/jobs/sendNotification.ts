@@ -67,6 +67,7 @@ const createLog = async ({
   providerMessageId?: string
 }) => {
   await payload.create({
+    overrideAccess: true,
     collection: options.collections.logs,
     data: {
       user: input.userId,
@@ -135,6 +136,7 @@ export const queueNotificationSend = async ({
   const validatedInput = assertNotificationSendInput(input)
 
   await payload.jobs.queue({
+    overrideAccess: true,
     task: 'notification:send',
     input: validatedInput,
   })
@@ -184,6 +186,7 @@ export const sendNotification = async ({
   }
 
   const user = await payload.findByID({
+    overrideAccess: true,
     collection: options.userCollectionSlug,
     id: validatedInput.userId,
   })
@@ -335,6 +338,7 @@ export const sendNotification = async ({
     (validatedInput.attempt ?? 1) < 3
   ) {
     await payload.jobs.queue({
+      overrideAccess: true,
       task: 'notification:send',
       input: {
         ...validatedInput,

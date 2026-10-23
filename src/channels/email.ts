@@ -17,12 +17,14 @@ export const sendEmailNotification = async ({
   options: NormalizedNotificationsPluginOptions
 }): Promise<NotificationDispatchResult> => {
   const user = await payload.findByID({
+    overrideAccess: true,
     collection: options.userCollectionSlug,
     id: input.userId,
   })
 
   if (!user?.email) {
     await payload.create({
+      overrideAccess: true,
       collection: options.collections.logs,
       data: {
         user: input.userId,
@@ -55,6 +57,7 @@ export const sendEmailNotification = async ({
     const message = error instanceof Error ? error.message : 'Template rendering failed'
 
     await payload.create({
+      overrideAccess: true,
       collection: options.collections.logs,
       data: {
         user: input.userId,
@@ -86,6 +89,7 @@ export const sendEmailNotification = async ({
     const message = error instanceof Error ? error.message : 'Email send failed'
 
     await payload.create({
+      overrideAccess: true,
       collection: options.collections.logs,
       data: {
         user: input.userId,
@@ -106,6 +110,7 @@ export const sendEmailNotification = async ({
   }
 
   await payload.create({
+    overrideAccess: true,
     collection: options.collections.logs,
     data: {
       user: input.userId,

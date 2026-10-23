@@ -39,6 +39,7 @@ export const sendInAppNotification = async ({
     }
 
     await payload.create({
+      overrideAccess: true,
       collection: options.collections.notifications,
       data: {
         title,
@@ -51,6 +52,7 @@ export const sendInAppNotification = async ({
     })
 
     await payload.create({
+      overrideAccess: true,
       collection: options.collections.logs,
       data: {
         user: input.userId,
@@ -70,6 +72,7 @@ export const sendInAppNotification = async ({
 
     try {
       await payload.create({
+        overrideAccess: true,
         collection: options.collections.logs,
         data: {
           user: input.userId,

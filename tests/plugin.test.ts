@@ -186,13 +186,11 @@ describe('payload-notifications', () => {
 
     const processEventTask = tasks.find((t: any) => t.slug === 'notification:process-event')
 
-    // Call handler before onInit — should return failed state, not throw
-    const result = await processEventTask.handler({
-      input: { name: 'order.paid', userId: 'user_1' },
-    })
-
-    expect(result.state).toBe('failed')
-    expect(result.errorMessage).toContain('cannot run before plugin initialization')
+    await expect(
+      processEventTask.handler({
+        input: { name: 'order.paid', userId: 'user_1' },
+      }),
+    ).rejects.toThrow('cannot run before plugin initialization')
   })
 
   it('preserves existing onInit hooks', async () => {
