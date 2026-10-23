@@ -55,6 +55,7 @@ export const emitNotificationEvent = async ({
   const validatedEvent = assertNotificationEvent(event)
 
   await payload.jobs.queue({
+    overrideAccess: true,
     task: 'notification:process-event',
     input: validatedEvent,
   })
@@ -78,6 +79,7 @@ export const processEvent = async ({
 
     if (!validatedEvent.userId) {
       await payload.create({
+        overrideAccess: true,
         collection: options.collections.logs,
         data: {
           event: validatedEvent.name,
@@ -94,6 +96,7 @@ export const processEvent = async ({
       if (options.channels.length && !options.channels.includes(channel)) continue
 
       await payload.jobs.queue({
+        overrideAccess: true,
         task: 'notification:send',
         input: {
           userId: validatedEvent.userId,

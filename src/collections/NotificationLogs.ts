@@ -115,6 +115,8 @@ export const NotificationLogsCollection = ({
   overrides,
 }: BuildNotificationLogsCollectionArgs = {}): CollectionConfig => ({
   slug,
+  versions: false,
+  authorship: false,
   labels: {
     singular: 'Notification Log',
     plural: 'Notification Logs',
@@ -129,7 +131,7 @@ export const NotificationLogsCollection = ({
   admin: {
     useAsTitle: 'event',
     defaultColumns: ['event', 'channel', 'status', 'user', 'attempt', 'createdAt'],
-    ...(overrides?.admin || {}),
+    ...overrides?.admin,
   },
   fields: overrides?.fields || baseFields(userCollectionSlug),
   timestamps: true,

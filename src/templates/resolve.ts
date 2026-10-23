@@ -37,6 +37,7 @@ const resolveFromDatabase = async ({
 
   try {
     const result = await payload.find({
+      overrideAccess: true,
       collection: options.collections.templates,
       where: {
         and: [{ slug: { equals: templateKey } }, { status: { equals: 'active' } }],
