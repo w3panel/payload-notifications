@@ -32,6 +32,8 @@ describe('collection schemas', () => {
     expect(fieldNames).toContain('status')
     expect(fieldNames).toContain('template')
     expect(fieldNames).toContain('idempotencyKey')
+    expect(fieldNames).toContain('fingerprint')
+    expect(fieldNames).toContain('failureClassification')
     expect(fieldNames).toContain('attempt')
     expect(fieldNames).toContain('providerResponse')
   })

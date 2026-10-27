@@ -13,7 +13,12 @@ export type NotificationTemplateContext = {
 export type NotificationTemplateDefinition = {
   subject?: string
   title?: string
+  /** Plain-text / SMS / WhatsApp / in-app body (also email text fallback). */
   body: string
+  /** Email HTML source; when set, used for `html` output instead of escaping `body`. */
+  htmlBody?: string
+  /** Explicit email text body (preferred over `body` for email text when present). */
+  textBody?: string
 }
 
 export type NotificationTemplateSet = Partial<
@@ -143,6 +148,11 @@ export type NotificationTemplateRecord = {
   }>
 }
 
+export type NotificationsJobsOptions = {
+  /** Named Payload jobs queue. Defaults to `notifications`. */
+  queue?: string
+}
+
 export type NotificationsPluginOptions = {
   enabled?: boolean
   channels?: NotificationChannel[]
@@ -152,11 +162,17 @@ export type NotificationsPluginOptions = {
     logs?: string
     templates?: string
   }
+  jobs?: NotificationsJobsOptions
   templates?: {
     email?: string
     whatsapp?: string
     sms?: string
     registry?: NotificationTemplateRegistry
+    /**
+     * When true, seed missing `notification-templates` docs from the code registry on `onInit`.
+     * Default false (idempotent skip-existing when enabled).
+     */
+    seedOnInit?: boolean
   }
   providers?: {
     email?: EmailProviderConfig
@@ -186,11 +202,15 @@ export type NormalizedNotificationsPluginOptions = {
     logs: string
     templates: string
   }
+  jobs: {
+    queue: string
+  }
   templates: {
     email?: string
     whatsapp?: string
     sms?: string
     registry: NotificationTemplateRegistry
+    seedOnInit: boolean
   }
   providers: {
     email?: EmailProviderConfig
@@ -214,6 +234,14 @@ export type NormalizedNotificationsPluginOptions = {
   rules: NotificationRule[]
 }
 
+export type RenderedNotificationContent = {
+  subject?: string
+  title?: string
+  body: string
+  text: string
+  html: string
+}
+
 export type NotificationSendInput = {
   userId: string
   channel: NotificationChannel
@@ -222,7 +250,11 @@ export type NotificationSendInput = {
   eventPayload?: NotificationEventPayload
   classification?: NotificationClassification
   idempotencyKey?: string
+  /** @deprecated Payload job retries replace custom attempt tracking */
   attempt?: number
+  templateOverrides?: Partial<NotificationTemplateDefinition>
+  /** Optional Payload job id for log correlation */
+  jobId?: string | number
 }
 
 export type NotificationDispatchStatus = 'queued' | 'sent' | 'stored' | 'failed' | 'skipped'

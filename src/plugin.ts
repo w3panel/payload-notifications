@@ -5,7 +5,13 @@ import type {
   NotificationQueueTask,
   NotificationsPluginOptions,
 } from './types'
-import type { TaskConfig, TaskHandler, TaskHandlerResult } from 'payload'
+import type { PayloadRequest, TaskConfig, TaskHandler, TaskHandlerResult } from 'payload'
+
+type TaskFailArgs = {
+  input?: object
+  job: { id?: string | number; error?: unknown }
+  req: PayloadRequest
+}
 import {
   NotificationsCollection,
   type NotificationsCollectionOverrides,
@@ -19,8 +25,17 @@ import {
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
 import { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
+import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
 import { assertNotificationEvent, processEvent } from './jobs/processEvent'
 import { assertNotificationSendInput, sendNotification } from './jobs/sendNotification'
+import {
+  processEventInputSchema,
+  sendNotificationInputSchema,
+  sendNotificationOutputSchema,
+} from './jobs/taskSchemas'
+import { writeNotificationLog } from './jobs/writeLog'
+import { buildDeliveryFingerprint, createObservabilityEvent } from './reliability'
+import { seedTemplatesFromRegistry } from './templates/seed'
 
 const hasCollectionSlug = (collections: CollectionConfig[] = [], slug: string): boolean => {
   return collections.some((collection) => collection.slug === slug)
@@ -47,32 +62,112 @@ type RuntimeRef = {
   options: NormalizedNotificationsPluginOptions
 }
 
+const createSendOnFail =
+  (runtime: RuntimeRef) =>
+  async ({ input, job, req }: TaskFailArgs) => {
+    const options = runtime.options
+    const payload = req.payload || runtime.payload
+    if (!payload || !input || typeof input !== 'object') return
+
+    try {
+      const sendInput = assertNotificationSendInput(input)
+      const fingerprint = buildDeliveryFingerprint(sendInput)
+      const reason =
+        typeof job.error === 'object' && job.error && 'message' in job.error
+          ? String((job.error as { message?: unknown }).message || 'Notification send failed')
+          : 'Notification send failed after retries'
+
+      await writeNotificationLog({
+        payload,
+        options,
+        input: { ...sendInput, jobId: job.id },
+        status: 'failed',
+        error: reason,
+        fingerprint,
+        failureClassification: 'terminal',
+      })
+
+      if (options.observability.onDispatch) {
+        await options.observability.onDispatch(
+          createObservabilityEvent({
+            input: sendInput,
+            result: {
+              channel: sendInput.channel,
+              status: 'failed',
+              reason,
+            },
+            fingerprint,
+            classification: 'terminal',
+          }),
+        )
+      }
+    } catch {
+      // Best-effort terminal failure logging
+    }
+  }
+
 const createLiveTaskHandler = (
-  taskSlug: 'notification:process-event' | 'notification:send',
+  taskSlug: typeof NOTIFICATION_PROCESS_EVENT_TASK | typeof NOTIFICATION_SEND_TASK,
   runtime: RuntimeRef,
 ): TaskHandler<any> => {
-  return async ({ input }: { input?: unknown }) => {
-    if (!runtime.payload) {
+  return async ({ input, job, req }) => {
+    const payload = req?.payload || runtime.payload
+    if (!payload) {
       throw new Error(
         `payload-notifications: task ${taskSlug} cannot run before plugin initialization`,
       )
     }
 
-    if (taskSlug === 'notification:process-event') {
+    if (taskSlug === NOTIFICATION_PROCESS_EVENT_TASK) {
       const event = assertNotificationEvent(input)
-      await processEvent({ payload: runtime.payload, event, options: runtime.options })
+      await processEvent({ payload, event, options: runtime.options })
       return { output: {} } as TaskHandlerResult<any>
     }
 
-    const sendInput = assertNotificationSendInput(input)
+    const sendInput = assertNotificationSendInput({
+      ...(typeof input === 'object' && input ? input : {}),
+      jobId: job?.id,
+    })
     const result = await sendNotification({
-      payload: runtime.payload,
+      payload,
       input: sendInput,
       options: runtime.options,
     })
     return { output: result ?? {} } as TaskHandlerResult<any>
   }
 }
+
+const buildProcessEventTask = (runtime: RuntimeRef): TaskConfig<any> => ({
+  slug: NOTIFICATION_PROCESS_EVENT_TASK,
+  label: 'Process notification event',
+  interfaceName: 'NotificationProcessEventTask',
+  inputSchema: processEventInputSchema,
+  retries: 0,
+  handler: createLiveTaskHandler(NOTIFICATION_PROCESS_EVENT_TASK, runtime),
+})
+
+const buildSendTask = (runtime: RuntimeRef): TaskConfig<any> => ({
+  slug: NOTIFICATION_SEND_TASK,
+  label: 'Send notification',
+  interfaceName: 'NotificationSendTask',
+  inputSchema: sendNotificationInputSchema,
+  outputSchema: sendNotificationOutputSchema,
+  retries: {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 5000 },
+  },
+  concurrency: ({ input, queue }) => {
+    const userId = typeof input?.userId === 'string' ? input.userId : 'unknown'
+    const channel = typeof input?.channel === 'string' ? input.channel : 'unknown'
+    const event = typeof input?.event === 'string' ? input.event : 'unknown'
+    const template = typeof input?.template === 'string' ? input.template : 'unknown'
+    const idempotencyKey =
+      typeof input?.idempotencyKey === 'string' ? input.idempotencyKey : 'no-idempotency-key'
+    return `${queue}::${userId}::${channel}::${event}::${template}::${idempotencyKey}`
+  },
+  onFail: createSendOnFail(runtime),
+  handler: createLiveTaskHandler(NOTIFICATION_SEND_TASK, runtime),
+})
 
 const registerTaskDefinitions = (
   config: Config,
@@ -85,14 +180,19 @@ const registerTaskDefinitions = (
       ? [...(config.jobs.tasks as TaskConfig<any>[])]
       : []
 
+  const builders: Record<string, () => TaskConfig<any>> = {
+    [NOTIFICATION_PROCESS_EVENT_TASK]: () => buildProcessEventTask(runtime),
+    [NOTIFICATION_SEND_TASK]: () => buildSendTask(runtime),
+  }
+
   for (const task of tasks) {
     if (existing.has(task.slug)) continue
-
-    nextTasks.push({
-      slug: task.slug,
-      handler: createLiveTaskHandler(task.slug, runtime),
-    } as TaskConfig<any>)
-
+    const builder = builders[task.slug]
+    nextTasks.push(
+      builder
+        ? builder()
+        : ({ slug: task.slug, handler: async () => ({ output: {} }) } as TaskConfig<any>),
+    )
     existing.add(task.slug)
   }
 
@@ -111,10 +211,15 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
     }
 
     const collections = [...(config.collections || [])]
-    const withCollections = registerCollections(collections, normalizedOptions)
+    const withCollections = registerCollections(
+      collections,
+      normalizedOptions,
+      undefined,
+      () => runtime.options,
+    )
     const tasks = registerTaskDefinitions(
       config,
-      [{ slug: 'notification:process-event' }, { slug: 'notification:send' }],
+      [{ slug: NOTIFICATION_PROCESS_EVENT_TASK }, { slug: NOTIFICATION_SEND_TASK }],
       runtime,
     )
 
@@ -129,6 +234,17 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       },
       onInit: async (payload: Payload) => {
         runtime.payload = payload
+        if (runtime.options.templates.seedOnInit) {
+          try {
+            await seedTemplatesFromRegistry({ payload, options: runtime.options })
+          } catch (error) {
+            payload.logger?.error?.(
+              error instanceof Error
+                ? error.message
+                : 'payload-notifications: template seedOnInit failed',
+            )
+          }
+        }
         if (existingOnInit) {
           await existingOnInit(payload)
         }
@@ -145,6 +261,7 @@ export const registerCollections = (
     logs?: NotificationLogsCollectionOverrides
     templates?: NotificationTemplatesCollectionOverrides
   },
+  getOptions?: () => NormalizedNotificationsPluginOptions,
 ): CollectionConfig[] => {
   const next = [...collections]
 
@@ -173,6 +290,7 @@ export const registerCollections = (
       NotificationTemplatesCollection({
         slug: options.collections.templates,
         overrides: overrides?.templates,
+        getOptions: getOptions || (() => options),
       }),
     )
   }
@@ -202,11 +320,11 @@ export const createTaskHandlers = (
   options: NormalizedNotificationsPluginOptions,
 ) => {
   return {
-    'notification:process-event': async ({ input }: { input?: unknown }) => {
+    [NOTIFICATION_PROCESS_EVENT_TASK]: async ({ input }: { input?: unknown }) => {
       const event = assertNotificationEvent(input)
       await processEvent({ payload, event, options })
     },
-    'notification:send': async ({ input }: { input?: unknown }) => {
+    [NOTIFICATION_SEND_TASK]: async ({ input }: { input?: unknown }) => {
       const sendInput = assertNotificationSendInput(input)
       return sendNotification({ payload, input: sendInput, options })
     },

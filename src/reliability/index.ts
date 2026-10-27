@@ -23,7 +23,12 @@ export const buildDeliveryFingerprint = (input: NotificationSendInput): string =
 }
 
 export const classifyDispatchFailure = (error: unknown) => {
-  const message = error instanceof Error ? error.message : 'Unknown dispatch error'
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Unknown dispatch error'
   const normalized = message.toLowerCase()
 
   if (

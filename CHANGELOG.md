@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-27
+
+### Added
+- Admin **template studio** (preview + test-send + engine help) on `notification-templates`
+- Collection endpoints `POST …/preview` and `POST …/test-send`
+- Package export `@wtree/payload-notifications/admin`
+- `seedTemplatesFromRegistry` + `templates.seedOnInit`
+- Email `htmlBody` fidelity in resolve/render (real HTML when set)
+- Usage docs suite under `docs/` (getting-started through end-to-end + options-reference)
+- Deep Payload `TaskConfig` for notification tasks: `label`, `interfaceName`, `inputSchema`, `outputSchema`, exponential `retries` on send, fingerprint `concurrency`, and `onFail` log/observability hooks
+- `jobs.queue` plugin option (default `notifications`)
+- Unified `writeNotificationLog` helper aligned to schema fields (`fingerprint`, `failureClassification`, `providerResponse.messageID`, optional `meta.jobId`)
+- `renderDefinition` / `mergeTemplateDefinition` send-path helpers
+- Indexed `fingerprint` and `failureClassification` fields on `notification-logs`
+
+### Changed
+- **BREAKING (jobs):** Retriable send failures now **throw** so Payload retries the same job. Custom `attempt` re-queue loops were removed.
+- **BREAKING (jobs):** Notification jobs default to the named queue `notifications` (was implicit `default`). Override with `jobs.queue`.
+- Email / SMS / WhatsApp / in-app sends resolve templates then render via the Handlebars-subset engine before delivery (SMS/WhatsApp no longer send raw template keys).
+- Email subjects come from template definitions (token-replaced) instead of a hardcoded `Notification: ${event}` when a subject exists.
+- `processEvent` now forwards `classification` and per-channel `templateOverrides` into `notification:send` inputs.
+- Host apps should not force `state: 'succeeded'` on notification send handlers when a failure should retry.
+
+### Fixed
+- Idempotency fingerprint queries now match a real collection field
+- Provider message IDs written as `providerResponse.messageID` (schema field name)
+- Stale README section that claimed SMS/WhatsApp were mock providers
+- `COMPATIBILITY.md` updated for Payload 4 peers and Node engines
+
 ## [0.2.0] - 2026-10-26
 
 ### Changed
