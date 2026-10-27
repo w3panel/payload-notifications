@@ -61,6 +61,50 @@ describe('processEvent', () => {
     })
 
     expect(queue).toHaveBeenCalledTimes(2)
+    expect(queue.mock.calls[0]?.[0]?.queue).toBe('notifications')
+  })
+
+  it('propagates classification and templateOverrides into send jobs', async () => {
+    const queue = mock(async () => undefined)
+    const payload = {
+      jobs: {
+        queue,
+      },
+      create: mock(async () => undefined),
+    }
+
+    const options = normalizePluginOptions({
+      channels: ['email'],
+      rules: [
+        {
+          event: 'campaign.launch',
+          channels: ['email'],
+          template: 'campaign.launch',
+          templateOverrides: {
+            email: {
+              subject: 'Override subject',
+            },
+          },
+        },
+      ],
+    })
+
+    await processEvent({
+      payload: payload as never,
+      event: {
+        name: 'campaign.launch',
+        userId: 'user_1',
+        classification: 'marketing',
+        payload: { campaignId: 'c1' },
+      },
+      options,
+    })
+
+    expect(queue).toHaveBeenCalledTimes(1)
+    const queued = queue.mock.calls[0]?.[0]
+    expect(queued?.input?.classification).toBe('marketing')
+    expect(queued?.input?.templateOverrides?.subject).toBe('Override subject')
+    expect(queued?.queue).toBe('notifications')
   })
 
   it('respects async rule conditions', async () => {

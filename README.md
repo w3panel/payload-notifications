@@ -3,20 +3,40 @@
 Production-ready notifications plugin for Payload CMS with an event-driven, multi-channel architecture for email, WhatsApp, SMS, and in-app delivery.
 
 ## Features
-- Event-to-rule notification dispatch through Payload jobs
+- Event-to-rule notification dispatch through Payload jobs (named `notifications` queue)
+- Deep Payload job tasks with input/output schemas, exponential retries, concurrency keys, and `onFail` hooks
 - Channel implementations for email, WhatsApp, SMS, and in-app notifications
 - **Real provider integrations**: Meta WhatsApp Cloud API, Twilio SMS, and Twilio WhatsApp
 - Delivery log persistence and in-app notification storage with resolved template content
-- Template registry and resolution utilities with starter transactional templates
+- Template registry + DB `notification-templates` with admin **template studio** (preview / test-send)
+- Registry → DB seeding (`seedTemplatesFromRegistry` / `templates.seedOnInit`)
 - Preference mapping, consent enforcement, and custom policy hooks
-- Reliability helpers for idempotency, retry classification, retry-safe dispatch behavior, and observability hooks
+- Reliability helpers for idempotency, retry classification, throw-to-retry dispatch, and observability hooks
 - Fail-fast configuration validation with clear error messages
 - Bun-based test suite, contributor guidance, CI expectations, and release-readiness docs
+
+## Documentation
+
+| Guide | Topic |
+|-------|--------|
+| [docs/getting-started.md](docs/getting-started.md) | Install, first emit, jobs queue |
+| [docs/end-to-end.md](docs/end-to-end.md) | Full dynamic checklist |
+| [docs/templates.md](docs/templates.md) | Registry vs DB, engine syntax |
+| [docs/admin-templates.md](docs/admin-templates.md) | Preview, test-send, import map |
+| [docs/rules-and-triggers.md](docs/rules-and-triggers.md) | Rules, `defineTrigger`, domain hooks |
+| [docs/seeding.md](docs/seeding.md) | Seed templates from registry |
+| [docs/jobs-and-operations.md](docs/jobs-and-operations.md) | Queue ops, retries, debugging |
+| [docs/preferences-and-policy.md](docs/preferences-and-policy.md) | Consent + `canSend` |
+| [docs/observability.md](docs/observability.md) | Fingerprints + `onDispatch` |
+| [docs/options-reference.md](docs/options-reference.md) | Full options table |
+| [docs/providers.md](docs/providers.md) | Meta / Twilio providers |
 
 ## Installation
 ```bash
 bun add @wtree/payload-notifications
 ```
+
+After install/upgrade, regenerate the Payload **import map** so `@wtree/payload-notifications/admin#TemplateStudioField` resolves.
 
 ## Quick start
 ```ts
@@ -77,14 +97,21 @@ Available channels:
 
 ### Jobs processing
 
-The plugin registers two Payload job tasks automatically:
+The plugin registers two Payload job tasks automatically on the **`notifications`** queue (override with `jobs.queue`):
 
-- `notification:process-event` — routes events to matching rules and queues per-channel sends
-- `notification:send` — dispatches individual notifications to channels
+- `notification:process-event` — routes events to matching rules and queues per-channel sends (`retries: 0`)
+- `notification:send` — dispatches individual notifications (`retries: 2` with exponential backoff)
 
-Task handlers are wired up via the plugin's `onInit` hook and work out of the box. No host-app overrides are required.
+Task configs include `inputSchema` / `outputSchema`, fingerprint-based `concurrency`, and `onFail` logging. Handlers are wired via `onInit` and work out of the box.
 
-**Serverless environments:** Payload's job runner processes queued tasks. In serverless deployments (Vercel, AWS Lambda), you may need to configure an external job runner or use Payload's `autoRunJobs` option to ensure background tasks execute. See Payload's [jobs documentation](https://payloadcms.com/docs/jobs-queue/overview) for platform-specific guidance.
+**Retry semantics**
+- Retriable provider failures **throw** so Payload retries the **same** job (backoff / `waitUntil` / `hasError`).
+- Terminal outcomes (missing user, policy deny, skipped) return succeeded output with `status: 'skipped' | 'failed'` — they are not re-queued.
+- Do not force `state: 'succeeded'` in a host handler override when a send should retry.
+
+**Running the queue**
+- Long-lived hosts: configure `jobs.autoRun` for `queue: 'notifications'`.
+- Serverless (Vercel): skip `autoRun`; invoke `/api/payload-jobs/run?queue=notifications` on a cron with `CRON_SECRET` (or equivalent). See Payload's [jobs documentation](https://payloadcms.com/docs/jobs-queue/overview).
 
 ## Supported providers
 
@@ -254,11 +281,11 @@ const config = {
 ## Reliability helpers
 The package exposes helpers to support retry-safe delivery and structured observability.
 
-- `buildDeliveryFingerprint(input)` creates a deterministic deduplication key.
-- `classifyDispatchFailure(error)` marks failures as `retriable` or `terminal`.
+- `buildDeliveryFingerprint(input)` creates a deterministic deduplication key stored on `notification-logs.fingerprint`.
+- `classifyDispatchFailure(error)` marks failures as `retriable` or `terminal` (accepts `Error` or string).
 - `createObservabilityEvent(input)` shapes structured monitoring payloads.
 - The send flow blocks duplicate deliveries from already-completed fingerprints.
-- Retriable failures are re-queued up to three attempts.
+- Retriable failures throw into Payload job retries (2 additional attempts, exponential backoff from 5s).
 
 ## Testing and CI
 ```bash
@@ -273,10 +300,6 @@ Starter templates are included for:
 - `order.paid`
 - `order.shipped`
 - `auth.magic-link`
-
-## SMS and WhatsApp providers
-
-SMS and WhatsApp channels currently use mock provider adapters that return deterministic message IDs. Real Twilio and Meta integrations are planned for a follow-up release. The adapter pattern (`createSMSProvider`, `createWhatsAppProvider`) is ready for drop-in replacement.
 
 ## Migration from 0.1.x
 

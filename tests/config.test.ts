@@ -10,6 +10,7 @@ describe('normalizePluginOptions', () => {
     expect(normalized.userCollectionSlug).toBe('users')
     expect(normalized.collections.notifications).toBe('notifications')
     expect(normalized.collections.logs).toBe('notification-logs')
+    expect(normalized.jobs.queue).toBe('notifications')
     expect(normalized.rules).toEqual([])
   })
 

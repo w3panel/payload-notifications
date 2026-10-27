@@ -74,6 +74,11 @@ const baseFields = (userCollectionSlug: string): Field[] => [
     index: true,
   },
   {
+    name: 'fingerprint',
+    type: 'text',
+    index: true,
+  },
+  {
     name: 'idempotencyKey',
     type: 'text',
     index: true,
@@ -82,6 +87,12 @@ const baseFields = (userCollectionSlug: string): Field[] => [
     name: 'attempt',
     type: 'number',
     defaultValue: 1,
+    index: true,
+  },
+  {
+    name: 'failureClassification',
+    type: 'select',
+    options: ['retriable', 'terminal'],
     index: true,
   },
   {

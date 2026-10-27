@@ -27,34 +27,42 @@ describe('sendNotification reliability behaviors', () => {
     expect(result?.reason).toContain('Duplicate notification')
   })
 
-  it('requeues retriable failures when channel result indicates a retriable error', async () => {
+  it('throws on retriable failures so Payload can retry the same job', async () => {
+    const queue = mock(async () => ({}))
     const payload = {
       find: mock(async () => ({ docs: [] })),
       findByID: mock(async () => ({ id: 'user_1', email: 'user@example.com' })),
       create: mock(async () => ({})),
-      jobs: { queue: mock(async () => ({})) },
+      sendEmail: mock(async () => {
+        throw new Error('Provider timeout while sending')
+      }),
+      jobs: { queue },
     } as any
 
-    const options = normalizePluginOptions({
-      providers: {
-        sms: {
-          provider: 'twilio',
-          accountSid: 'sid',
-          authToken: 'token',
-          from: '+10000000000',
+    await expect(
+      sendNotification({
+        payload,
+        input: {
+          userId: 'user_1',
+          channel: 'email',
+          template: 'order.paid',
+          event: 'order.paid',
         },
-      },
-      templates: {
-        registry: {
-          'order.paid': {
-            email: {
-              subject: 'Order {{ payload.orderId }} paid',
-              body: '{{ payload.timeoutMessage }}',
-            },
-          },
-        },
-      },
-    })
+        options: normalizePluginOptions(),
+      }),
+    ).rejects.toThrow('Provider timeout while sending')
+
+    // Must not invent a second job — Payload retries the same job.
+    expect(queue).toHaveBeenCalledTimes(0)
+  })
+
+  it('does not throw for terminal channel failures', async () => {
+    const payload = {
+      find: mock(async () => ({ docs: [] })),
+      findByID: mock(async () => ({ id: 'user_1' })),
+      create: mock(async () => ({})),
+      jobs: { queue: mock(async () => ({})) },
+    } as any
 
     const result = await sendNotification({
       payload,
@@ -63,16 +71,12 @@ describe('sendNotification reliability behaviors', () => {
         channel: 'email',
         template: 'order.paid',
         event: 'order.paid',
-        eventPayload: {
-          timeoutMessage: 'Provider timeout while sending',
-        },
-        attempt: 1,
       },
-      options,
+      options: normalizePluginOptions(),
     })
 
-    expect(result?.status).toBe('failed')
-    // expect(payload.jobs.queue).toHaveBeenCalledTimes(1)
+    expect(result?.status).toBe('skipped')
+    expect(result?.reason).toContain('email not found')
   })
 
   it('emits observability events through the configured hook', async () => {
@@ -87,14 +91,6 @@ describe('sendNotification reliability behaviors', () => {
     const options = normalizePluginOptions({
       observability: {
         onDispatch,
-      },
-      providers: {
-        sms: {
-          provider: 'twilio',
-          accountSid: 'sid',
-          authToken: 'token',
-          from: '+10000000000',
-        },
       },
     })
 
@@ -111,5 +107,34 @@ describe('sendNotification reliability behaviors', () => {
     })
 
     expect(onDispatch).toHaveBeenCalled()
+  })
+
+  it('persists fingerprint on successful email delivery logs', async () => {
+    const createCalls: any[] = []
+    const payload = {
+      find: mock(async () => ({ docs: [] })),
+      findByID: mock(async () => ({ id: 'user_1', email: 'user@example.com' })),
+      create: mock(async (args: any) => {
+        createCalls.push(args)
+        return {}
+      }),
+      sendEmail: mock(async () => undefined),
+    } as any
+
+    await sendNotification({
+      payload,
+      input: {
+        userId: 'user_1',
+        channel: 'email',
+        template: 'order.paid',
+        event: 'order.paid',
+        idempotencyKey: 'evt_fingerprint',
+      },
+      options: normalizePluginOptions(),
+    })
+
+    const logData = createCalls.find((call) => call.collection === 'notification-logs')?.data
+    expect(logData?.fingerprint).toContain('user_1::email::order.paid')
+    expect(logData?.providerResponse?.provider).toBe('payload-email')
   })
 })

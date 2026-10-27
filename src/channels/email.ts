@@ -3,18 +3,29 @@ import type {
   NormalizedNotificationsPluginOptions,
   NotificationDispatchResult,
   NotificationSendInput,
-  NotificationTemplateContext,
+  RenderedNotificationContent,
 } from '../types'
+import { writeNotificationLog } from '../jobs/writeLog'
 import { renderTemplate } from '../templates/render'
 
 export const sendEmailNotification = async ({
   payload,
   input,
   options,
+  rendered,
+  fingerprint,
+  templateSlug,
+  templateVersion,
+  renderDurationMs,
 }: {
   payload: Payload
   input: NotificationSendInput
   options: NormalizedNotificationsPluginOptions
+  rendered?: RenderedNotificationContent
+  fingerprint?: string
+  templateSlug?: string
+  templateVersion?: number
+  renderDurationMs?: number
 }): Promise<NotificationDispatchResult> => {
   const user = await payload.findByID({
     overrideAccess: true,
@@ -23,17 +34,14 @@ export const sendEmailNotification = async ({
   })
 
   if (!user?.email) {
-    await payload.create({
-      overrideAccess: true,
-      collection: options.collections.logs,
-      data: {
-        user: input.userId,
-        event: input.event,
-        channel: 'email',
-        status: 'skipped',
-        template: input.template,
-        error: 'User email not found',
-      },
+    await writeNotificationLog({
+      payload,
+      options,
+      input,
+      status: 'skipped',
+      error: 'User email not found',
+      fingerprint,
+      failureClassification: 'terminal',
     })
 
     return {
@@ -43,62 +51,64 @@ export const sendEmailNotification = async ({
     }
   }
 
-  const context: NotificationTemplateContext = {
-    event: input.event,
-    userId: input.userId,
-    payload: input.eventPayload,
-  }
+  let content = rendered
 
-  let rendered
-
-  try {
-    rendered = await renderTemplate(input.template, context)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Template rendering failed'
-
-    await payload.create({
-      overrideAccess: true,
-      collection: options.collections.logs,
-      data: {
-        user: input.userId,
+  if (!content) {
+    try {
+      const legacy = await renderTemplate(input.template, {
         event: input.event,
+        userId: input.userId,
+        payload: input.eventPayload,
+      })
+      content = {
+        subject: legacy.subject,
+        body: legacy.text || input.template,
+        text: legacy.text || input.template,
+        html: legacy.html || `<p>${input.template}</p>`,
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Template rendering failed'
+
+      await writeNotificationLog({
+        payload,
+        options,
+        input,
+        status: 'failed',
+        error: message,
+        fingerprint,
+        failureClassification: 'terminal',
+        provider: 'payload-email',
+      })
+
+      return {
         channel: 'email',
         status: 'failed',
-        template: input.template,
-        error: message,
-      },
-    })
-
-    return {
-      channel: 'email',
-      status: 'failed',
-      reason: message,
-      provider: 'payload-email',
+        reason: message,
+        provider: 'payload-email',
+      }
     }
   }
 
   try {
     await payload.sendEmail({
       to: user.email,
-      subject: rendered.subject || `Notification: ${input.event}`,
-      html: rendered.html || `<p>${rendered.text || input.template}</p>`,
-      text: rendered.text,
+      subject: content.subject || `Notification: ${input.event}`,
+      html: content.html || `<p>${content.text || content.body}</p>`,
+      text: content.text || content.body,
       from: options.providers.email?.defaultFromAddress,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Email send failed'
 
-    await payload.create({
-      overrideAccess: true,
-      collection: options.collections.logs,
-      data: {
-        user: input.userId,
-        event: input.event,
-        channel: 'email',
-        status: 'failed',
-        template: input.template,
-        error: message,
-      },
+    await writeNotificationLog({
+      payload,
+      options,
+      input,
+      status: 'failed',
+      error: message,
+      fingerprint,
+      failureClassification: undefined,
+      provider: 'payload-email',
     })
 
     return {
@@ -109,26 +119,23 @@ export const sendEmailNotification = async ({
     }
   }
 
-  await payload.create({
-    overrideAccess: true,
-    collection: options.collections.logs,
-    data: {
-      user: input.userId,
-      event: input.event,
-      channel: 'email',
-      status: 'sent',
-      template: input.template,
-      providerResponse: {
-        provider: 'payload-email',
-        raw: rendered.meta,
-      },
-    },
+  await writeNotificationLog({
+    payload,
+    options,
+    input,
+    status: 'sent',
+    fingerprint,
+    provider: 'payload-email',
+    templateSlug,
+    templateVersion,
+    renderDurationMs,
+    providerResponseRaw: { subject: content.subject },
   })
 
   return {
     channel: 'email',
     status: 'sent',
     provider: 'payload-email',
-    response: rendered.meta,
+    response: { subject: content.subject },
   }
 }

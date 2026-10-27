@@ -4,6 +4,12 @@ import type {
   NotificationEvent,
   NotificationRule,
 } from '../types'
+import {
+  NOTIFICATION_PROCESS_EVENT_TASK,
+  NOTIFICATION_SEND_TASK,
+  NOTIFICATIONS_JOB_QUEUE,
+} from './constants'
+import { writeNotificationLog } from './writeLog'
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -48,15 +54,18 @@ export const assertNotificationEvent = (value: unknown): NotificationEvent => {
 export const emitNotificationEvent = async ({
   payload,
   event,
+  queue = NOTIFICATIONS_JOB_QUEUE,
 }: {
   payload: Payload
   event: NotificationEvent
+  queue?: string
 }) => {
   const validatedEvent = assertNotificationEvent(event)
 
   await payload.jobs.queue({
     overrideAccess: true,
-    task: 'notification:process-event',
+    task: NOTIFICATION_PROCESS_EVENT_TASK,
+    queue,
     input: validatedEvent,
   })
 }
@@ -72,22 +81,25 @@ export const processEvent = async ({
 }) => {
   const validatedEvent = assertNotificationEvent(event)
   const rules = resolveRulesForEvent(validatedEvent.name, options.rules)
+  const queue = options.jobs.queue
 
   for (const rule of rules) {
     const shouldRun = rule.condition ? await rule.condition(validatedEvent.payload ?? {}) : true
     if (!shouldRun) continue
 
     if (!validatedEvent.userId) {
-      await payload.create({
-        overrideAccess: true,
-        collection: options.collections.logs,
-        data: {
+      await writeNotificationLog({
+        payload,
+        options,
+        input: {
+          userId: '',
           event: validatedEvent.name,
           channel: 'inapp',
-          status: 'failed',
           template: rule.template,
-          error: 'Notification event userId is required to queue sends',
         },
+        status: 'failed',
+        error: 'Notification event userId is required to queue sends',
+        failureClassification: 'terminal',
       })
       continue
     }
@@ -97,14 +109,17 @@ export const processEvent = async ({
 
       await payload.jobs.queue({
         overrideAccess: true,
-        task: 'notification:send',
+        task: NOTIFICATION_SEND_TASK,
+        queue,
         input: {
           userId: validatedEvent.userId,
           channel,
           template: rule.template,
           event: validatedEvent.name,
           eventPayload: validatedEvent.payload,
+          classification: validatedEvent.classification,
           idempotencyKey: validatedEvent.idempotencyKey,
+          templateOverrides: rule.templateOverrides?.[channel],
         },
       })
     }
