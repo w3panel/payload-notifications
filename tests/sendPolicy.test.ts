@@ -62,6 +62,48 @@ describe('sendNotification preference and policy controls', () => {
     expect(create).toHaveBeenCalledTimes(1)
   })
 
+  it('enforces marketing consent for classification queued through processEvent', async () => {
+    const { processEvent } = await import('../src/jobs/processEvent')
+    const queue = mock(async () => undefined)
+    const create = mock(async () => undefined)
+
+    await processEvent({
+      payload: { jobs: { queue }, create } as never,
+      event: {
+        name: 'campaign.launch',
+        userId: 'user_1',
+        classification: 'marketing',
+      },
+      options: normalizePluginOptions({
+        channels: ['email'],
+        rules: [
+          {
+            event: 'campaign.launch',
+            channels: ['email'],
+            template: 'campaign.launch',
+          },
+        ],
+      }),
+    })
+
+    expect(queue.mock.calls[0]?.[0]?.input?.classification).toBe('marketing')
+
+    const result = await sendNotification({
+      payload: {
+        create,
+        findByID: mock(async () => ({
+          id: 'user_1',
+          notificationPreferences: { marketing: false },
+        })),
+      } as never,
+      input: queue.mock.calls[0]?.[0]?.input,
+      options: normalizePluginOptions(),
+    })
+
+    expect(result?.status).toBe('skipped')
+    expect(result?.reason).toContain('not consented')
+  })
+
   it('logs and skips when custom policy denies delivery', async () => {
     const create = mock(async () => undefined)
     const payload = {

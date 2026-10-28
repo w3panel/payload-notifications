@@ -111,6 +111,8 @@ export const NotificationsCollection = ({
   overrides,
 }: BuildNotificationCollectionArgs = {}): CollectionConfig => ({
   slug,
+  versions: false,
+  authorship: false,
   labels: {
     singular: 'Notification',
     plural: 'Notifications',
@@ -125,7 +127,7 @@ export const NotificationsCollection = ({
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'recipient', 'type', 'priority', 'isRead', 'createdAt'],
-    ...(overrides?.admin || {}),
+    ...overrides?.admin,
   },
   hooks: {
     beforeChange: [

@@ -1,21 +1,38 @@
-import { CollectionConfig } from 'payload/types';
-
-import type { Access, CollectionConfig, Field } from 'payload'
+import type { Access, CollectionConfig, Endpoint, Field } from 'payload'
+import type { NormalizedNotificationsPluginOptions } from '../types'
+import { templatePreviewEndpoint } from '../endpoints/templatePreview'
+import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
   admin?: Partial<CollectionConfig['admin']>
   fields?: Field[]
+  endpoints?: Endpoint[]
 }
 
 type BuildNotificationTemplatesCollectionArgs = {
   slug?: string
   overrides?: NotificationTemplatesCollectionOverrides
+  /** Used to wire preview/test-send with live plugin options. */
+  getOptions?: () => NormalizedNotificationsPluginOptions
 }
 
 const defaultReadAccess: Access = ({ req }) => Boolean(req.user)
 const defaultWriteAccess: Access = ({ req }) => Boolean(req.user)
 const denyAccess: Access = () => false
+
+/** Template keys match event names, e.g. `order.paid`, `user:signup`, `welcome-email`. */
+export const TEMPLATE_SLUG_PATTERN = /^[A-Za-z0-9]+(?:[._:-][A-Za-z0-9]+)*$/
+
+export const validateTemplateSlug = (value: unknown): string | true => {
+  if (typeof value !== 'string' || !value) return true
+  return TEMPLATE_SLUG_PATTERN.test(value)
+    ? true
+    : 'Slug may only contain letters, numbers, and single ".", "_", ":" or "-" separators (e.g. order.paid)'
+}
+
+const engineHint =
+  'Supports {{ tokens }}, {{#if}}, {{#each}}, and formatters. See docs/templates.md.'
 
 const emailGroup: Field = {
   name: 'email',
@@ -24,9 +41,23 @@ const emailGroup: Field = {
     condition: (_, siblingData) => siblingData?.channels?.includes?.('email'),
   },
   fields: [
-    { name: 'subject', type: 'text' },
-    { name: 'htmlBody', type: 'textarea' },
-    { name: 'textBody', type: 'textarea' },
+    { name: 'subject', type: 'text', admin: { description: engineHint } },
+    {
+      name: 'htmlBody',
+      type: 'code',
+      admin: {
+        language: 'html',
+        description: `HTML email body. ${engineHint} Use {{{ raw }}} only when intentional.`,
+      },
+    },
+    {
+      name: 'textBody',
+      type: 'code',
+      admin: {
+        language: 'plaintext',
+        description: `Plain-text email body. ${engineHint}`,
+      },
+    },
   ],
 }
 
@@ -36,7 +67,13 @@ const smsGroup: Field = {
   admin: {
     condition: (_, siblingData) => siblingData?.channels?.includes?.('sms'),
   },
-  fields: [{ name: 'body', type: 'textarea' }],
+  fields: [
+    {
+      name: 'body',
+      type: 'textarea',
+      admin: { description: `SMS body. ${engineHint}` },
+    },
+  ],
 }
 
 const whatsappGroup: Field = {
@@ -46,8 +83,19 @@ const whatsappGroup: Field = {
     condition: (_, siblingData) => siblingData?.channels?.includes?.('whatsapp'),
   },
   fields: [
-    { name: 'body', type: 'textarea' },
-    { name: 'hsmTemplateId', type: 'text' },
+    {
+      name: 'body',
+      type: 'textarea',
+      admin: { description: `WhatsApp text body. ${engineHint}` },
+    },
+    {
+      name: 'hsmTemplateId',
+      type: 'text',
+      admin: {
+        description:
+          'Optional Meta HSM template id (not used for plain-text sends in this release).',
+      },
+    },
   ],
 }
 
@@ -58,14 +106,21 @@ const inappGroup: Field = {
     condition: (_, siblingData) => siblingData?.channels?.includes?.('inapp'),
   },
   fields: [
-    { name: 'title', type: 'text' },
-    { name: 'body', type: 'textarea' },
+    { name: 'title', type: 'text', admin: { description: engineHint } },
+    {
+      name: 'body',
+      type: 'textarea',
+      admin: { description: `In-app message body. ${engineHint}` },
+    },
   ],
 }
 
 const variablesField: Field = {
   name: 'variables',
   type: 'array',
+  admin: {
+    description: 'Documented variables for authors (not strictly enforced at render time).',
+  },
   fields: [
     { name: 'name', type: 'text', required: true },
     {
@@ -79,7 +134,21 @@ const variablesField: Field = {
   ],
 }
 
-const baseFields: Field[] = [
+const templateStudioField = (collectionSlug: string): Field => ({
+  name: 'templateStudio',
+  type: 'ui',
+  admin: {
+    components: {
+      Field: '@wtree/payload-notifications/admin#TemplateStudioField',
+    },
+    custom: {
+      collectionSlug,
+      apiRoute: '/api',
+    },
+  },
+})
+
+const baseFields = (collectionSlug: string): Field[] => [
   {
     name: 'name',
     type: 'text',
@@ -92,6 +161,10 @@ const baseFields: Field[] = [
     required: true,
     unique: true,
     index: true,
+    validate: validateTemplateSlug,
+    admin: {
+      description: 'Event key this template renders for, e.g. order.paid.',
+    },
   },
   {
     name: 'description',
@@ -132,6 +205,7 @@ const baseFields: Field[] = [
   whatsappGroup,
   inappGroup,
   variablesField,
+  templateStudioField(collectionSlug),
 ]
 
 /**
@@ -161,77 +235,43 @@ const autoIncrementVersion = ({
 export const NotificationTemplatesCollection = ({
   slug = 'notification-templates',
   overrides,
-}: BuildNotificationTemplatesCollectionArgs = {}): CollectionConfig => ({
-  slug,
-  labels: {
-    singular: 'Notification Template',
-    plural: 'Notification Templates',
-  },
-  access: {
-    read: overrides?.access?.read || defaultReadAccess,
-    create: overrides?.access?.create || defaultWriteAccess,
-    update: overrides?.access?.update || defaultWriteAccess,
-    delete: overrides?.access?.delete || denyAccess,
-    admin: overrides?.access?.admin,
-  },
-  admin: {
-    useAsTitle: 'name',
-    defaultColumns: ['name', 'slug', 'category', 'status', 'version', 'updatedAt'],
-    ...overrides?.admin,
-  },
-  hooks: {
-    beforeChange: [autoIncrementVersion],
-  },
-  fields: overrides?.fields || baseFields,
-  timestamps: true,
-})
+  getOptions,
+}: BuildNotificationTemplatesCollectionArgs = {}): CollectionConfig => {
+  const defaultOptionsGetter = (): NormalizedNotificationsPluginOptions => {
+    throw new Error('payload-notifications: template endpoints require plugin options')
+  }
 
-export const NotificationTemplates: CollectionConfig = {
-  slug: 'notification-templates',
-  admin: { useAsTitle: 'name' },
-  fields: [
-    { name: 'name', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, unique: true },
-    { name: 'description', type: 'textarea' },
-    {
-      name: 'channels',
-      type: 'select',
-      hasMany: true,
-      options: ['email', 'sms', 'whatsapp', 'inapp'],
+  const endpoints: Endpoint[] = [
+    templatePreviewEndpoint('/preview'),
+    templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
+    ...(overrides?.endpoints || []),
+  ]
+
+  return {
+    slug,
+    versions: false,
+    authorship: false,
+    labels: {
+      singular: 'Notification Template',
+      plural: 'Notification Templates',
     },
-    {
-      name: 'email',
-      type: 'group',
-      fields: [
-        { name: 'subject', type: 'text' },
-        { name: 'html', type: 'textarea' },
-        { name: 'text', type: 'textarea' },
-      ],
+    access: {
+      read: overrides?.access?.read || defaultReadAccess,
+      create: overrides?.access?.create || defaultWriteAccess,
+      update: overrides?.access?.update || defaultWriteAccess,
+      delete: overrides?.access?.delete || denyAccess,
+      admin: overrides?.access?.admin,
     },
-    {
-      name: 'sms',
-      type: 'group',
-      fields: [{ name: 'body', type: 'textarea' }],
+    admin: {
+      useAsTitle: 'name',
+      defaultColumns: ['name', 'slug', 'category', 'status', 'version', 'updatedAt'],
+      ...overrides?.admin,
     },
-    {
-      name: 'whatsapp',
-      type: 'group',
-      fields: [{ name: 'body', type: 'textarea' }],
+    hooks: {
+      beforeChange: [autoIncrementVersion],
     },
-    {
-      name: 'inapp',
-      type: 'group',
-      fields: [
-        { name: 'title', type: 'text' },
-        { name: 'body', type: 'textarea' },
-      ],
-    },
-    { name: 'variables', type: 'json' },
-    {
-      name: 'status',
-      type: 'select',
-      defaultValue: 'draft',
-      options: ['draft', 'active'],
-    },
-  ],
-};
+    endpoints,
+    fields: overrides?.fields || baseFields(slug),
+    timestamps: true,
+  }
+}

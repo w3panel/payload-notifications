@@ -76,7 +76,20 @@ describe('payload-notifications', () => {
     const config = plugin({ collections: [] })
 
     expect(config.collections).toHaveLength(3)
-    expect(config.jobs && 'tasks' in config.jobs ? config.jobs.tasks : []).toHaveLength(2)
+    const tasks = config.jobs && 'tasks' in config.jobs ? (config.jobs.tasks as any[]) : []
+    expect(tasks).toHaveLength(2)
+
+    const sendTask = tasks.find((task) => task.slug === 'notification:send')
+    expect(sendTask?.retries?.attempts).toBe(2)
+    expect(sendTask?.retries?.backoff?.type).toBe('exponential')
+    expect(sendTask?.inputSchema?.length).toBeGreaterThan(0)
+    expect(sendTask?.outputSchema?.length).toBeGreaterThan(0)
+    expect(typeof sendTask?.onFail).toBe('function')
+    expect(typeof sendTask?.concurrency).toBe('function')
+
+    const processTask = tasks.find((task) => task.slug === 'notification:process-event')
+    expect(processTask?.retries).toBe(0)
+    expect(processTask?.inputSchema?.length).toBeGreaterThan(0)
   })
 
   it('creates runnable task handlers for process-event and send', async () => {
@@ -186,13 +199,11 @@ describe('payload-notifications', () => {
 
     const processEventTask = tasks.find((t: any) => t.slug === 'notification:process-event')
 
-    // Call handler before onInit — should return failed state, not throw
-    const result = await processEventTask.handler({
-      input: { name: 'order.paid', userId: 'user_1' },
-    })
-
-    expect(result.state).toBe('failed')
-    expect(result.errorMessage).toContain('cannot run before plugin initialization')
+    await expect(
+      processEventTask.handler({
+        input: { name: 'order.paid', userId: 'user_1' },
+      }),
+    ).rejects.toThrow('cannot run before plugin initialization')
   })
 
   it('preserves existing onInit hooks', async () => {

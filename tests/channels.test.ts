@@ -173,12 +173,13 @@ describe('channel implementations', () => {
   })
 
   it('returns sent sms result with provider metadata', async () => {
-    globalThis.fetch = createMockFetch({
+    const fetchMock = createMockFetch({
       sid: 'SM12345',
       status: 'queued',
       to: '+15550000000',
       from: '+15551111111',
     })
+    globalThis.fetch = fetchMock
 
     const payload = createMockPayload({
       findByID: mock(async () => ({ id: 'user_1', phone: '+15550000000' })),
@@ -190,8 +191,9 @@ describe('channel implementations', () => {
       input: {
         userId: 'user_1',
         channel: 'sms',
-        template: 'order-paid',
+        template: 'Order {{ payload.orderId }} paid',
         event: 'order.paid',
+        eventPayload: { orderId: 'ORD-88' },
       },
       options: normalizePluginOptions({
         channels: ['sms'],
@@ -209,6 +211,9 @@ describe('channel implementations', () => {
     expect(result.status).toBe('sent')
     expect(result.provider).toBe('twilio')
     expect(payload.create).toHaveBeenCalledTimes(1)
+
+    const form = String((fetchMock as any).mock.calls[0]?.[1]?.body || '')
+    expect(form).toContain('Order+ORD-88+paid')
   })
 
   it('returns skipped sms result when phone is missing', async () => {

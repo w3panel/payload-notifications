@@ -23,6 +23,11 @@ describe('reliability helpers', () => {
     expect(result.classification).toBe('retriable')
   })
 
+  it('classifies string failure messages as retriable', () => {
+    const result = classifyDispatchFailure('Provider timeout while sending')
+    expect(result.classification).toBe('retriable')
+  })
+
   it('classifies validation failures as terminal', () => {
     const result = classifyDispatchFailure(new Error('Template set not found'))
     expect(result.classification).toBe('terminal')

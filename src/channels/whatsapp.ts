@@ -4,35 +4,47 @@ import type {
   NotificationDispatchResult,
   NotificationSendInput,
   NotificationTemplateContext,
+  RenderedNotificationContent,
 } from '../types'
+import { writeNotificationLog } from '../jobs/writeLog'
 import { createWhatsAppProvider } from '../providers/whatsapp'
+import { renderDefinition } from '../templates/renderDefinition'
 
 export const sendWhatsAppNotification = async ({
   payload,
   input,
   options,
+  rendered,
+  fingerprint,
+  templateSlug,
+  templateVersion,
+  renderDurationMs,
 }: {
   payload: Payload
   input: NotificationSendInput
   options: NormalizedNotificationsPluginOptions
+  rendered?: RenderedNotificationContent
+  fingerprint?: string
+  templateSlug?: string
+  templateVersion?: number
+  renderDurationMs?: number
 }): Promise<NotificationDispatchResult> => {
   const user = await payload.findByID({
+    overrideAccess: true,
     collection: options.userCollectionSlug,
     id: input.userId,
   })
   const phone = user?.phone || user?.phoneNumber
 
   if (!phone) {
-    await payload.create({
-      collection: options.collections.logs,
-      data: {
-        user: input.userId,
-        event: input.event,
-        channel: 'whatsapp',
-        status: 'skipped',
-        template: input.template,
-        error: 'User phone not found for WhatsApp delivery',
-      },
+    await writeNotificationLog({
+      payload,
+      options,
+      input,
+      status: 'skipped',
+      error: 'User phone not found for WhatsApp delivery',
+      fingerprint,
+      failureClassification: 'terminal',
     })
 
     return {
@@ -42,34 +54,35 @@ export const sendWhatsAppNotification = async ({
     }
   }
 
-  const provider = createWhatsAppProvider(options)
   const context: NotificationTemplateContext = {
     event: input.event,
     userId: input.userId,
     payload: input.eventPayload,
   }
 
+  const body = rendered?.body || renderDefinition({ body: input.template }, context).body
+
+  const provider = createWhatsAppProvider(options)
+
   try {
     const result = await provider.send({
       to: phone,
-      template: input.template,
+      template: body,
       context,
     })
 
-    await payload.create({
-      collection: options.collections.logs,
-      data: {
-        user: input.userId,
-        event: input.event,
-        channel: 'whatsapp',
-        status: 'sent',
-        template: input.template,
-        providerResponse: {
-          provider: result.provider,
-          messageId: result.messageId,
-          raw: result.response,
-        },
-      },
+    await writeNotificationLog({
+      payload,
+      options,
+      input,
+      status: 'sent',
+      fingerprint,
+      provider: result.provider,
+      providerMessageId: result.messageId,
+      providerResponseRaw: result.response,
+      templateSlug,
+      templateVersion,
+      renderDurationMs,
     })
 
     return {
@@ -82,16 +95,14 @@ export const sendWhatsAppNotification = async ({
   } catch (error) {
     const message = error instanceof Error ? error.message : 'WhatsApp send failed'
 
-    await payload.create({
-      collection: options.collections.logs,
-      data: {
-        user: input.userId,
-        event: input.event,
-        channel: 'whatsapp',
-        status: 'failed',
-        template: input.template,
-        error: message,
-      },
+    await writeNotificationLog({
+      payload,
+      options,
+      input,
+      status: 'failed',
+      error: message,
+      fingerprint,
+      provider: options.providers.whatsapp?.provider,
     })
 
     return {

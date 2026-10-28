@@ -37,6 +37,7 @@ const resolveFromDatabase = async ({
 
   try {
     const result = await payload.find({
+      overrideAccess: true,
       collection: options.collections.templates,
       where: {
         and: [{ slug: { equals: templateKey } }, { status: { equals: 'active' } }],
@@ -52,22 +53,27 @@ const resolveFromDatabase = async ({
 
     if (!channelContent || typeof channelContent !== 'object') return null
 
-    const definition: NotificationTemplateDefinition = {
-      body:
-        (channelContent as Record<string, string>).body ||
-        (channelContent as Record<string, string>).htmlBody ||
-        (channelContent as Record<string, string>).textBody ||
-        '',
-    }
+    const content = channelContent as Record<string, string>
+    let definition: NotificationTemplateDefinition
 
     if (channel === 'email') {
-      const email = channelContent as Record<string, string>
-      if (email.subject) definition.subject = email.subject
-    }
-
-    if (channel === 'inapp') {
-      const inapp = channelContent as Record<string, string>
-      if (inapp.title) definition.title = inapp.title
+      const textBody = content.textBody || ''
+      const htmlBody = content.htmlBody || ''
+      definition = {
+        subject: content.subject,
+        body: textBody || htmlBody || '',
+        textBody: textBody || undefined,
+        htmlBody: htmlBody || undefined,
+      }
+    } else if (channel === 'inapp') {
+      definition = {
+        title: content.title,
+        body: content.body || '',
+      }
+    } else {
+      definition = {
+        body: content.body || content.textBody || content.htmlBody || '',
+      }
     }
 
     return {

@@ -32,7 +32,9 @@ export type {
   NotificationTemplateResolver,
   NotificationTemplateSet,
   NotificationTriggerDefinition,
+  NotificationsJobsOptions,
   PreferenceFieldMapping,
+  RenderedNotificationContent,
   RenderedTemplate,
   SMSProviderAdapter,
   SMSProviderConfig,
@@ -51,6 +53,11 @@ export type { NotificationLogsCollectionOverrides } from './collections/Notifica
 export { NotificationTemplatesCollection } from './collections/NotificationTemplates'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
 export {
+  NOTIFICATION_PROCESS_EVENT_TASK,
+  NOTIFICATION_SEND_TASK,
+  NOTIFICATIONS_JOB_QUEUE,
+} from './jobs/constants'
+export {
   assertNotificationEvent,
   emitNotificationEvent,
   processEvent,
@@ -61,6 +68,7 @@ export {
   queueNotificationSend,
   sendNotification,
 } from './jobs/sendNotification'
+export { writeNotificationLog } from './jobs/writeLog'
 export { evaluateNotificationPolicy } from './policy/evaluatePolicy'
 export { createSMSProvider } from './providers/sms'
 export { createWhatsAppProvider } from './providers/whatsapp'
@@ -79,7 +87,12 @@ export {
 } from './reliability'
 export { buildCommonEventContext, buildTemplateContext, getContextValue } from './templates/context'
 export { renderTemplate } from './templates/render'
+export { mergeTemplateDefinition, renderDefinition } from './templates/renderDefinition'
+export { buildDefinitionFromTemplateDoc } from './templates/fromDoc'
+export { previewTemplateDoc } from './templates/preview'
 export { resolveTemplate, resolveTemplateSync } from './templates/resolve'
+export { seedTemplatesFromRegistry } from './templates/seed'
+export type { SeedTemplatesResult } from './templates/seed'
 export {
   compile as compileTemplate,
   render as renderCompiledTemplate,

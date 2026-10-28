@@ -1,4 +1,5 @@
 import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions } from '../types'
+import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
 
 /**
@@ -100,10 +101,14 @@ export const normalizePluginOptions = (
       logs: logsSlug,
       templates: templatesSlug,
     },
+    jobs: {
+      queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
+    },
     templates: {
       email: options.templates?.email,
       whatsapp: options.templates?.whatsapp,
       sms: options.templates?.sms,
+      seedOnInit: options.templates?.seedOnInit === true,
       registry: {
         ...getDefaultTemplateRegistry(),
         ...options.templates?.registry,

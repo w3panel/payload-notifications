@@ -56,6 +56,7 @@ describe('sendNotification', () => {
         channel: 'email',
         template: 'order.paid',
         event: 'order.paid',
+        eventPayload: { orderId: 'ORD-1' },
       },
       options: normalizePluginOptions(),
     })
@@ -63,6 +64,30 @@ describe('sendNotification', () => {
     expect(result?.status).toBe('sent')
     expect(sendEmail).toHaveBeenCalledTimes(1)
     expect(create).toHaveBeenCalledTimes(1)
+    expect(sendEmail.mock.calls[0]?.[0]?.subject).toBe('Order ORD-1 paid')
+  })
+
+  it('applies templateOverrides before rendering email', async () => {
+    const sendEmail = mock(async () => undefined)
+    const create = mock(async () => undefined)
+    const findByID = mock(async () => ({ id: 'user_1', email: 'demo@example.com' }))
+
+    await sendNotification({
+      payload: { sendEmail, create, findByID } as never,
+      input: {
+        userId: 'user_1',
+        channel: 'email',
+        template: 'order.paid',
+        event: 'order.paid',
+        eventPayload: { orderId: 'ORD-9' },
+        templateOverrides: {
+          subject: 'Custom {{ payload.orderId }}',
+        },
+      },
+      options: normalizePluginOptions(),
+    })
+
+    expect(sendEmail.mock.calls[0]?.[0]?.subject).toBe('Custom ORD-9')
   })
 
   it('stores in-app notifications and logs them', async () => {

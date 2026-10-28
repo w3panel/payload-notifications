@@ -3,6 +3,7 @@ import type {
   NormalizedNotificationsPluginOptions,
   NotificationDispatchResult,
   NotificationSendInput,
+  NotificationTemplateContext,
 } from '../types'
 import { sendEmailNotification } from '../channels/email'
 import { sendInAppNotification } from '../channels/inapp'
@@ -15,6 +16,9 @@ import {
   createObservabilityEvent,
 } from '../reliability'
 import { resolveTemplate } from '../templates/resolve'
+import { mergeTemplateDefinition, renderDefinition } from '../templates/renderDefinition'
+import { NOTIFICATION_SEND_TASK, NOTIFICATIONS_JOB_QUEUE } from './constants'
+import { writeNotificationLog } from './writeLog'
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -45,46 +49,6 @@ const emitObservability = async ({
   )
 }
 
-const createLog = async ({
-  payload,
-  options,
-  input,
-  status,
-  reason,
-  fingerprint,
-  classification,
-  provider,
-  providerMessageId,
-}: {
-  payload: Payload
-  options: NormalizedNotificationsPluginOptions
-  input: NotificationSendInput
-  status: 'sent' | 'stored' | 'failed' | 'skipped'
-  reason?: string
-  fingerprint: string
-  classification?: 'retriable' | 'terminal'
-  provider?: string
-  providerMessageId?: string
-}) => {
-  await payload.create({
-    collection: options.collections.logs,
-    data: {
-      user: input.userId,
-      event: input.event,
-      channel: input.channel,
-      status,
-      template: input.template,
-      reason,
-      fingerprint,
-      idempotencyKey: input.idempotencyKey,
-      attempt: input.attempt ?? 1,
-      classification,
-      provider,
-      providerMessageId,
-    },
-  })
-}
-
 export const assertNotificationSendInput = (value: unknown): NotificationSendInput => {
   if (!isObject(value)) {
     throw new Error('payload-notifications: notification send input must be an object')
@@ -110,6 +74,11 @@ export const assertNotificationSendInput = (value: unknown): NotificationSendInp
     throw new Error('payload-notifications: notification send eventPayload must be an object')
   }
 
+  const templateOverrides =
+    value.templateOverrides !== undefined && isObject(value.templateOverrides)
+      ? (value.templateOverrides as NotificationSendInput['templateOverrides'])
+      : undefined
+
   return {
     userId: value.userId,
     channel: value.channel as NotificationSendInput['channel'],
@@ -122,20 +91,27 @@ export const assertNotificationSendInput = (value: unknown): NotificationSendInp
         : undefined,
     idempotencyKey: typeof value.idempotencyKey === 'string' ? value.idempotencyKey : undefined,
     attempt: typeof value.attempt === 'number' ? value.attempt : 1,
+    templateOverrides,
+    jobId:
+      typeof value.jobId === 'string' || typeof value.jobId === 'number' ? value.jobId : undefined,
   }
 }
 
 export const queueNotificationSend = async ({
   payload,
   input,
+  queue = NOTIFICATIONS_JOB_QUEUE,
 }: {
   payload: Payload
   input: NotificationSendInput
+  queue?: string
 }) => {
   const validatedInput = assertNotificationSendInput(input)
 
   await payload.jobs.queue({
-    task: 'notification:send',
+    overrideAccess: true,
+    task: NOTIFICATION_SEND_TASK,
+    queue,
     input: validatedInput,
   })
 }
@@ -153,8 +129,9 @@ export const sendNotification = async ({
   const fingerprint = buildDeliveryFingerprint(validatedInput)
 
   const existingLogs =
-    typeof (payload as any).find === 'function'
-      ? await (payload as any).find({
+    typeof payload.find === 'function'
+      ? await payload.find({
+          overrideAccess: true,
           collection: options.collections.logs,
           where: {
             and: [
@@ -184,6 +161,7 @@ export const sendNotification = async ({
   }
 
   const user = await payload.findByID({
+    overrideAccess: true,
     collection: options.userCollectionSlug,
     id: validatedInput.userId,
   })
@@ -195,14 +173,14 @@ export const sendNotification = async ({
       reason: 'User not found',
     }
 
-    await createLog({
+    await writeNotificationLog({
       payload,
       options,
       input: validatedInput,
       status: 'failed',
-      reason: result.reason,
+      error: result.reason,
       fingerprint,
-      classification: 'terminal',
+      failureClassification: 'terminal',
     })
 
     await emitObservability({
@@ -229,13 +207,14 @@ export const sendNotification = async ({
       reason: policyDecision.reason || 'Notification blocked by policy',
     }
 
-    await createLog({
+    await writeNotificationLog({
       payload,
       options,
       input: validatedInput,
       status: 'skipped',
-      reason: result.reason,
+      error: result.reason,
       fingerprint,
+      failureClassification: 'terminal',
     })
 
     await emitObservability({
@@ -256,22 +235,57 @@ export const sendNotification = async ({
     payload,
   })
 
+  const definition = mergeTemplateDefinition(resolved.definition, validatedInput.templateOverrides)
+  const context: NotificationTemplateContext = {
+    event: validatedInput.event,
+    userId: validatedInput.userId,
+    payload: validatedInput.eventPayload,
+  }
+
+  const renderStarted = Date.now()
+  const rendered = renderDefinition(definition, context)
+  const renderDurationMs = Date.now() - renderStarted
+
   let result: NotificationDispatchResult | void
 
   switch (validatedInput.channel) {
     case 'email': {
-      const sendInput = { ...validatedInput, template: resolved.definition.body }
-      result = await sendEmailNotification({ payload, input: sendInput, options })
+      result = await sendEmailNotification({
+        payload,
+        input: validatedInput,
+        options,
+        rendered,
+        fingerprint,
+        templateSlug: resolved.templateSlug,
+        templateVersion: resolved.templateVersion,
+        renderDurationMs,
+      })
       break
     }
     case 'whatsapp': {
-      const sendInput = { ...validatedInput, template: resolved.definition.body }
-      result = await sendWhatsAppNotification({ payload, input: sendInput, options })
+      result = await sendWhatsAppNotification({
+        payload,
+        input: validatedInput,
+        options,
+        rendered,
+        fingerprint,
+        templateSlug: resolved.templateSlug,
+        templateVersion: resolved.templateVersion,
+        renderDurationMs,
+      })
       break
     }
     case 'sms': {
-      const sendInput = { ...validatedInput, template: resolved.definition.body }
-      result = await sendSMSNotification({ payload, input: sendInput, options })
+      result = await sendSMSNotification({
+        payload,
+        input: validatedInput,
+        options,
+        rendered,
+        fingerprint,
+        templateSlug: resolved.templateSlug,
+        templateVersion: resolved.templateVersion,
+        renderDurationMs,
+      })
       break
     }
     case 'inapp':
@@ -279,7 +293,11 @@ export const sendNotification = async ({
         payload,
         input: validatedInput,
         options,
-        resolvedDefinition: resolved.definition,
+        rendered,
+        fingerprint,
+        templateSlug: resolved.templateSlug,
+        templateVersion: resolved.templateVersion,
+        renderDurationMs,
       })
       break
     default:
@@ -293,54 +311,22 @@ export const sendNotification = async ({
       status: 'sent',
     } satisfies NotificationDispatchResult)
 
-  const channelAlreadyLogged = finalResult.status === 'sent' || finalResult.status === 'stored'
-
-  if (!channelAlreadyLogged) {
-    await createLog({
-      payload,
-      options,
-      input: validatedInput,
-      status:
-        finalResult.status === 'stored'
-          ? 'stored'
-          : finalResult.status === 'skipped'
-            ? 'skipped'
-            : 'failed',
-      reason: finalResult.reason,
-      fingerprint,
-      provider: finalResult.provider,
-      providerMessageId: finalResult.providerMessageId,
-      classification:
-        finalResult.status === 'failed' && finalResult.reason
-          ? classifyDispatchFailure(finalResult.reason).classification
-          : undefined,
-    })
-  }
+  const failureClassification =
+    finalResult.status === 'failed' && finalResult.reason
+      ? classifyDispatchFailure(finalResult.reason).classification
+      : undefined
 
   await emitObservability({
     options,
     input: validatedInput,
     result: finalResult,
     fingerprint,
-    classification:
-      finalResult.status === 'failed' && finalResult.reason
-        ? classifyDispatchFailure(finalResult.reason).classification
-        : undefined,
+    classification: failureClassification,
   })
 
-  if (
-    finalResult.status === 'failed' &&
-    finalResult.reason &&
-    classifyDispatchFailure(finalResult.reason).classification === 'retriable' &&
-    (validatedInput.attempt ?? 1) < 3
-  ) {
-    await payload.jobs.queue({
-      task: 'notification:send',
-      input: {
-        ...validatedInput,
-        attempt: (validatedInput.attempt ?? 1) + 1,
-      },
-    })
+  // Retriable provider failures must throw so Payload retries the same job.
+  if (finalResult.status === 'failed' && failureClassification === 'retriable') {
+    throw new Error(finalResult.reason || 'Retriable notification dispatch failure')
   }
 
   return finalResult

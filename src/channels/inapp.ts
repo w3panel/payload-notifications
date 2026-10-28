@@ -5,19 +5,31 @@ import type {
   NotificationSendInput,
   NotificationTemplateContext,
   NotificationTemplateDefinition,
+  RenderedNotificationContent,
 } from '../types'
-import { renderTemplate } from '../templates/render'
+import { writeNotificationLog } from '../jobs/writeLog'
+import { renderDefinition } from '../templates/renderDefinition'
 
 export const sendInAppNotification = async ({
   payload,
   input,
   options,
+  rendered,
   resolvedDefinition,
+  fingerprint,
+  templateSlug,
+  templateVersion,
+  renderDurationMs,
 }: {
   payload: Payload
   input: NotificationSendInput
   options: NormalizedNotificationsPluginOptions
+  rendered?: RenderedNotificationContent
   resolvedDefinition?: NotificationTemplateDefinition
+  fingerprint?: string
+  templateSlug?: string
+  templateVersion?: number
+  renderDurationMs?: number
 }): Promise<NotificationDispatchResult> => {
   try {
     const context: NotificationTemplateContext = {
@@ -26,19 +38,25 @@ export const sendInAppNotification = async ({
       payload: input.eventPayload,
     }
 
-    let title = `Notification: ${input.event}`
-    let message = input.template
+    let title = rendered?.title
+    let message = rendered?.body
 
-    if (resolvedDefinition) {
-      if (resolvedDefinition.title) {
-        title = (await renderTemplate(resolvedDefinition.title, context)).text || title
-      }
-      if (resolvedDefinition.body) {
-        message = (await renderTemplate(resolvedDefinition.body, context)).text || message
-      }
+    if ((!title || !message) && resolvedDefinition) {
+      const fallback = renderDefinition(resolvedDefinition, context)
+      title = title || fallback.title
+      message = message || fallback.body
+    }
+
+    if (!message) {
+      message = renderDefinition({ body: input.template }, context).body
+    }
+
+    if (!title) {
+      title = `Notification: ${input.event}`
     }
 
     await payload.create({
+      overrideAccess: true,
       collection: options.collections.notifications,
       data: {
         title,
@@ -50,15 +68,15 @@ export const sendInAppNotification = async ({
       },
     })
 
-    await payload.create({
-      collection: options.collections.logs,
-      data: {
-        user: input.userId,
-        event: input.event,
-        channel: 'inapp',
-        status: 'stored',
-        template: input.template,
-      },
+    await writeNotificationLog({
+      payload,
+      options,
+      input,
+      status: 'stored',
+      fingerprint,
+      templateSlug,
+      templateVersion,
+      renderDurationMs,
     })
 
     return {
@@ -69,16 +87,14 @@ export const sendInAppNotification = async ({
     const message = error instanceof Error ? error.message : 'In-app notification store failed'
 
     try {
-      await payload.create({
-        collection: options.collections.logs,
-        data: {
-          user: input.userId,
-          event: input.event,
-          channel: 'inapp',
-          status: 'failed',
-          template: input.template,
-          error: message,
-        },
+      await writeNotificationLog({
+        payload,
+        options,
+        input,
+        status: 'failed',
+        error: message,
+        fingerprint,
+        failureClassification: 'terminal',
       })
     } catch {
       // Best-effort failure logging
