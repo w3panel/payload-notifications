@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-29
+
+### Changed
+- Meta WhatsApp Cloud API provider now targets Graph API `v25.0` (was `v21.0`)
+
+### Fixed
+- `repository`, `homepage`, and `bugs` URLs point at `w3panel/payload-notifications` so npm provenance verification passes
+
 ## [0.3.0] - 2026-10-27
 
 ### Added

@@ -42,7 +42,7 @@ META_WHATSAPP_PHONE_NUMBER_ID=123456789012345
 
 The provider sends a POST request to:
 ```
-https://graph.facebook.com/v21.0/{phoneNumberId}/messages
+https://graph.facebook.com/v25.0/{phoneNumberId}/messages
 ```
 
 With a JSON body:

@@ -21,8 +21,14 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
+        "@payloadcms/ui": ">=3.0.0",
         "payload": ">=4.0.0-beta.4 <5",
+        "react": ">=18 <20",
       },
+      "optionalPeers": [
+        "@payloadcms/ui",
+        "react",
+      ],
     },
   },
   "packages": {

@@ -1,6 +1,6 @@
 {
   "name": "@wtree/payload-notifications",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Production-ready notifications plugin for Payload CMS",
   "keywords": [
     "notifications",
