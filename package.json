@@ -1,6 +1,6 @@
 {
   "name": "@wtree/payload-notifications",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Production-ready notifications plugin for Payload CMS",
   "keywords": [
     "notifications",
@@ -10,15 +10,15 @@
     "alerts",
     "messaging"
   ],
-  "homepage": "https://github.com/technewwings/payload-notifications#readme",
+  "homepage": "https://github.com/w3panel/payload-notifications#readme",
   "bugs": {
-    "url": "https://github.com/technewwings/payload-notifications/issues"
+    "url": "https://github.com/w3panel/payload-notifications/issues"
   },
   "license": "MIT",
   "author": "wtree",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/technewwings/payload-notifications.git"
+    "url": "git+https://github.com/w3panel/payload-notifications.git"
   },
   "files": [
     "dist",
