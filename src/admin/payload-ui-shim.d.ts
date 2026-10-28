@@ -1,5 +1,5 @@
+// `@payloadcms/ui` is an optional peer and not installed for development, so the hooks the
+// admin field uses are declared here. Keep them in line with Payload's real signatures.
 declare module '@payloadcms/ui' {
-  export function useFormFields<T = Record<string, unknown>>(
-    selector: (fields: unknown, dispatch: { getData: () => Record<string, unknown> }) => T,
-  ): T
+  export function useForm(): { getData: () => Record<string, unknown> }
 }
