@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useState } from 'react'
-import { useFormFields } from '@payloadcms/ui'
+import { useForm } from '@payloadcms/ui'
 import {
   buildTemplateApiPath,
   CHANNEL_OPTIONS,
@@ -223,16 +223,17 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
   const custom = props.field?.admin?.custom
   const collectionSlug = custom?.collectionSlug || 'notification-templates'
   const apiRoute = custom?.apiRoute || '/api'
-  const data = useFormFields((_fields, dispatch) => dispatch.getData?.() || {})
+  // Read form values lazily on Preview / Send test rather than subscribing to every change.
+  const { getData } = useForm()
+  const getDoc = useCallback(() => {
+    const data = getData()
+    return data && typeof data === 'object' ? data : {}
+  }, [getData])
 
   return (
     <div>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>Template studio</div>
-      <StudioInner
-        collectionSlug={collectionSlug}
-        apiRoute={apiRoute}
-        getDoc={() => (data && typeof data === 'object' ? data : {})}
-      />
+      <StudioInner collectionSlug={collectionSlug} apiRoute={apiRoute} getDoc={getDoc} />
     </div>
   )
 }

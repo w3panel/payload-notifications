@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-29
+
+### Fixed
+- Admin template studio crashed the `notification-templates` edit view: the bundled `admin` entry lost its `'use client'` directive, so Payload rendered `TemplateStudioField` as a server component
+- Template studio read form data through `useFormFields((fields, dispatch) => dispatch.getData())`, which matches no Payload release (the selector receives a single `[fields, dispatch]` tuple, and `dispatch` has no `getData`); it now uses `useForm().getData()`, read when Preview / Send test runs
+
 ## [0.3.1] - 2026-10-29
 
 ### Changed
