@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'bun:test'
-import { NotificationTemplatesCollection } from '../src/collections/NotificationTemplates'
+import {
+  NotificationTemplatesCollection,
+  validateTemplateSlug,
+} from '../src/collections/NotificationTemplates'
 
 describe('notification-templates collection', () => {
   it('builds collection with all required fields', () => {
@@ -152,5 +155,39 @@ describe('notification-templates collection', () => {
     expect(subfields).toContain('type')
     expect(subfields).toContain('required')
     expect(subfields).toContain('defaultValue')
+  })
+})
+
+describe('template slug validation', () => {
+  it('accepts event-style keys', () => {
+    for (const slug of [
+      'order.paid',
+      'user:signup',
+      'welcome-email',
+      'order_shipped',
+      'v2.order.paid',
+    ]) {
+      expect(validateTemplateSlug(slug)).toBe(true)
+    }
+  })
+
+  it('rejects unsafe keys', () => {
+    for (const slug of [
+      'order paid',
+      'order/paid',
+      '.order',
+      'order..paid',
+      'order.',
+      '{{order}}',
+    ]) {
+      expect(validateTemplateSlug(slug)).toBeString()
+    }
+  })
+
+  it('is wired to the slug field', () => {
+    const slugField = NotificationTemplatesCollection().fields.find(
+      (f: any) => f.name === 'slug',
+    ) as any
+    expect(slugField.validate).toBe(validateTemplateSlug)
   })
 })

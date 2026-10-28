@@ -21,6 +21,16 @@ const defaultReadAccess: Access = ({ req }) => Boolean(req.user)
 const defaultWriteAccess: Access = ({ req }) => Boolean(req.user)
 const denyAccess: Access = () => false
 
+/** Template keys match event names, e.g. `order.paid`, `user:signup`, `welcome-email`. */
+export const TEMPLATE_SLUG_PATTERN = /^[A-Za-z0-9]+(?:[._:-][A-Za-z0-9]+)*$/
+
+export const validateTemplateSlug = (value: unknown): string | true => {
+  if (typeof value !== 'string' || !value) return true
+  return TEMPLATE_SLUG_PATTERN.test(value)
+    ? true
+    : 'Slug may only contain letters, numbers, and single ".", "_", ":" or "-" separators (e.g. order.paid)'
+}
+
 const engineHint =
   'Supports {{ tokens }}, {{#if}}, {{#each}}, and formatters. See docs/templates.md.'
 
@@ -151,6 +161,10 @@ const baseFields = (collectionSlug: string): Field[] => [
     required: true,
     unique: true,
     index: true,
+    validate: validateTemplateSlug,
+    admin: {
+      description: 'Event key this template renders for, e.g. order.paid.',
+    },
   },
   {
     name: 'description',
