@@ -1,4 +1,6 @@
 import type { Payload } from 'payload'
+import { isDuplicateKeyError } from '../data/errors'
+import { toRelationId } from '../data/ids'
 import type {
   NormalizedNotificationsPluginOptions,
   NotificationDeliveryFallback,
@@ -37,11 +39,6 @@ export type FallbackSource = {
   fallback?: NotificationDeliveryFallback | null
   recipientDestinations?: RecipientDestinations | null
 }
-
-const isDuplicateKeyError = (error: unknown) =>
-  /duplicate|unique|already exists|E11000/i.test(
-    error instanceof Error ? error.message : String(error),
-  )
 
 /**
  * Creates and queues the fallback delivery for `primary` when its fallback
@@ -119,7 +116,7 @@ export const createFallbackDelivery = async ({
         idempotencyKey,
         dedupeKey: primary.dedupeKey,
         context: primary.context,
-        fallbackOf: primary.id,
+        fallbackOf: toRelationId(payload, options.collections.deliveries, primary.id),
         skipReason: null,
         lastError: null,
       } as never,

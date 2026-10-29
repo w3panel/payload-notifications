@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { toRelationId } from '../data/ids'
 import type {
   NormalizedNotificationsPluginOptions,
   NotificationDispatchResult,
@@ -64,7 +65,7 @@ export const sendInAppNotification = async ({
       data: {
         title,
         message,
-        recipient: input.userId,
+        recipient: toRelationId(payload, options.userCollectionSlug, input.userId),
         meta: {
           data: input.eventPayload,
         },

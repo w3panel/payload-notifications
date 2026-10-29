@@ -5,6 +5,7 @@ import type {
   ProviderSendInput,
   ProviderSendResult,
 } from '../types'
+import { toRelationId } from '../data/ids'
 import { createMetaWhatsAppProvider } from './meta-whatsapp'
 import { createTwilioSMSProvider } from './twilio-sms'
 import { createTwilioWhatsAppProvider } from './twilio-whatsapp'
@@ -43,7 +44,7 @@ export const inAppProvider = (): NotificationProvider => ({
           content.subject ||
           (typeof meta?.event === 'string' ? `Notification: ${meta.event}` : 'Notification'),
         message: content.body,
-        recipient: to,
+        recipient: toRelationId(payload, options.userCollectionSlug, to),
         ...(content.icon ? { icon: content.icon } : {}),
         ...(content.priority ? { priority: content.priority } : {}),
         ...(meta?.classification === 'marketing' ? { type: 'marketing' } : {}),
