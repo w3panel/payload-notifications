@@ -19,7 +19,7 @@ jobs:
       - run: bun run build
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
       # Prerelease tags (v0.4.0-next.1, v0.4.0-beta.2) go to `next`; others to `latest`.
       - name: Pick npm dist-tag
