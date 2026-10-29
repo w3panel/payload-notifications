@@ -50,6 +50,7 @@ export type {
   NotificationSendInput,
   NotificationSendJobInput,
   NotificationsPluginOptions,
+  NotificationAccessCheck,
   NotificationTemplateContext,
   NotificationTemplateDefinition,
   NotificationTemplateRecord,
@@ -125,6 +126,25 @@ export {
 } from './collections/NotificationEvents'
 export type { NotificationEventsCollectionOverrides } from './collections/NotificationEvents'
 export { findInboxRecord, replayNotificationEvent } from './events/inbox'
+export {
+  NotificationTriggersCollection,
+  TRIGGER_STATUSES,
+} from './collections/NotificationTriggers'
+export type { NotificationTriggersCollectionOverrides } from './collections/NotificationTriggers'
+export { NotificationTriggerVersionsCollection } from './collections/NotificationTriggerVersions'
+export { definitionOf, DEFINITION_FIELDS, toAdminTriggerRecord } from './admin-triggers/record'
+export type { TriggerDefinitionFields } from './admin-triggers/record'
+export { effectiveTriggerFor, validateAdminTrigger } from './admin-triggers/validate'
+export type { TriggerValidationReport } from './admin-triggers/validate'
+export {
+  cancelQueuedDeliveries,
+  LIFECYCLE_ACTIONS,
+  runLifecycleAction,
+  triggerLifecycleEndpoint,
+} from './admin-triggers/lifecycle'
+export type { LifecycleAction, LifecycleResult } from './admin-triggers/lifecycle'
+export { createAdminTriggerCache, loadPublishedAdminTriggers } from './admin-triggers/store'
+export type { AdminTriggerCache } from './admin-triggers/store'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
 export {
   NOTIFICATION_PROCESS_EVENT_TASK,

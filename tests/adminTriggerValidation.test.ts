@@ -120,11 +120,11 @@ describe('validateAdminTrigger', () => {
   it('warns when no classification applies', async () => {
     const report = await validate(
       validDoc,
-      normalizePluginOptions(({
-	channels: ['email'],
-	events: { 'order.paid': {} },
-	data: { collections: { orders: { fields: ['total'] } } }
-})),
+      normalizePluginOptions({
+        channels: ['email'],
+        events: { 'order.paid': {} },
+        data: { collections: { orders: { fields: ['total'] } } },
+      }),
     )
     expect(report.warnings).toEqual([
       'trigger "ops-alert": no classification set; deliveries are treated as transactional (no marketing consent check)',
