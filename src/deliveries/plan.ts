@@ -1,4 +1,5 @@
 import type { Payload, PayloadRequest } from 'payload'
+import { isDuplicateKeyError } from '../data/errors'
 import type {
   AdminTriggerRecord,
   EffectiveTrigger,
@@ -34,11 +35,6 @@ export type DeliveryPlanResult = {
   eventId: string
   matched: TriggerSnapshot[]
   deliveries: PlannedDelivery[]
-}
-
-const isDuplicateKeyError = (error: unknown): boolean => {
-  const message = error instanceof Error ? error.message : String(error)
-  return /duplicate|unique|already exists|E11000/i.test(message)
 }
 
 /**

@@ -41,6 +41,18 @@ export const validateTemplateDoc = async (
     }
   }
 
+  // Triple braces skip HTML escaping: values from events or documents are inserted as-is.
+  const raw = new Set(
+    sources.flatMap((source) =>
+      [...source.matchAll(/\{\{\{\s*([^}]+?)\s*\}\}\}/g)].map((match) => match[1]),
+    ),
+  )
+  for (const expression of raw) {
+    warnings.push(
+      `"{{{ ${expression} }}}" inserts the value without HTML escaping; use it only for trusted HTML`,
+    )
+  }
+
   const email = (doc.email ?? {}) as { htmlBody?: string }
   for (const url of email.htmlBody ? findUnsafeLinks(email.htmlBody) : []) {
     errors.push(`email: link "${url}" uses an unsafe scheme (allowed: http, https, mailto, tel)`)

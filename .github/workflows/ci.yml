@@ -29,15 +29,49 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install
-      - run: bun add --dev payload@${{ matrix.payload }}
+      - run: bun add --dev payload@${{ matrix.payload }} @payloadcms/db-sqlite@${{ matrix.payload }}
       - run: bunx tsc --noEmit -p .
+      # Includes the integration suite (real Payload on SQLite).
       - run: bun test
+
+  # The integration suite against Postgres and MongoDB.
+  integration-databases:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        payload: ['3.92.1', '4.0.0-beta.4']
+        db: [postgres, mongodb]
+    name: integration ${{ matrix.db }} / payload@${{ matrix.payload }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      mongodb:
+        image: mongo:7
+        ports: ['27017:27017']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      # Every @payloadcms package must match the payload version.
+      - run: bun add --dev payload@${{ matrix.payload }} @payloadcms/db-sqlite@${{ matrix.payload }} @payloadcms/db-${{ matrix.db }}@${{ matrix.payload }}
+      - name: Integration tests
+        run: bun test tests/integration
+        env:
+          PAYLOAD_TEST_POSTGRES_URL: ${{ matrix.db == 'postgres' && 'postgres://postgres:postgres@localhost:5432/postgres' || '' }}
+          PAYLOAD_TEST_MONGODB_URL: ${{ matrix.db == 'mongodb' && 'mongodb://localhost:27017/payload' || '' }}
 
   build:
     runs-on: ubuntu-latest
-    needs: [lint-and-test, payload-compat]
+    needs: [lint-and-test, payload-compat, integration-databases]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: bun run build
+      - run: bun run check:package

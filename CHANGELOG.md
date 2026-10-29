@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.1] - 2026-10-29
+
+First beta of the notification automation release (roadmap Phases 1–9). 0.3.x configurations keep working; see [docs/migration.md](docs/migration.md). Published to npm `next` for validation before 1.0.0.
+
+### Added — Events, triggers and deliveries (Phases 1–4)
+- Event registry with Standard Schema validation, sample payloads and `eventsStrict`
+- Data context builder: allowlisted collection data sources, resolvers, computed values and a sensitive-field denylist
+- Unified trigger engine for code triggers and legacy rules, with recipients (event user, relationship, static, role, resolver, query) and one `notification-deliveries` record per recipient × channel
+- JSON conditions (`all` / `any` / `not`, change operators such as `changedTo`) and custom conditions
+- Collection events from `afterChange` / `afterDelete`, with a loop guard (`maxEventDepth`) and tenancy
+- An optional events inbox with replay
+- Scheduling (`delay`, `at`, `relative`, `recheckConditions`, `skipIfPast`) and quiet hours
+- Admin-created triggers with immutable published versions and precedence policies (independent / managed / enforced), a Trigger Builder and a test runner
+
+### Added — Reliability, consent and providers (Phase 5)
+- Dedupe keys, a failure taxonomy (retryable / permanent / unknown), retries with backoff and fallback channels
+- Provider interface v2 (`providers.custom`) and attempt logs
+- Twilio and Meta status webhooks with signature checks
+- Reconcile and retention maintenance tasks, and lifecycle observability (`observability.onEvent`)
+- Collection-mode preferences, suppressions and signed one-click unsubscribe
+
+### Added — Templates v2 (Phase 6)
+- Locale variants, immutable published versions with publish / rollback, and deliveries pinned to a template version
+- A variable contract with checks
+- Channel-native content: email preheader and layout, SMS segments and link shortening, WhatsApp approved templates, in-app action URL / icon / priority
+- A starter template pack and edit-safe seeding
+
+### Added — Hardening (Phase 9)
+- Integration test suite on a real Payload instance (SQLite; Postgres and MongoDB in CI), including a 0.3.x compatibility config and a tested booking example (`examples/booking`)
+- Docs: deployment guide, migration guide, security model and review, examples, and a docs index
+
+### Fixed (Phase 9)
+- SQL databases (Postgres, SQLite, D1): relationship fields written from string IDs (attempt log user and delivery, in-app recipient, fallback link) were rejected; they now use the target collection's ID type
+- SQL databases: unique violations (a repeated event ID with the inbox, duplicate deliveries) were not recognised and failed instead of being skipped
+- Data paths never follow `__proto__` / `constructor` / `prototype`, and such data-source fields are rejected (prototype pollution)
+- The trigger lifecycle endpoint refuses anonymous requests before reading the body; template validation warns about unescaped `{{{ }}}` output
+- Package entry points: `main` and the `require` conditions pointed at CommonJS files that were never built, and `styles.css` was exported but not copied into `dist`. The package is ESM-only, as Payload is; CI now checks every entry point after the build
+
 ### Added — Operations admin (Phase 8)
 - Deliveries inspector: attempts, provider responses, fallbacks and redacted context; retry (same record and idempotency key; `unknown` needs confirmation) and cancel (`planned` / `queued`), via `GET /:id/inspect`, `POST /:id/retry` and `POST /:id/cancel`
 - Notifications overview on the Payload dashboard (`GET /api/payload-notifications/stats`): events, match rate, deliveries over time, skip reasons, recent failures, provider latency and failure rate, queue depth

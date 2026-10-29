@@ -208,6 +208,8 @@ export const triggerLifecycleEndpoint = (
   method: 'post',
   handler: async (req: PayloadRequest) => {
     const options = getOptions()
+    // Anonymous requests are refused before the body is read.
+    if (!req.user) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
     let body: Record<string, unknown> = {}
     try {
       body = ((await req.json?.()) as Record<string, unknown>) ?? {}

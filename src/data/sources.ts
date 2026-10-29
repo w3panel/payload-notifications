@@ -1,4 +1,5 @@
 import type { CollectionConfig, Field } from 'payload'
+import { isSafePath } from './paths'
 import type { DataCollectionAllowlist, NotificationDataSource } from '../types'
 import { isSensitivePath, type SensitiveFieldMatcher } from './sensitive'
 
@@ -119,6 +120,16 @@ export const validateDataSources = (
       errors.push(`${prefix(alias)} duplicate alias`)
     }
     aliases.add(alias)
+
+    const unsafe = [
+      ...('fields' in raw && Array.isArray(raw.fields) ? raw.fields : []),
+      ...(raw.type === 'collection' && typeof raw.lookup?.from === 'string'
+        ? [raw.lookup.from]
+        : []),
+    ].filter((field) => typeof field === 'string' && !isSafePath(field))
+    for (const field of unsafe) {
+      errors.push(`${prefix(alias)} "${field}" is not allowed (prototype keys)`)
+    }
 
     switch (raw.type) {
       case 'event':

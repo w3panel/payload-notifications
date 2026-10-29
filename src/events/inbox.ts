@@ -1,14 +1,10 @@
 import type { Payload, PayloadRequest } from 'payload'
+import { isDuplicateKeyError } from '../data/errors'
 import type { NormalizedNotificationsPluginOptions, NotificationEvent } from '../types'
 import type { DeliveryPlanResult } from '../deliveries/plan'
 import { NOTIFICATION_PROCESS_EVENT_TASK } from '../jobs/constants'
 
 type InboxRecord = { id: string | number; status?: string; attempts?: number; event?: unknown }
-
-const isDuplicateKeyError = (error: unknown): boolean => {
-  const message = error instanceof Error ? error.message : String(error)
-  return /duplicate|unique|already exists|E11000/i.test(message)
-}
 
 export const findInboxRecord = async (
   payload: Payload,

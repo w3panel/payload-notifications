@@ -22,6 +22,11 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 | [docs/getting-started.md](docs/getting-started.md) | Install, first emit, jobs queue |
 | [docs/end-to-end.md](docs/end-to-end.md) | Full dynamic checklist |
 | [docs/templates.md](docs/templates.md) | Registry vs DB, engine syntax |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/examples.md](docs/examples.md) | E-commerce and booking workflows, tested end to end |
+| [docs/deployment.md](docs/deployment.md) | Running the jobs queue: servers, workers, serverless, Cloudflare; webhooks; troubleshooting |
+| [docs/migration.md](docs/migration.md) | Upgrading from 0.3.x: database, what keeps working, recommended moves |
+| [docs/security.md](docs/security.md) | Security model and review |
 | [docs/operations-admin.md](docs/operations-admin.md) | Overview dashboard, deliveries (retry / cancel), providers & settings, permissions, tenants |
 | [docs/admin-templates.md](docs/admin-templates.md) | Visual designer, theme, partials, preview, versions, test-send, import map |
 | [docs/events.md](docs/events.md) | Event registry, schemas, emitting |

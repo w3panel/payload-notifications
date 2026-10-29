@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { toRelationId } from '../data/ids'
 import { createSensitiveFieldMatcher, redactContext } from '../data/sensitive'
 import type { DeliveryOutcome } from '../providers/errors'
 import type {
@@ -94,7 +95,9 @@ export const writeNotificationLog = async ({
     overrideAccess: true,
     collection: options.collections.logs,
     data: {
-      ...(input.userId ? { user: input.userId } : {}),
+      ...(input.userId
+        ? { user: toRelationId(payload, options.userCollectionSlug, input.userId) }
+        : {}),
       event: input.event,
       channel: input.channel,
       status,
@@ -108,7 +111,9 @@ export const writeNotificationLog = async ({
       ...(typeof templateVersion === 'number' ? { templateVersion } : {}),
       ...(typeof renderDurationMs === 'number' ? { renderDurationMs } : {}),
       ...(providerResponse ? { providerResponse } : {}),
-      ...(input.deliveryId !== undefined ? { delivery: input.deliveryId } : {}),
+      ...(input.deliveryId !== undefined
+        ? { delivery: toRelationId(payload, options.collections.deliveries, input.deliveryId) }
+        : {}),
       ...(outcome ? { outcome } : {}),
       ...(typeof durationMs === 'number' ? { durationMs } : {}),
       ...(jobMeta || (rendered && options.logs?.storeRendered)
