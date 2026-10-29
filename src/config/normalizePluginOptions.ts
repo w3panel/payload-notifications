@@ -475,6 +475,8 @@ export const normalizePluginOptions = (
     },
     admin: {
       dashboard: options.admin?.dashboard !== false,
+      group: options.admin?.group === false ? false : options.admin?.group || 'Notifications',
+      navLinks: options.admin?.dashboard !== false && options.admin?.navLinks !== false,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,

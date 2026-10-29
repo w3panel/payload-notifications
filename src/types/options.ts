@@ -80,6 +80,10 @@ export type NotificationsPluginOptions = {
   admin?: {
     /** Show the notifications overview on the Payload dashboard. Default true. */
     dashboard?: boolean
+    /** Admin nav group for the plugin's collections and theme. `false` leaves them ungrouped. Default `Notifications`. */
+    group?: string | false
+    /** Nav links to the dashboard's Overview and Providers & settings. Default true (with the dashboard). */
+    navLinks?: boolean
   }
   jobs?: NotificationsJobsOptions
   templates?: {
@@ -305,6 +309,8 @@ export type NormalizedNotificationsPluginOptions = {
   }
   admin: {
     dashboard: boolean
+    group: string | false
+    navLinks: boolean
   }
   jobs: {
     queue: string

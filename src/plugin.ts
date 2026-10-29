@@ -34,7 +34,7 @@ import {
 } from './collections/NotificationConsent'
 import { accessWithTenant } from './admin-ops/access'
 import { deliveryEndpoints } from './admin-ops/deliveries'
-import { withAdminComponents } from './admin-ops/adminConfig'
+import { groupGlobal, groupPluginCollections, withAdminComponents } from './admin-ops/adminConfig'
 import { settingsEndpoints } from './admin-ops/settings'
 import { statsEndpoint } from './admin-ops/stats'
 import { NotificationTemplatePartialsCollection } from './collections/NotificationTemplatePartials'
@@ -330,7 +330,11 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       ],
       admin: withAdminComponents(config, normalizedOptions),
       collections: injectCollectionEventHooks(
-        withCollections,
+        groupPluginCollections(
+          withCollections,
+          new Set(collections.map((collection) => collection.slug)),
+          normalizedOptions,
+        ),
         () => runtime.options,
         ({ event, req }) =>
           emitNotificationEvent({
@@ -346,10 +350,13 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         ? config.globals
         : [
             ...(config.globals ?? []),
-            NotificationThemeGlobal({
-              slug: normalizedOptions.globals.theme,
-              getOptions: () => runtime.options,
-            }),
+            groupGlobal(
+              NotificationThemeGlobal({
+                slug: normalizedOptions.globals.theme,
+                getOptions: () => runtime.options,
+              }),
+              normalizedOptions,
+            ),
           ],
       jobs: {
         ...config.jobs,

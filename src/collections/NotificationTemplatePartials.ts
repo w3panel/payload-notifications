@@ -99,7 +99,6 @@ export const NotificationTemplatePartialsCollection = ({
     admin: {
       useAsTitle: 'name',
       defaultColumns: ['name', 'kind', 'version', 'updatedAt'],
-      group: 'Notifications',
       description:
         'Reusable headers, footers and sections for visual emails. Templates use the latest version unless they pin one; changes apply when a template is saved or published.',
     },
