@@ -53,7 +53,7 @@ Test: [`tests/integration/booking.test.ts`](../tests/integration/booking.test.ts
 
 ### Going further
 
-- **WhatsApp:** add a `whatsapp` delivery with an approved template (`whatsapp.hsmTemplateId` on the DB template). Use `fallback: [{ channel: 'sms' }]` for patients without WhatsApp.
+- **WhatsApp:** add a `whatsapp` delivery with an approved template (`whatsapp.hsmTemplateId` on the DB template). Use `fallback: { channel: 'sms', template: 'appointment.confirmed', on: ['permanent', 'no-destination'] }` for patients without WhatsApp ([reliability.md](./reliability.md#fallback)).
 - **Multi-clinic apps:** `tenancy: { field: 'clinic' }` keeps deliveries and the overview per clinic ([operations-admin.md](./operations-admin.md#tenants)).
 - **Quiet hours** move marketing messages out of the night ([automation.md](./automation.md#scheduling)).
 - **Admins** can restyle the emails in the visual designer, or add their own triggers (for example a follow-up survey) without a deploy ([admin-templates.md](./admin-templates.md), [admin-triggers.md](./admin-triggers.md)).
