@@ -58,5 +58,5 @@ emit `order.paid` from the verified payment webhook, never from a client request
 ## Listing events
 
 - `listRegisteredEvents(options)` returns `{ name, label, description, classification, samplePayload, fields, hasSchema }[]`.
-- `GET /api/notifications/events` returns the same list to authenticated users. It is used by
+- `GET /api/payload-notifications/events` returns the same list to authenticated users. It is used by
   admin pickers.

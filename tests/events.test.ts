@@ -200,6 +200,8 @@ describe('registered event listing', () => {
     expect(Object.keys(config.custom?.[PLUGIN_CUSTOM_KEY].getOptions().events)).toContain(
       'order.paid',
     )
-    expect(config.endpoints?.map((endpoint) => endpoint.path)).toContain('/notifications/events')
+    expect(config.endpoints?.map((endpoint) => endpoint.path)).toContain(
+      '/payload-notifications/events',
+    )
   })
 })

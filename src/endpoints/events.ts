@@ -12,10 +12,10 @@ export const createEventsListHandler = (getOptions: () => NormalizedNotification
   }
 }
 
-/** `GET /api/notifications/events` — registered application events for admin pickers. */
+/** `GET /api/payload-notifications/events` — registered application events for admin pickers. */
 export const eventsListEndpoint = (
   getOptions: () => NormalizedNotificationsPluginOptions,
-  path = '/notifications/events',
+  path = '/payload-notifications/events',
 ): Endpoint => ({
   path,
   method: 'get',

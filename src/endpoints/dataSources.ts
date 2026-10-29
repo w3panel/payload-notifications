@@ -21,12 +21,12 @@ export const createDataSourcesListHandler = (
 }
 
 /**
- * `GET /api/notifications/data-sources` — allowlisted collections/fields and
+ * `GET /api/payload-notifications/data-sources` — allowlisted collections/fields and
  * registered resolvers / computed functions, for admin pickers.
  */
 export const dataSourcesListEndpoint = (
   getOptions: () => NormalizedNotificationsPluginOptions,
-  path = '/notifications/data-sources',
+  path = '/payload-notifications/data-sources',
 ): Endpoint => ({
   path,
   method: 'get',

@@ -150,5 +150,5 @@ Total: {{ order.total | currency "INR" }}. Thanks for shopping with {{ store.nam
 - **Access:** lookups run with the caller's access (`overrideAccess: false`).
 - **Response:** includes `data.context`, the redacted context inspector, and `data.missing`, the
   optional sources that resolved to nothing.
-- **Pickers:** `GET /api/notifications/data-sources` lists the allowlisted collections and fields
+- **Pickers:** `GET /api/payload-notifications/data-sources` lists the allowlisted collections and fields
   plus the registered resolvers and computed functions.
