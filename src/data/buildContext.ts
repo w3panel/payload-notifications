@@ -10,6 +10,11 @@ import type {
 } from '../types'
 import { getPath, isObject, pickPaths, toRelationId, toSelect } from './paths'
 import { ResolverError, runComputed, runDataResolver } from './resolvers'
+import {
+  defaultSensitiveFieldMatcher,
+  stripSensitiveFields,
+  type SensitiveFieldMatcher,
+} from './sensitive'
 import { DEFAULT_MAX_ITEMS, orderDataSources } from './sources'
 
 export type BuildDataContextArgs = {
@@ -32,6 +37,8 @@ export type BuildDataContextArgs = {
   dataResolvers?: Record<string, NotificationDataResolverDefinition>
   /** Registered computed functions (normalized `options.computed`). */
   computed?: Record<string, NotificationComputedDefinition>
+  /** Sensitive-field matcher applied to every lookup and resolver result. */
+  isSensitive?: SensitiveFieldMatcher
 }
 
 class MissingSourceError extends Error {
@@ -133,6 +140,7 @@ export const buildDataContext = async ({
   owner = 'data sources',
   dataResolvers = {},
   computed = {},
+  isSensitive = defaultSensitiveFieldMatcher,
 }: BuildDataContextArgs): Promise<DataContextResult> => {
   const context: NotificationDataContext = {
     event: event.name,
@@ -145,11 +153,17 @@ export const buildDataContext = async ({
       classification: event.classification,
     },
   }
-  if (doc !== undefined) context.doc = doc
-  if (previous !== undefined) context.previous = previous
+  if (doc !== undefined) context.doc = stripSensitiveFields(doc, isSensitive) as typeof doc
+  if (previous !== undefined) {
+    context.previous = stripSensitiveFields(previous, isSensitive) as typeof previous
+  }
 
   /** Lookup scope: like the context, but `event` is the full event object. */
-  const scope: Record<string, unknown> = { event, doc, previous }
+  const scope: Record<string, unknown> = {
+    event,
+    doc: context.doc,
+    previous: context.previous,
+  }
   const missing: string[] = []
 
   for (const source of orderDataSources(sources, owner)) {
@@ -220,6 +234,9 @@ export const buildDataContext = async ({
         throw error
       }
     }
+
+    // Event payloads are developer-provided; everything loaded or computed is stripped.
+    if (source.type !== 'event') value = stripSensitiveFields(value, isSensitive)
 
     const isEmpty = value === null || value === undefined
     if (isEmpty && isRequired(source)) {

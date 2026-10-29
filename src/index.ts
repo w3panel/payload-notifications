@@ -157,3 +157,13 @@ export {
 } from './data/resolvers'
 export type { ResolverErrorKind } from './data/resolvers'
 export { dataSourcesListEndpoint } from './endpoints/dataSources'
+export {
+  createSensitiveFieldMatcher,
+  isSensitivePath,
+  REDACTED,
+  redactContext,
+  SENSITIVE_FIELD_NAMES,
+  SENSITIVE_FIELD_PATTERNS,
+  stripSensitiveFields,
+} from './data/sensitive'
+export type { SensitiveFieldMatcher } from './data/sensitive'

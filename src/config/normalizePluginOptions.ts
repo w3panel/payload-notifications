@@ -1,5 +1,6 @@
 import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions } from '../types'
 import { normalizeComputedRegistry, normalizeResolverRegistry } from '../data/resolvers'
+import { createSensitiveFieldMatcher, isSensitivePath } from '../data/sensitive'
 import { isValidEventName } from '../events/names'
 import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
@@ -61,6 +62,12 @@ const normalizeEventRegistry = (
 const normalizeDataOptions = (
   data: NotificationsPluginOptions['data'],
 ): NormalizedNotificationsPluginOptions['data'] => {
+  const sensitiveFields = data?.sensitiveFields ?? []
+  if (!Array.isArray(sensitiveFields) || sensitiveFields.some((name) => typeof name !== 'string')) {
+    throw new Error('payload-notifications: data.sensitiveFields must be an array of field names')
+  }
+  const isSensitive = createSensitiveFieldMatcher(sensitiveFields)
+
   const collections: NormalizedNotificationsPluginOptions['data']['collections'] = {}
 
   for (const [slug, entry] of Object.entries(data?.collections ?? {})) {
@@ -73,6 +80,13 @@ const normalizeDataOptions = (
         `payload-notifications: data.collections["${slug}"].fields must be an array of field names`,
       )
     }
+    for (const field of entry.fields) {
+      if (isSensitivePath(field, isSensitive)) {
+        throw new Error(
+          `payload-notifications: data.collections["${slug}"] field "${field}" is sensitive and cannot be exposed to notifications`,
+        )
+      }
+    }
     collections[slug] = { ...entry, fields: [...new Set(entry.fields)] }
   }
 
@@ -81,7 +95,7 @@ const normalizeDataOptions = (
     throw new Error('payload-notifications: data.redact must be an array of dot paths')
   }
 
-  return { collections, redact: [...redact] }
+  return { collections, redact: [...redact], sensitiveFields: [...sensitiveFields] }
 }
 
 export const normalizePluginOptions = (

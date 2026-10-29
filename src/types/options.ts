@@ -117,6 +117,7 @@ export type NormalizedNotificationsPluginOptions = {
   data: {
     collections: DataCollectionAllowlist
     redact: string[]
+    sensitiveFields: string[]
   }
   dataResolvers: Record<string, NotificationDataResolverDefinition>
   computed: Record<string, NotificationComputedDefinition>

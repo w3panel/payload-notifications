@@ -91,6 +91,11 @@ export type NotificationsDataOptions = {
   collections?: DataCollectionAllowlist
   /** Dot paths masked in previews, inspectors and logs (e.g. `customer.phone`). */
   redact?: string[]
+  /**
+   * Extra field names treated as sensitive, on top of the built-in denylist
+   * (`password`, `hash`, `salt`, `apiKey`, `*token*`, `*secret*`, …).
+   */
+  sensitiveFields?: string[]
 }
 
 /** Metadata about the occurrence, exposed to templates as `trigger`. */

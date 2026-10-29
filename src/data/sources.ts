@@ -1,5 +1,6 @@
 import type { CollectionConfig, Field } from 'payload'
 import type { DataCollectionAllowlist, NotificationDataSource } from '../types'
+import { isSensitivePath, type SensitiveFieldMatcher } from './sensitive'
 
 export const RESERVED_ALIASES = new Set([
   'event',
@@ -29,6 +30,8 @@ export type DataSourceValidationContext = {
   computed?: Iterable<string>
   /** Label used in error messages, e.g. `trigger "order-paid"`. */
   owner?: string
+  /** Sensitive-field matcher; defaults to the built-in denylist. */
+  isSensitive?: SensitiveFieldMatcher
 }
 
 const rootOf = (path: string): string => path.split('.')[0]
@@ -122,6 +125,12 @@ export const validateDataSources = (
       case 'document':
         if (raw.fields !== undefined && !Array.isArray(raw.fields)) {
           errors.push(`${prefix(alias)} fields must be an array`)
+        } else {
+          for (const field of raw.fields ?? []) {
+            if (isSensitivePath(field, context.isSensitive)) {
+              errors.push(`${prefix(alias)} field "${field}" is sensitive and cannot be loaded`)
+            }
+          }
         }
         break
 
@@ -138,7 +147,9 @@ export const validateDataSources = (
         } else {
           const allowedFields = new Set(allowed.fields)
           for (const field of raw.fields) {
-            if (!ALWAYS_ALLOWED_FIELDS.has(field) && !allowedFields.has(field)) {
+            if (isSensitivePath(field, context.isSensitive)) {
+              errors.push(`${prefix(alias)} field "${field}" is sensitive and cannot be loaded`)
+            } else if (!ALWAYS_ALLOWED_FIELDS.has(field) && !allowedFields.has(field)) {
               errors.push(
                 `${prefix(alias)} field "${field}" is not allowlisted for collection "${raw.collection}"`,
               )

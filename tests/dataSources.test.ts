@@ -92,7 +92,7 @@ describe('validateDataSources', () => {
     )
     expect(errors).toEqual([
       'trigger "x" source "secret": collection "secrets" is not allowlisted — add it to data.collections',
-      'trigger "x" source "customer": field "password" is not allowlisted for collection "users"',
+      'trigger "x" source "customer": field "password" is sensitive and cannot be loaded',
     ])
   })
 
@@ -251,7 +251,11 @@ describe('data allowlist', () => {
   })
 
   it('normalizes data options with defaults', () => {
-    expect(normalizePluginOptions().data).toEqual({ collections: {}, redact: [] })
+    expect(normalizePluginOptions().data).toEqual({
+      collections: {},
+      redact: [],
+      sensitiveFields: [],
+    })
     expect(() =>
       normalizePluginOptions({ data: { collections: { orders: { fields: 'status' as never } } } }),
     ).toThrow('data.collections["orders"].fields must be an array')
