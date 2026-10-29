@@ -17,7 +17,7 @@ Emitted for skip / send / store / fail outcomes (including duplicate fingerprint
 
 `buildDeliveryFingerprint` keys on `userId`, `channel`, `event`, `template`, `idempotencyKey`.
 
-Completed fingerprints (`sent` | `stored` | `skipped`) block duplicate deliveries. Persist via `notification-logs.fingerprint`.
+Trigger-based sends are deduplicated by the unique `notification-deliveries.idempotencyKey` (the delivery's key is also used as the log `fingerprint`). For direct `queueNotificationSend` calls, completed fingerprints (`sent` | `stored` | `skipped`) in `notification-logs` block duplicates.
 
 ## Helpers
 

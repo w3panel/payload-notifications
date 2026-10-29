@@ -1,5 +1,9 @@
 # Rules and triggers
 
+> Rules are the legacy shorthand: each rule compiles into a trigger that sends to the event user
+> on every listed channel. For multiple recipients, per-recipient deliveries and admin overrides,
+> use v2 triggers — see [triggers.md](./triggers.md).
+
 ## Rules
 
 Rules live in plugin options. Each matching enabled rule fans out to per-channel send jobs.

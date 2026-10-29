@@ -25,7 +25,8 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 | [docs/admin-templates.md](docs/admin-templates.md) | Preview, test-send, import map |
 | [docs/events.md](docs/events.md) | Event registry, schemas, emitting |
 | [docs/data-sources.md](docs/data-sources.md) | Collections, relationships, resolvers in templates |
-| [docs/rules-and-triggers.md](docs/rules-and-triggers.md) | Rules, `defineTrigger`, domain hooks |
+| [docs/triggers.md](docs/triggers.md) | Triggers, recipients, deliveries, code/admin precedence |
+| [docs/rules-and-triggers.md](docs/rules-and-triggers.md) | Legacy rules, `defineTrigger`, domain hooks |
 | [docs/seeding.md](docs/seeding.md) | Seed templates from registry |
 | [docs/jobs-and-operations.md](docs/jobs-and-operations.md) | Queue ops, retries, debugging |
 | [docs/preferences-and-policy.md](docs/preferences-and-policy.md) | Consent + `canSend` |
@@ -101,10 +102,10 @@ Available channels:
 
 The plugin registers two Payload job tasks automatically on the **`notifications`** queue (override with `jobs.queue`):
 
-- `notification:process-event` — routes events to matching rules and queues per-channel sends (`retries: 0`)
-- `notification:send` — dispatches individual notifications (`retries: 2` with exponential backoff)
+- `notification:process-event` — matches triggers (and rules), resolves data and recipients, creates `notification-deliveries` records and queues one send per delivery (`retries: 0`)
+- `notification:send` — sends one delivery (`retries: 2` with exponential backoff)
 
-Task configs include `inputSchema` / `outputSchema`, fingerprint-based `concurrency`, and `onFail` logging. Handlers are wired via `onInit` and work out of the box.
+Task configs include `inputSchema` / `outputSchema`, per-delivery `concurrency`, and `onFail` handling that marks the delivery failed. Handlers are wired via `onInit` and work out of the box.
 
 **Retry semantics**
 - Retriable provider failures **throw** so Payload retries the **same** job (backoff / `waitUntil` / `hasError`).
@@ -286,7 +287,7 @@ The package exposes helpers to support retry-safe delivery and structured observ
 - `buildDeliveryFingerprint(input)` creates a deterministic deduplication key stored on `notification-logs.fingerprint`.
 - `classifyDispatchFailure(error)` marks failures as `retriable` or `terminal` (accepts `Error` or string).
 - `createObservabilityEvent(input)` shapes structured monitoring payloads.
-- The send flow blocks duplicate deliveries from already-completed fingerprints.
+- Trigger-based sends are deduplicated by the unique `notification-deliveries.idempotencyKey`; direct sends block duplicates from already-completed fingerprints.
 - Retriable failures throw into Payload job retries (2 additional attempts, exponential backoff from 5s).
 
 ## Testing and CI
