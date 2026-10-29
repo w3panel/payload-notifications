@@ -5,6 +5,7 @@ import type {
   NotificationEvent,
   NotificationTemplateContext,
 } from '../types'
+import { denyUnless } from '../admin-ops/access'
 import { effectiveTriggerFor } from '../admin-triggers/validate'
 import { buildCollectionEvent } from '../events/collectionEvents'
 import { auditEmail } from '../studio/audit'
@@ -328,6 +329,17 @@ export const createTemplatePreviewHandler = (
   return async (req: PayloadRequest) => {
     if (!req.user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const options = (() => {
+      try {
+        return getOptions?.()
+      } catch {
+        return undefined
+      }
+    })()
+    if (options) {
+      const denied = await denyUnless(req, options.access.manageTemplates)
+      if (denied) return denied
     }
 
     let body: unknown

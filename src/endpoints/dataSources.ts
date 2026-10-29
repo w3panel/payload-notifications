@@ -1,16 +1,18 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { denyUnless } from '../admin-ops/access'
 import { listDataFunctions } from '../data/resolvers'
 
 export const createDataSourcesListHandler = (
   getOptions: () => NormalizedNotificationsPluginOptions,
 ) => {
   return async (req: PayloadRequest) => {
-    if (!req.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const options = getOptions()
+    const denied = await denyUnless(req, [
+      options.access.manageTriggers,
+      options.access.manageTemplates,
+    ])
+    if (denied) return denied
     return Response.json({
       collections: Object.entries(options.data.collections)
         .map(([slug, entry]) => ({ slug, label: entry.label || slug, fields: entry.fields }))

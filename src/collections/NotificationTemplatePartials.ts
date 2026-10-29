@@ -80,7 +80,9 @@ export const NotificationTemplatePartialsCollection = ({
   getOptions?: () => NormalizedNotificationsPluginOptions
 } = {}): CollectionConfig => {
   const read: Access = ({ req }) => Boolean(req.user)
-  const write: Access = ({ req }) => Boolean(req.user)
+  const write: Access = async ({ req }) =>
+    Boolean(req.user) &&
+    (getOptions ? Boolean(await getOptions().access.manageTemplates({ req })) : true)
   const mediaSlug = (() => {
     try {
       return getOptions?.().templates.mediaCollection

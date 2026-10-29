@@ -211,8 +211,16 @@ export type NotificationsPluginOptions = {
     manageTriggers?: NotificationAccessCheck
     publishTriggers?: NotificationAccessCheck
     testSend?: NotificationAccessCheck
+    /** Create and edit templates and partials; preview and inspect their data. */
+    manageTemplates?: NotificationAccessCheck
     /** Publish / roll back notification templates. */
     publishTemplates?: NotificationAccessCheck
+    /** View deliveries, attempt logs, events and the notifications overview. */
+    viewDeliveries?: NotificationAccessCheck
+    /** Retry failed deliveries and cancel scheduled ones. */
+    retryDeliveries?: NotificationAccessCheck
+    /** Manage other users' preferences and suppressed destinations. */
+    managePreferences?: NotificationAccessCheck
     /**
      * Add or change raw HTML blocks in the visual email designer. Raw HTML is
      * sent as-is, so this defaults to nobody; grant it to trusted roles only.
@@ -388,7 +396,11 @@ export type NormalizedNotificationsPluginOptions = {
     manageTriggers: NotificationAccessCheck
     publishTriggers: NotificationAccessCheck
     testSend: NotificationAccessCheck
+    manageTemplates: NotificationAccessCheck
     publishTemplates: NotificationAccessCheck
+    viewDeliveries: NotificationAccessCheck
+    retryDeliveries: NotificationAccessCheck
+    managePreferences: NotificationAccessCheck
     rawHtml: NotificationAccessCheck
   }
   adminTriggers: {

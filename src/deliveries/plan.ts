@@ -337,6 +337,7 @@ const planTrigger = async ({
       idempotencyKey,
       dedupeKey: plan.dedupeKey,
       category: deliveryCategory(trigger.category, classification),
+      ...(event.tenant ? { tenant: event.tenant } : {}),
       fallback: delivery.fallback,
       recipientDestinations: recipient.destinations,
       ...retryFields(resolveRetryPolicy(options, trigger.reliability, delivery.channel)),

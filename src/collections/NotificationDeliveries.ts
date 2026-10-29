@@ -76,6 +76,7 @@ const baseFields: Field[] = [
   },
   { name: 'classification', type: 'select', options: ['transactional', 'marketing'] },
   { name: 'category', type: 'text', index: true },
+  { name: 'tenant', type: 'text', index: true },
   {
     name: 'idempotencyKey',
     type: 'text',

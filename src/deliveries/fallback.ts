@@ -28,6 +28,7 @@ export type FallbackSource = {
   recipientAlias?: string | null
   classification?: string | null
   category?: string | null
+  tenant?: string | null
   idempotencyKey: string
   dedupeKey?: string | null
   context?: unknown
@@ -114,6 +115,7 @@ export const createFallbackDelivery = async ({
         destinationMasked: maskDestination(destination),
         classification: primary.classification,
         category: primary.category,
+        ...(primary.tenant ? { tenant: primary.tenant } : {}),
         idempotencyKey,
         dedupeKey: primary.dedupeKey,
         context: primary.context,

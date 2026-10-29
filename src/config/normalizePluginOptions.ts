@@ -180,7 +180,11 @@ const normalizeAccess = (
     manageTriggers: access?.manageTriggers ?? isAdmin,
     publishTriggers: access?.publishTriggers ?? isAdmin,
     testSend: access?.testSend ?? isAdmin,
+    manageTemplates: access?.manageTemplates ?? isAdmin,
     publishTemplates: access?.publishTemplates ?? isAdmin,
+    viewDeliveries: access?.viewDeliveries ?? isAdmin,
+    retryDeliveries: access?.retryDeliveries ?? isAdmin,
+    managePreferences: access?.managePreferences ?? isAdmin,
     rawHtml: access?.rawHtml ?? (() => false),
   }
 }

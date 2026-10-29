@@ -1,4 +1,5 @@
 import type { Endpoint, Payload, PayloadRequest } from 'payload'
+import { denyUnless } from '../admin-ops/access'
 import type { NormalizedNotificationsPluginOptions } from '../types'
 import { findUnsafeLinks, smsSegments } from './channelContent'
 import { buildDefinitionFromTemplateDoc } from './fromDoc'
@@ -87,8 +88,12 @@ export const templateVariablesEndpoint = (
   path: '/variables',
   method: 'get',
   handler: async (req: PayloadRequest) => {
-    if (!req.user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
     const options = getOptions()
+    const denied = await denyUnless(req, [
+      options.access.manageTemplates,
+      options.access.manageTriggers,
+    ])
+    if (denied) return denied
     const url = new URL(req.url || 'http://localhost')
     const triggerSlug = url.searchParams.get('trigger')
     const trigger = triggerSlug
