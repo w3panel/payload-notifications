@@ -96,6 +96,8 @@ const emailGroup: Field = {
       name: 'htmlBody',
       type: 'code',
       admin: {
+        // Generated from the design on save while the visual designer is used.
+        condition: (_, siblingData) => siblingData?.editor !== 'visual',
         language: 'html',
         description: `HTML email body. ${engineHint} Use {{{ raw }}} only when intentional.`,
       },
@@ -104,6 +106,7 @@ const emailGroup: Field = {
       name: 'textBody',
       type: 'code',
       admin: {
+        condition: (_, siblingData) => siblingData?.editor !== 'visual',
         language: 'plaintext',
         description: `Plain-text email body. ${engineHint}`,
       },
@@ -280,9 +283,10 @@ const baseFields = (collectionSlug: string, slugs: StudioSlugs = {}): Field[] =>
   {
     name: 'version',
     type: 'number',
-    defaultValue: 1,
+    // 0 until the first publish, so that publish is version 1.
+    defaultValue: 0,
     index: true,
-    admin: { readOnly: true, description: 'Published version' },
+    admin: { readOnly: true, description: 'Published version (0 = never published)' },
   },
   {
     name: 'source',

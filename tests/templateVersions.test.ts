@@ -242,3 +242,51 @@ describe('publishing and pinning', () => {
     expect((await res.json()).details).toEqual({ errors: ['broken'] })
   })
 })
+
+describe('template version numbering', () => {
+  it('publishes a draft as version 1', async () => {
+    const options = normalizePluginOptions()
+    const collection = NotificationTemplatesCollection({ getOptions: () => options })
+    const versionField = collection.fields.find(
+      (field) => 'name' in field && field.name === 'version',
+    ) as {
+      defaultValue?: number
+    }
+    // New templates are unpublished (0); the first publish is version 1.
+    expect(versionField.defaultValue).toBe(0)
+    const memory = createMemoryPayload({
+      'notification-templates': [
+        {
+          id: 't9',
+          slug: 'draft.event',
+          status: 'draft',
+          version: 0,
+          channels: ['inapp'],
+          inapp: { title: 'T', body: 'B' },
+        },
+      ],
+    })
+    const result = await publishTemplate({ payload: memory.payload, options, id: 't9' })
+    expect(result).toMatchObject({ ok: true, version: 1 })
+  })
+})
+
+describe('template fields with the visual designer', () => {
+  it('hides the generated HTML and text bodies while the designer is used', () => {
+    const collection = NotificationTemplatesCollection({
+      getOptions: () => normalizePluginOptions(),
+    })
+    const email = collection.fields.find((field) => 'name' in field && field.name === 'email') as {
+      fields: Array<{
+        name?: string
+        admin?: { condition?: (data: unknown, sibling: unknown) => boolean }
+      }>
+    }
+    for (const name of ['htmlBody', 'textBody']) {
+      const condition = email.fields.find((field) => field.name === name)?.admin?.condition
+      expect(condition?.({}, { editor: 'visual' })).toBe(false)
+      expect(condition?.({}, { editor: 'code' })).toBe(true)
+      expect(condition?.({}, {})).toBe(true)
+    }
+  })
+})

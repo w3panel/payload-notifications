@@ -1,15 +1,17 @@
 /** Scoped styles for the visual email designer (uses Payload admin theme variables). */
 export const STUDIO_CSS = `
-.pn-studio{--pn-border:var(--theme-elevation-150,#ddd);--pn-muted:var(--theme-elevation-500,#71717a);--pn-accent:var(--theme-success-500,#2563eb);display:grid;gap:.75rem;font-size:13px}
+.pn-studio{--pn-border:var(--theme-elevation-150,#ddd);--pn-muted:var(--theme-elevation-500,#71717a);--pn-accent:var(--theme-success-500,#2563eb);display:grid;gap:.75rem;font-size:13px;container-type:inline-size}
 .pn-studio button{cursor:pointer;padding:4px 8px;border:1px solid var(--pn-border);border-radius:4px;background:var(--theme-elevation-0,#fff);color:inherit;font:inherit}
 .pn-studio button:disabled{opacity:.5;cursor:default}
 .pn-studio button.pn-active{border-color:var(--pn-accent);box-shadow:inset 0 0 0 1px var(--pn-accent)}
 .pn-studio input,.pn-studio select,.pn-studio textarea{font:inherit;padding:4px 6px;border:1px solid var(--pn-border);border-radius:4px;background:var(--theme-input-bg,var(--theme-elevation-0,#fff));color:inherit;width:100%;box-sizing:border-box}
 .pn-studio input[type=checkbox]{width:auto}.pn-studio input[type=color]{width:36px;padding:0;height:28px}
 .pn-toolbar{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
-.pn-designer{display:grid;grid-template-columns:150px minmax(0,1fr) 280px;gap:.75rem;align-items:start}
-@media (max-width:1100px){.pn-designer{grid-template-columns:1fr}}
-.pn-palette{display:grid;gap:4px}
+.pn-designer{display:grid;grid-template-columns:1fr;gap:.75rem;align-items:start}
+.pn-palette{display:flex;flex-wrap:wrap;gap:4px}
+.pn-palette .pn-panel-title{flex-basis:100%}
+@container (min-width:640px){.pn-designer{grid-template-columns:minmax(0,1fr) 260px}.pn-palette{grid-column:1/-1}}
+@container (min-width:1000px){.pn-designer{grid-template-columns:140px minmax(0,1fr) 280px}.pn-palette{grid-column:auto;display:grid}}
 .pn-palette button{text-align:left}
 .pn-panel-title{font-weight:600;margin-bottom:4px}
 .pn-canvas{padding:16px;border:1px solid var(--pn-border);border-radius:6px;min-height:240px;overflow:auto}
