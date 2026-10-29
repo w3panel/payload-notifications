@@ -8,6 +8,9 @@ import { useDesignerLists } from './studio/useDesignerLists'
 import { useTemplateVariables } from './studio/useTemplateVariables'
 import { VisualEmailEditor } from './studio/VisualEmailEditor'
 import { buildTemplateApiPath, parsePreviewContext } from './previewHelpers'
+import { CodeVariablesPanel } from './studio/CodeVariablesPanel'
+import { EditorModeBar } from './studio/EditorModeBar'
+import { useMonacoVariableCompletion } from './studio/monacoVariables'
 import { PreviewPanel } from './studio/PreviewPanel'
 import { TemplateEngineHelp } from './TemplateEngineHelp'
 import type { NotificationChannel } from '../types'
@@ -140,11 +143,63 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
     event: slug.value || undefined,
     trigger: trigger.trim() || undefined,
   })
+  const channels = useField<string[]>({ path: 'channels' })
+  const htmlBody = useField<string>({ path: 'email.htmlBody' })
+  const textBody = useField<string>({ path: 'email.textBody' })
+  const subject = useField<string>({ path: 'email.subject' })
+  const preheader = useField<string>({ path: 'email.preheader' })
+  const hasEmail = Array.isArray(channels.value) && channels.value.includes('email')
+  useMonacoVariableCompletion(variables.paths, hasEmail && !visual)
+
+  const compile = useCallback(
+    async (next: EmailDesign) => {
+      const res = await fetch(`${apiRoute.replace(/\/$/, '')}/${collectionSlug}/compile-design`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ design: next, locale: getDoc().locale }),
+      })
+      const data = (await res.json()) as {
+        html?: string
+        text?: string
+        error?: string
+        errors?: string[]
+      }
+      return res.ok && typeof data.html === 'string'
+        ? { html: data.html, text: data.text ?? '' }
+        : {
+            error: [data.error || `Conversion failed (${res.status})`, ...(data.errors ?? [])].join(
+              ' — ',
+            ),
+          }
+    },
+    [apiRoute, collectionSlug, getDoc],
+  )
 
   return (
     <div className="pn-studio">
       <style>{STUDIO_CSS}</style>
       <div style={{ fontWeight: 600 }}>Template studio</div>
+      {hasEmail ? (
+        <EditorModeBar
+          editor={editor.value}
+          design={design.value}
+          setEditor={(value) => editor.setValue(value)}
+          setDesign={(next) => design.setValue(next)}
+          setBodies={({ html, text }) => {
+            htmlBody.setValue(html)
+            textBody.setValue(text)
+          }}
+          compile={compile}
+        />
+      ) : null}
+      {hasEmail && !visual ? (
+        <CodeVariablesPanel
+          paths={variables.paths}
+          roots={variables.roots}
+          sources={[subject.value, preheader.value, htmlBody.value, textBody.value]}
+        />
+      ) : null}
       {visual ? (
         <>
           <div className="pn-toolbar">

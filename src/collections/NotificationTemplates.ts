@@ -9,6 +9,7 @@ import {
   type Field,
 } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { compileDesignEndpoint } from '../endpoints/compileDesign'
 import { templatePreviewEndpoint } from '../endpoints/templatePreview'
 import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
 import { EVENT_NAME_PATTERN } from '../events/names'
@@ -440,6 +441,7 @@ export const NotificationTemplatesCollection = ({
     templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
     ...templateLifecycleEndpoints(getOptions || defaultOptionsGetter, validateTemplateDoc),
     templateVariablesEndpoint(getOptions || defaultOptionsGetter),
+    compileDesignEndpoint(getOptions || defaultOptionsGetter),
     whatsappStatusEndpoint(getOptions || defaultOptionsGetter),
     ...(overrides?.endpoints || []),
   ]
