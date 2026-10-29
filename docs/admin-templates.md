@@ -58,11 +58,16 @@ Does **not** require the template to be `active` — uses current form/`doc` val
 
 ## Draft → active workflow
 
-1. Create template as `draft`  
-2. Preview / test-send until content looks right  
-3. Set `status` to `active` (version increments)  
-4. Point a rule `template` slug at it  
-5. Emit domain events
+1. Create the template as `draft`.
+2. Preview and test-send until the content looks right.
+3. Publish: set `status` to `active`, or call `POST /api/notification-templates/:id/publish`. Either
+   way, an immutable version is saved.
+4. Point a trigger delivery's `template` at the slug.
+5. Emit domain events.
+
+Later edits to an active template show **unpublished changes**. Sends keep using the published
+version until you publish again, and you can roll back to any earlier version
+(see [templates.md](./templates.md#publishing-and-rollback)).
 
 ## Out of scope
 
