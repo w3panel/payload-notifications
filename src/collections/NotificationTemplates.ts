@@ -14,6 +14,7 @@ import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
 import { EVENT_NAME_PATTERN } from '../events/names'
 import { templateLifecycleEndpoints } from '../templates/lifecycle'
 import { templateVariablesEndpoint, validateTemplateDoc } from '../templates/validate'
+import { whatsappStatusEndpoint } from '../templates/whatsappStatus'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 
 export type NotificationTemplatesCollectionOverrides = {
@@ -55,6 +56,11 @@ const emailGroup: Field = {
   },
   fields: [
     { name: 'subject', type: 'text', admin: { description: engineHint } },
+    {
+      name: 'preheader',
+      type: 'text',
+      admin: { description: `Inbox preview text shown after the subject. ${engineHint}` },
+    },
     {
       name: 'htmlBody',
       type: 'code',
@@ -106,8 +112,23 @@ const whatsappGroup: Field = {
       type: 'text',
       admin: {
         description:
-          'Optional Meta HSM template id (not used for plain-text sends in this release).',
+          'Approved WhatsApp template name (Meta) or Content SID (Twilio). When set, this template is sent instead of the text body.',
       },
+    },
+    {
+      name: 'hsmLanguage',
+      type: 'text',
+      defaultValue: 'en',
+      admin: { description: 'Template language code, e.g. en or en_US' },
+    },
+    {
+      name: 'hsmParameters',
+      type: 'array',
+      admin: {
+        description:
+          'Body parameters in order ({{1}}, {{2}} …). Each value may use template variables.',
+      },
+      fields: [{ name: 'value', type: 'text', required: true }],
     },
   ],
 }
@@ -125,6 +146,13 @@ const inappGroup: Field = {
       type: 'textarea',
       admin: { description: `In-app message body. ${engineHint}` },
     },
+    {
+      name: 'actionUrl',
+      type: 'text',
+      admin: { description: `Link opened when the notification is clicked. ${engineHint}` },
+    },
+    { name: 'icon', type: 'text', admin: { description: 'Icon name or URL' } },
+    { name: 'priority', type: 'select', options: ['low', 'normal', 'high', 'urgent'] },
   ],
 }
 
@@ -220,6 +248,23 @@ const baseFields = (collectionSlug: string): Field[] => [
     defaultValue: 1,
     index: true,
     admin: { readOnly: true, description: 'Published version' },
+  },
+  {
+    name: 'whatsappTemplateStatus',
+    type: 'text',
+    admin: {
+      readOnly: true,
+      condition: (_, siblingData) => Boolean(siblingData?.whatsapp?.hsmTemplateId),
+      description: 'Approval status synced from Meta (APPROVED, PENDING, REJECTED …)',
+    },
+  },
+  {
+    name: 'whatsappTemplateCheckedAt',
+    type: 'date',
+    admin: {
+      readOnly: true,
+      condition: (_, siblingData) => Boolean(siblingData?.whatsappTemplateStatus),
+    },
   },
   {
     name: 'hasUnpublishedChanges',
@@ -333,6 +378,7 @@ export const NotificationTemplatesCollection = ({
     templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
     ...templateLifecycleEndpoints(getOptions || defaultOptionsGetter, validateTemplateDoc),
     templateVariablesEndpoint(getOptions || defaultOptionsGetter),
+    whatsappStatusEndpoint(getOptions || defaultOptionsGetter),
     ...(overrides?.endpoints || []),
   ]
 

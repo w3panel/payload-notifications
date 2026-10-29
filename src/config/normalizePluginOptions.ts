@@ -423,6 +423,8 @@ export const normalizePluginOptions = (
     sms: options.templates?.sms,
     seedOnInit: options.templates?.seedOnInit === true,
     defaultLocale: options.templates?.defaultLocale || undefined,
+    emailLayout: options.templates?.emailLayout,
+    shortenLink: options.templates?.shortenLink,
     localized: Object.fromEntries(
       Object.entries(options.templates?.localized ?? {}).map(([locale, registry]) => [
         locale.replace('_', '-').toLowerCase(),

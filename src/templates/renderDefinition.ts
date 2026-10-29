@@ -53,12 +53,31 @@ export const renderDefinition = (
     ? renderEngineTemplate(definition.htmlBody, toEngineContext(context))
     : `<p>${escapeHtml(body)}</p>`
 
+  const plain = (source?: string) => (source ? renderPlainText(source, context) : undefined)
+  const whatsappTemplate = definition.whatsappTemplate?.name
+    ? {
+        name: definition.whatsappTemplate.name,
+        language: definition.whatsappTemplate.language || 'en',
+        parameters: (definition.whatsappTemplate.parameters ?? []).map(
+          (parameter) => plain(parameter) ?? '',
+        ),
+        ...(definition.whatsappTemplate.status
+          ? { status: definition.whatsappTemplate.status }
+          : {}),
+      }
+    : undefined
+
   return {
     subject,
     title,
     body,
     text: body,
     html,
+    ...(definition.preheader ? { preheader: plain(definition.preheader) } : {}),
+    ...(definition.actionUrl ? { actionUrl: plain(definition.actionUrl) } : {}),
+    ...(definition.icon ? { icon: definition.icon } : {}),
+    ...(definition.priority ? { priority: definition.priority } : {}),
+    ...(whatsappTemplate ? { whatsappTemplate } : {}),
   }
 }
 

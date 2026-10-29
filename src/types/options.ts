@@ -84,6 +84,15 @@ export type NotificationsPluginOptions = {
     /** Locale used when a recipient has none (e.g. `en`). Templates without a locale are the last fallback. */
     defaultLocale?: string
     /** Code registry variants per locale, e.g. `{ hi: { 'order.paid': { sms: '…' } } }`. */
+    /**
+     * Email layout: wraps every HTML email. A template string with
+     * `{{{ content }}}` (and optionally `{{ preheader }}`, `{{ subject }}`), or a function.
+     */
+    emailLayout?:
+      | string
+      | ((args: { html: string; subject?: string; preheader?: string }) => string)
+    /** Shortens links in SMS / WhatsApp text before sending. */
+    shortenLink?: (url: string) => string | Promise<string>
     localized?: Record<string, NotificationTemplateRegistry>
   }
   providers?: {
@@ -262,6 +271,10 @@ export type NormalizedNotificationsPluginOptions = {
     registry: NotificationTemplateRegistry
     seedOnInit: boolean
     defaultLocale?: string
+    emailLayout?:
+      | string
+      | ((args: { html: string; subject?: string; preheader?: string }) => string)
+    shortenLink?: (url: string) => string | Promise<string>
     localized: Record<string, NotificationTemplateRegistry>
   }
   providers: {

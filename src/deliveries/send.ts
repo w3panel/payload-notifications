@@ -20,6 +20,7 @@ import { callProvider } from './providerCall'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
 import { recheckDelivery } from './recheck'
 import { retryDelayMs, type ResolvedRetryPolicy } from './retry'
+import { finalizeForChannel } from '../templates/channelContent'
 import { mergeTemplateDefinition, renderDefinition } from '../templates/renderDefinition'
 import { resolveTemplate } from '../templates/resolve'
 
@@ -286,7 +287,11 @@ export const sendDelivery = async ({
   if (unsubscribeUrl) context = { ...context, unsubscribeUrl }
 
   const renderStarted = Date.now()
-  const rendered = renderDefinition(definition, context)
+  const rendered = await finalizeForChannel(
+    renderDefinition(definition, context),
+    delivery.channel,
+    options,
+  )
   const renderDurationMs = Date.now() - renderStarted
 
   const provider = resolveProvider(delivery.channel, options)
@@ -298,6 +303,15 @@ export const sendDelivery = async ({
     )
   }
 
+  // An approved template is required outside WhatsApp's 24-hour window; don't spend a send on one
+  // the provider has rejected or not yet approved.
+  const hsm = rendered.whatsappTemplate
+  if (hsm?.status && hsm.status.toUpperCase() !== 'APPROVED') {
+    return stop('failed', `WhatsApp template "${hsm.name}" is ${hsm.status}`, 'permanent')
+  }
+  const content =
+    hsm && !provider.capabilities.hsm ? { ...rendered, whatsappTemplate: undefined } : rendered
+
   // Only now is the delivery "sending": anything thrown before this point is safe to retry.
   await updateDelivery(payload, options, deliveryId, { status: 'sending', attempts: attempt })
   const call = await callProvider(
@@ -305,7 +319,7 @@ export const sendDelivery = async ({
     {
       to: delivery.destination,
       channel: delivery.channel,
-      content: provider.capabilities.html ? rendered : { ...rendered, html: '' },
+      content: provider.capabilities.html ? content : { ...content, html: '' },
       idempotencyKey: delivery.idempotencyKey,
       ...(unsubscribeUrl && delivery.channel === 'email'
         ? {
@@ -317,7 +331,12 @@ export const sendDelivery = async ({
         : {}),
       payload,
       options,
-      meta: { deliveryId, event: delivery.event, eventPayload: delivery.context?.payload },
+      meta: {
+        deliveryId,
+        event: delivery.event,
+        classification: delivery.classification,
+        eventPayload: delivery.context?.payload,
+      },
     },
     options.providers.timeoutMs,
   )
@@ -337,6 +356,7 @@ export const sendDelivery = async ({
     renderDurationMs,
     durationMs: call.durationMs,
     rendered: { subject: rendered.subject, title: rendered.title, text: rendered.text },
+    ...(rendered.segments ? { meta: { segments: rendered.segments } } : {}),
   }
 
   if (call.ok) {

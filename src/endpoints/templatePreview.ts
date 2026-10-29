@@ -8,6 +8,7 @@ import { buildDataContext } from '../data/buildContext'
 import { createSensitiveFieldMatcher, redactContext } from '../data/sensitive'
 import { validateDataSources } from '../data/sources'
 import { validateEventPayload } from '../events/registry'
+import { finalizeForChannel } from '../templates/channelContent'
 import { previewTemplateDoc } from '../templates/preview'
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
@@ -191,11 +192,21 @@ export const createTemplatePreviewHandler = (
     }
 
     try {
-      const rendered = previewTemplateDoc({
+      const raw = previewTemplateDoc({
         doc,
         channel: channel as NotificationChannel,
         context: renderContext,
       })
+      // Standalone collections (no plugin options) preview without channel finishing.
+      let finishingOptions: NormalizedNotificationsPluginOptions | undefined
+      try {
+        finishingOptions = getOptions?.()
+      } catch {
+        finishingOptions = undefined
+      }
+      const rendered = finishingOptions
+        ? await finalizeForChannel(raw, channel as NotificationChannel, finishingOptions)
+        : raw
       return Response.json({ ok: true, channel, rendered, ...(data ? { data } : {}) })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Preview failed'

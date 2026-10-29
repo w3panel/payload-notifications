@@ -48,10 +48,21 @@ export const createTwilioWhatsAppProvider = (
     send: async (input: WhatsAppProviderSendInput): Promise<ChannelProviderResult> => {
       const url = `${TWILIO_API_BASE}/Accounts/${accountSid}/Messages.json`
 
+      const hsm = input.whatsappTemplate
       const params = new URLSearchParams({
         To: ensureWhatsAppPrefix(input.to),
         From: ensureWhatsAppPrefix(from),
-        Body: input.template,
+        // Approved templates go through Twilio's Content API (name = Content SID).
+        ...(hsm
+          ? {
+              ContentSid: hsm.name,
+              ContentVariables: JSON.stringify(
+                Object.fromEntries(
+                  hsm.parameters.map((value, index) => [String(index + 1), value]),
+                ),
+              ),
+            }
+          : { Body: input.template }),
       })
 
       const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64')

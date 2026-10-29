@@ -21,7 +21,7 @@ export const previewTemplateDoc = ({
   context,
 }: PreviewTemplateInput): RenderedNotificationContent => {
   const definition = buildDefinitionFromTemplateDoc(doc, channel)
-  if (!definition.body && !definition.htmlBody) {
+  if (!definition.body && !definition.htmlBody && !definition.whatsappTemplate) {
     throw new Error(`payload-notifications: no ${channel} content to preview`)
   }
   return renderDefinition(definition, context)

@@ -112,6 +112,8 @@ export type {
   NotificationsJobsOptions,
   PreferenceFieldMapping,
   RenderedNotificationContent,
+  SmsSegmentInfo,
+  WhatsAppTemplateDefinition,
   RegisteredNotificationEvent,
   RenderedTemplate,
   SMSProviderAdapter,
@@ -235,6 +237,19 @@ export {
 } from './templates/variables'
 export type { AvailableVariables, VariableCheck } from './templates/variables'
 export { templateVariablesEndpoint, validateTemplateDoc } from './templates/validate'
+export {
+  finalizeForChannel,
+  findUnsafeLinks,
+  preheaderHtml,
+  sanitizeLinks,
+  shortenLinksInText,
+  smsSegments,
+} from './templates/channelContent'
+export {
+  fetchWhatsAppTemplateStatus,
+  syncWhatsAppTemplateStatus,
+  whatsappStatusEndpoint,
+} from './templates/whatsappStatus'
 export type { TemplateValidationReport } from './templates/validate'
 export type { SeedTemplatesResult } from './templates/seed'
 export {

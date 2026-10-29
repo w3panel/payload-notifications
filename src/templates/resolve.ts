@@ -83,7 +83,11 @@ const resolveFromDatabase = async ({
         : undefined
     const source = (snapshot?.content ?? doc) as Record<string, unknown>
     const definition = buildDefinitionFromTemplateDoc(source as never, channel)
-    if (!definition.body && !definition.htmlBody) continue
+    if (!definition.body && !definition.htmlBody && !definition.whatsappTemplate) continue
+    // Approval status is synced onto the live document, not into snapshots.
+    if (definition.whatsappTemplate && typeof doc.whatsappTemplateStatus === 'string') {
+      definition.whatsappTemplate.status = doc.whatsappTemplateStatus
+    }
 
     return {
       event: templateKey,

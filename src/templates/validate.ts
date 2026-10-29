@@ -1,5 +1,6 @@
 import type { Endpoint, Payload, PayloadRequest } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { findUnsafeLinks, smsSegments } from './channelContent'
 import { buildDefinitionFromTemplateDoc } from './fromDoc'
 import { compile } from './engine'
 import {
@@ -37,6 +38,26 @@ export const validateTemplateDoc = async (
         errors.push(`${channel}: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
+  }
+
+  const email = (doc.email ?? {}) as { htmlBody?: string }
+  for (const url of email.htmlBody ? findUnsafeLinks(email.htmlBody) : []) {
+    errors.push(`email: link "${url}" uses an unsafe scheme (allowed: http, https, mailto, tel)`)
+  }
+
+  const sms = (doc.sms ?? {}) as { body?: string }
+  if (channels.includes('sms') && sms.body) {
+    const sizing = smsSegments(sms.body)
+    if (sizing.segments > 3) {
+      warnings.push(
+        `sms: about ${sizing.segments} ${sizing.encoding} segments before variables are filled in`,
+      )
+    }
+  }
+
+  const status = typeof doc.whatsappTemplateStatus === 'string' ? doc.whatsappTemplateStatus : ''
+  if (status && status.toUpperCase() !== 'APPROVED') {
+    warnings.push(`whatsapp: template is ${status}; WhatsApp sends will fail until it is approved`)
   }
 
   if (options.events[slug]) {
