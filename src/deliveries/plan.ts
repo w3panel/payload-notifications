@@ -6,14 +6,12 @@ import type {
   NotificationEvent,
   ResolvedRecipient,
 } from '../types'
-import { buildDataContext } from '../data/buildContext'
 import { createSensitiveFieldMatcher } from '../data/sensitive'
 import { generateEventId } from '../events/registry'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
-import { maskDestination, resolveRecipients } from '../recipients/resolve'
-import { applyQuietHours, computeSchedule, isValidTimeZone } from './schedule'
-import { conditionNeedsData, evaluateCondition } from '../triggers/conditions'
+import { maskDestination } from '../recipients/resolve'
+import { evaluateTriggerPlan } from './evaluate'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
 
@@ -166,260 +164,121 @@ const planTrigger = async ({
     })
   }
 
-  if (trigger.condition && !(await trigger.condition(event.payload ?? {}))) return
-
-  const documentAliases = (trigger.data?.sources ?? [])
-    .filter((source) => source.type === 'document')
-    .map((source) => source.alias)
-  const conditionArgs = (scope: Record<string, unknown>) => ({
-    scope,
-    event,
-    payload,
-    custom: options.conditions,
-    documentAliases,
-  })
-
-  // Conditions that only read event / doc fields run before any data is loaded.
-  const conditionsNeedData = conditionNeedsData(trigger.conditions)
-  if (
-    trigger.conditions &&
-    !conditionsNeedData &&
-    !(await evaluateCondition(
-      trigger.conditions,
-      conditionArgs({
-        event,
-        payload: event.payload ?? {},
-        doc: event.doc,
-        previous: event.previous,
-        trigger: { name: event.name, eventId: event.eventId },
-      }),
-    ))
-  ) {
+  const plan = await evaluateTriggerPlan({ payload, event, trigger, options, isSensitive, req })
+  for (const warning of plan.ok || plan.outcome !== 'not-matched' ? plan.warnings : []) {
+    payload.logger?.warn?.(`payload-notifications: ${warning}`)
+  }
+  if (!plan.ok) {
+    if (plan.outcome !== 'not-matched') await logTriggerSkip(plan.outcome, plan.reason)
     return
   }
 
-  const dataContext = await buildDataContext({
-    payload,
-    event,
-    doc: event.doc ?? undefined,
-    previous: event.previous ?? undefined,
-    sources: trigger.data?.sources,
-    dataResolvers: options.dataResolvers,
-    computed: options.computed,
-    isSensitive,
-    owner,
-    resolverReq: req,
-    tenancy:
-      options.tenancy && event.tenant
-        ? { field: options.tenancy.field, value: event.tenant }
-        : undefined,
-  })
-  if (!dataContext.ok) {
-    await logTriggerSkip(
-      'skipped',
-      `${dataContext.reason} (${dataContext.source}): ${dataContext.message}`,
-    )
-    return
-  }
-
-  /** Condition scope: the template context with `event` as the full event object. */
-  const scope: Record<string, unknown> = { ...dataContext.context, event }
-  if (
-    trigger.conditions &&
-    conditionsNeedData &&
-    !(await evaluateCondition(trigger.conditions, conditionArgs(scope)))
-  ) {
-    return
-  }
-
-  const { recipients, warnings } = await resolveRecipients({
-    payload,
-    event,
-    context: dataContext.context,
-    definitions: trigger.recipients,
-    options,
-    owner,
-    req,
-  })
-  for (const warning of warnings) payload.logger?.warn?.(`payload-notifications: ${warning}`)
-
-  if (!recipients.length) {
-    const usesEventUser = (trigger.recipients ?? [{ type: 'eventUser' }]).some(
-      (definition) => definition.type === 'eventUser',
-    )
-    await logTriggerSkip(
-      'failed',
-      !event.userId && usesEventUser
-        ? 'Notification event userId is required to queue sends'
-        : `No recipients resolved for ${owner}${warnings.length ? `: ${warnings.join('; ')}` : ''}`,
-    )
-    return
-  }
-
-  const classification = trigger.classification ?? event.classification
-
+  const { classification } = plan
   const now = new Date()
-  const schedule = computeSchedule(trigger.schedule, scope, now)
-  if (!schedule.ok) {
-    await logTriggerSkip('skipped', `schedule: ${schedule.reason}`)
-    return
-  }
-  if (schedule.at && schedule.at < now && trigger.schedule?.skipIfPast) {
-    await logTriggerSkip('skipped', `schedule: ${schedule.at.toISOString()} has already passed`)
-    return
-  }
-  const quietHours =
-    options.quietHours &&
-    classification &&
-    options.quietHours.classifications.includes(classification)
-      ? options.quietHours
-      : undefined
-  /** Send time for one recipient: the schedule, moved out of their quiet hours. */
-  const sendTimeFor = (recipient: ResolvedRecipient): Date | undefined => {
-    if (!quietHours) return schedule.at
-    const base = schedule.at && schedule.at > now ? schedule.at : now
-    const timeZone =
-      recipient.timezone && isValidTimeZone(recipient.timezone)
-        ? recipient.timezone
-        : quietHours.timezone
-    const adjusted = applyQuietHours(base, quietHours, timeZone)
-    return adjusted > base ? adjusted : schedule.at
-  }
 
-  for (const delivery of trigger.deliveries) {
-    // Compiled legacy rules may list channels that are not enabled; v2 triggers are validated.
-    if (!options.channels.includes(delivery.channel)) continue
-    const target = delivery.recipient ?? 'all'
+  for (const { delivery, recipient, recipientScope, destination, sendAt } of plan.items) {
+    const idempotencyKey = buildDeliveryKey({
+      event,
+      trigger: trigger.slug,
+      recipient,
+      channel: delivery.channel,
+      template: delivery.template,
+    })
+    const planned: PlannedDelivery = {
+      trigger: trigger.slug,
+      channel: delivery.channel,
+      recipientKey: recipient.key,
+      status: 'queued',
+    }
 
-    for (const recipient of recipients) {
-      if (target !== 'all' && !recipient.aliases.includes(target)) continue
+    const existing = await findDeliveryByKey(payload, options, idempotencyKey)
+    if (existing) {
+      result.deliveries.push({ ...planned, deliveryId: existing.id, status: 'existing' })
+      continue
+    }
 
-      const recipientScope = {
-        id: recipient.recipientId,
-        name: recipient.name,
-        email: recipient.destinations.email,
-        locale: recipient.locale,
-        timezone: recipient.timezone,
-        aliases: recipient.aliases,
-      }
-      if (
-        delivery.when &&
-        !(await evaluateCondition(
-          delivery.when,
-          conditionArgs({ ...scope, recipient: recipientScope }),
-        ))
-      ) {
-        continue
-      }
+    const skipReason = destination ? undefined : `No ${delivery.channel} destination for recipient`
+    const record = {
+      event: event.name,
+      eventId: event.eventId,
+      trigger: trigger.slug,
+      triggerOrigin: snapshot.origin,
+      triggerVersion: snapshot.version,
+      triggerPolicy: snapshot.policy,
+      channel: delivery.channel,
+      templateSlug: delivery.template,
+      status: skipReason ? 'skipped' : 'queued',
+      attempts: 0,
+      recipientKey: recipient.key,
+      recipientId: recipient.recipientId,
+      recipientAlias: recipient.aliases.join(','),
+      destination,
+      destinationMasked: maskDestination(destination),
+      classification,
+      idempotencyKey,
+      skipReason,
+      scheduledFor: sendAt?.toISOString(),
+      recheckConditions: trigger.schedule?.recheckConditions === true,
+      context: {
+        ...plan.context,
+        recipient: recipientScope,
+      },
+      templateOverrides: delivery.templateOverrides,
+    }
 
-      const idempotencyKey = buildDeliveryKey({
-        event,
-        trigger: trigger.slug,
-        recipient,
-        channel: delivery.channel,
-        template: delivery.template,
-      })
-      const destination =
-        recipient.destinations[delivery.channel as keyof typeof recipient.destinations]
-      const planned: PlannedDelivery = {
-        trigger: trigger.slug,
-        channel: delivery.channel,
-        recipientKey: recipient.key,
-        status: 'queued',
-      }
-
-      const existing = await findDeliveryByKey(payload, options, idempotencyKey)
-      if (existing) {
-        result.deliveries.push({ ...planned, deliveryId: existing.id, status: 'existing' })
-        continue
-      }
-
-      const skipReason = destination
-        ? undefined
-        : `No ${delivery.channel} destination for recipient`
-      const sendAt = sendTimeFor(recipient)
-      const record = {
-        event: event.name,
-        eventId: event.eventId,
-        trigger: trigger.slug,
-        triggerOrigin: snapshot.origin,
-        triggerVersion: snapshot.version,
-        triggerPolicy: snapshot.policy,
-        channel: delivery.channel,
-        templateSlug: delivery.template,
-        status: skipReason ? 'skipped' : 'queued',
-        attempts: 0,
-        recipientKey: recipient.key,
-        recipientId: recipient.recipientId,
-        recipientAlias: recipient.aliases.join(','),
-        destination,
-        destinationMasked: maskDestination(destination),
-        classification,
-        idempotencyKey,
-        skipReason,
-        scheduledFor: sendAt?.toISOString(),
-        recheckConditions: trigger.schedule?.recheckConditions === true,
-        context: {
-          ...dataContext.context,
-          recipient: recipientScope,
-        },
-        templateOverrides: delivery.templateOverrides,
-      }
-
-      let created: { id: string | number }
-      try {
-        created = (await payload.create({
-          collection: options.collections.deliveries as never,
-          data: record as never,
-          overrideAccess: true,
-        })) as { id: string | number }
-      } catch (error) {
-        if (!isDuplicateKeyError(error)) throw error
-        const raced = await findDeliveryByKey(payload, options, idempotencyKey)
-        if (!raced) throw error
-        result.deliveries.push({ ...planned, deliveryId: raced.id, status: 'existing' })
-        continue
-      }
-      const deliveryId = String(created.id)
-
-      if (skipReason) {
-        await writeNotificationLog({
-          payload,
-          options,
-          input: {
-            userId: recipient.recipientId ?? '',
-            event: event.name,
-            channel: delivery.channel,
-            template: delivery.template,
-            idempotencyKey,
-            deliveryId,
-          },
-          status: 'skipped',
-          error: skipReason,
-          fingerprint: idempotencyKey,
-          failureClassification: 'terminal',
-        })
-        result.deliveries.push({ ...planned, deliveryId, status: 'skipped', reason: skipReason })
-        continue
-      }
-
-      await payload.jobs.queue({
+    let created: { id: string | number }
+    try {
+      created = (await payload.create({
+        collection: options.collections.deliveries as never,
+        data: record as never,
         overrideAccess: true,
-        task: NOTIFICATION_SEND_TASK,
-        queue: options.jobs.queue,
+      })) as { id: string | number }
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error
+      const raced = await findDeliveryByKey(payload, options, idempotencyKey)
+      if (!raced) throw error
+      result.deliveries.push({ ...planned, deliveryId: raced.id, status: 'existing' })
+      continue
+    }
+    const deliveryId = String(created.id)
+
+    if (skipReason) {
+      await writeNotificationLog({
+        payload,
+        options,
         input: {
-          deliveryId,
           userId: recipient.recipientId ?? '',
+          event: event.name,
           channel: delivery.channel,
           template: delivery.template,
-          event: event.name,
-          eventId: event.eventId,
-          classification,
-          idempotencyKey: event.idempotencyKey,
+          idempotencyKey,
+          deliveryId,
         },
-        ...(sendAt && sendAt > now ? { waitUntil: sendAt } : {}),
+        status: 'skipped',
+        error: skipReason,
+        fingerprint: idempotencyKey,
+        failureClassification: 'terminal',
       })
-      result.deliveries.push({ ...planned, deliveryId })
+      result.deliveries.push({ ...planned, deliveryId, status: 'skipped', reason: skipReason })
+      continue
     }
+
+    await payload.jobs.queue({
+      overrideAccess: true,
+      task: NOTIFICATION_SEND_TASK,
+      queue: options.jobs.queue,
+      input: {
+        deliveryId,
+        userId: recipient.recipientId ?? '',
+        channel: delivery.channel,
+        template: delivery.template,
+        event: event.name,
+        eventId: event.eventId,
+        classification,
+        idempotencyKey: event.idempotencyKey,
+      },
+      ...(sendAt && sendAt > now ? { waitUntil: sendAt } : {}),
+    })
+    result.deliveries.push({ ...planned, deliveryId })
   }
 }
