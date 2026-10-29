@@ -2,10 +2,12 @@
 
 ## Channels
 
-| Tag | npm dist-tag | Use |
-|---|---|---|
-| `vX.Y.Z-beta.N`, `vX.Y.Z-next.N` | `next` | Betas, and the first builds against Payload 4 betas |
-| `vX.Y.Z` | `latest` | Stable releases (Payload 3 apps install this by default) |
+| Line | Branch | Tag | npm dist-tag | For |
+|---|---|---|---|---|
+| 0.4.x betas | `main` | `v0.4.0-beta.N` | `next` | Payload 4 apps (electrofit) |
+| 0.3.x stable | `release/0.3.x` | `v0.3.N` | `latest` | Payload 3 apps (HappenCare) |
+
+Stable tags from `main` would also publish to `latest`; until 0.4 / 1.0 is promoted, release stable versions only from `release/0.3.x` (its publish workflow refuses prerelease tags). Backport fixes that affect Payload 3 apps to `release/0.3.x`.
 
 Pushing a `v*` tag runs `.github/workflows/publish.yml`. It tests, builds and publishes with provenance; prerelease tags go to `next`.
 
