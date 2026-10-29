@@ -36,6 +36,14 @@ export const processEventInputSchema: Field[] = [
     type: 'json',
   },
   {
+    name: 'tenant',
+    type: 'text',
+  },
+  {
+    name: 'depth',
+    type: 'number',
+  },
+  {
     name: 'doc',
     type: 'json',
   },

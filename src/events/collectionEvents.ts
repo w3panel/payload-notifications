@@ -14,6 +14,7 @@ import type {
 import { isObject, pickPaths, toRelationId } from '../data/paths'
 import { collectCollectionFieldPaths } from '../data/sources'
 import { createSensitiveFieldMatcher, isSensitivePath } from '../data/sensitive'
+import { getEventDepth } from './depth'
 
 const OPERATIONS: CollectionEventOperation[] = ['create', 'update', 'delete']
 
@@ -111,12 +112,17 @@ export const buildCollectionEvent = ({
   operation,
   doc,
   previousDoc,
+  tenancyField,
+  depth,
 }: {
   collection: string
   config: NormalizedCollectionEventConfig
   operation: CollectionEventOperation
   doc: unknown
   previousDoc?: unknown
+  /** `tenancy.field`: copied from the full document into `event.tenant`. */
+  tenancyField?: string
+  depth?: number
 }): NotificationEvent | undefined => {
   const current = capture(doc, config.capture)
   if (!current) return undefined
@@ -133,6 +139,7 @@ export const buildCollectionEvent = ({
 
   const userValue =
     config.userField && isObject(doc) ? toRelationId(doc[config.userField]) : undefined
+  const tenantValue = tenancyField && isObject(doc) ? toRelationId(doc[tenancyField]) : undefined
 
   return {
     name: collectionEventName(collection, operation),
@@ -141,6 +148,8 @@ export const buildCollectionEvent = ({
     payload: { id: (doc as Record<string, unknown>).id, collection, operation },
     doc: current,
     previous,
+    ...(tenantValue !== undefined ? { tenant: String(tenantValue) } : {}),
+    ...(depth ? { depth } : {}),
   }
 }
 
@@ -162,11 +171,28 @@ export const createCollectionEventHooks = (
     req: PayloadRequest,
     context: Record<string, unknown> | undefined,
   ) => {
-    const config = getOptions().collectionEvents[collection]
+    const options = getOptions()
+    const config = options.collectionEvents[collection]
     if (!config?.operations.includes(operation)) return
     if (req.context?.skipNotifications || context?.skipNotifications) return
 
-    const event = buildCollectionEvent({ collection, config, operation, doc, previousDoc })
+    const depth = getEventDepth(req)
+    if (depth >= options.maxEventDepth) {
+      req.payload?.logger?.warn?.(
+        `payload-notifications: skipped ${collectionEventName(collection, operation)} at depth ${depth} (maxEventDepth ${options.maxEventDepth}); a notification workflow may be writing to a hooked collection`,
+      )
+      return
+    }
+
+    const event = buildCollectionEvent({
+      collection,
+      config,
+      operation,
+      doc,
+      previousDoc,
+      tenancyField: options.tenancy?.field,
+      depth,
+    })
     if (event) await queueEvent({ event, req })
   }
 

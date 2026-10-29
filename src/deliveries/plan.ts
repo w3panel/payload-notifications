@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import type {
   AdminTriggerRecord,
   EffectiveTrigger,
@@ -83,11 +83,14 @@ export const planDeliveries = async ({
   event: inputEvent,
   options,
   adminTriggers = [],
+  req,
 }: {
   payload: Payload
   event: NotificationEvent
   options: NormalizedNotificationsPluginOptions
   adminTriggers?: AdminTriggerRecord[]
+  /** Job request: passed to resolvers so their writes are depth-tracked. */
+  req?: PayloadRequest
 }): Promise<DeliveryPlanResult> => {
   const event: NotificationEvent = {
     ...inputEvent,
@@ -118,7 +121,7 @@ export const planDeliveries = async ({
   const isSensitive = createSensitiveFieldMatcher(options.data.sensitiveFields)
 
   for (const entry of matched) {
-    await planTrigger({ payload, event, entry, options, isSensitive, result })
+    await planTrigger({ payload, event, entry, options, isSensitive, result, req })
   }
 
   return result
@@ -131,6 +134,7 @@ const planTrigger = async ({
   options,
   isSensitive,
   result,
+  req,
 }: {
   payload: Payload
   event: NotificationEvent
@@ -138,6 +142,7 @@ const planTrigger = async ({
   options: NormalizedNotificationsPluginOptions
   isSensitive: ReturnType<typeof createSensitiveFieldMatcher>
   result: DeliveryPlanResult
+  req?: PayloadRequest
 }) => {
   const { trigger } = entry
   const snapshot = snapshotTrigger(entry)
@@ -202,6 +207,11 @@ const planTrigger = async ({
     computed: options.computed,
     isSensitive,
     owner,
+    resolverReq: req,
+    tenancy:
+      options.tenancy && event.tenant
+        ? { field: options.tenancy.field, value: event.tenant }
+        : undefined,
   })
   if (!dataContext.ok) {
     await logTriggerSkip(
@@ -228,6 +238,7 @@ const planTrigger = async ({
     definitions: trigger.recipients,
     options,
     owner,
+    req,
   })
   for (const warning of warnings) payload.logger?.warn?.(`payload-notifications: ${warning}`)
 

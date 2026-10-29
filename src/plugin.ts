@@ -35,6 +35,7 @@ import { dataSourcesListEndpoint } from './endpoints/dataSources'
 import { eventsListEndpoint } from './endpoints/events'
 import { validateDataAllowlist } from './data/sources'
 import { injectCollectionEventHooks, validateCollectionEvents } from './events/collectionEvents'
+import { setEventDepth } from './events/depth'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
 import { assertNotificationEvent, emitNotificationEvent, processEvent } from './jobs/processEvent'
 import { assertNotificationSendInput, sendNotification } from './jobs/sendNotification'
@@ -143,11 +144,14 @@ const createLiveTaskHandler = (
 
     if (taskSlug === NOTIFICATION_PROCESS_EVENT_TASK) {
       const event = assertNotificationEvent(input)
+      // Writes made while processing (e.g. by resolvers using this req) are one level deeper.
+      setEventDepth(req, (event.depth ?? 0) + 1)
       await processEvent({
         payload,
         event,
         options: runtime.options,
         adminTriggers: runtime.adminTriggers,
+        req,
       })
       return { output: {} } as TaskHandlerResult<any>
     }

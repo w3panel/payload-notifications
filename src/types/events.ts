@@ -18,6 +18,13 @@ export type NotificationEvent = {
   doc?: Record<string, unknown> | null
   /** Collection events: captured fields of the document before an update. */
   previous?: Record<string, unknown> | null
+  /** Tenant the event belongs to (`tenancy.field`); scopes lookups and role/query recipients. */
+  tenant?: string
+  /**
+   * How many notification-processing levels produced this event (0 for user
+   * actions). Events at `maxEventDepth` are not emitted, which breaks loops.
+   */
+  depth?: number
 }
 
 export type NotificationProcessEventJobInput = NotificationEvent

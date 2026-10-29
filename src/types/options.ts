@@ -105,6 +105,18 @@ export type NotificationsPluginOptions = {
    * are added only to these collections, once, when the config is built.
    */
   collectionEvents?: Record<string, CollectionEventConfig>
+  /**
+   * Stop emitting events this many processing levels deep (e.g. a resolver that
+   * writes to a hooked collection). Default 3.
+   */
+  maxEventDepth?: number
+  /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
+  tenancy?: {
+    /** Tenant field on documents (relationship or ID), e.g. `tenant`. */
+    field: string
+    /** Tenant field on users. Defaults to `field`. */
+    userField?: string
+  }
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -175,4 +187,6 @@ export type NormalizedNotificationsPluginOptions = {
   recipientQueries: Record<string, NotificationRecipientQueryDefinition>
   conditions: Record<string, ConditionDefinition>
   collectionEvents: Record<string, NormalizedCollectionEventConfig>
+  maxEventDepth: number
+  tenancy?: { field: string; userField: string }
 }

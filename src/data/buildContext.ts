@@ -41,6 +41,13 @@ export type BuildDataContextArgs = {
   computed?: Record<string, NotificationComputedDefinition>
   /** Sensitive-field matcher applied to every lookup and resolver result. */
   isSensitive?: SensitiveFieldMatcher
+  /** Request handed to resolvers (the job request) so their writes are depth-tracked. */
+  resolverReq?: PayloadRequest
+  /**
+   * Keeps collection lookups inside the event's tenant: documents whose
+   * `field` holds a different tenant count as missing.
+   */
+  tenancy?: { field: string; value: string }
 }
 
 class MissingSourceError extends Error {
@@ -63,9 +70,17 @@ const loadCollectionSource = async (
   payload: Payload,
   overrideAccess: boolean,
   req: PayloadRequest | undefined,
+  tenancy: BuildDataContextArgs['tenancy'],
 ): Promise<unknown> => {
   const raw = getPath(scope, source.lookup.from)
-  const select = toSelect(source.fields)
+  const select = toSelect(tenancy ? [...source.fields, tenancy.field] : source.fields)
+  /** Documents without the tenant field are not tenant-scoped; others must match. */
+  const inTenant = (doc: Record<string, unknown>) => {
+    if (!tenancy || doc[tenancy.field] === undefined || doc[tenancy.field] === null) return true
+    const value = doc[tenancy.field]
+    const ids = Array.isArray(value) ? value.map(toRelationId) : [toRelationId(value)]
+    return ids.some((id) => id !== undefined && String(id) === tenancy.value)
+  }
   const depth = source.depth ?? 0
 
   if (raw === undefined || raw === null || raw === '') return null
@@ -99,7 +114,10 @@ const loadCollectionSource = async (
     )
     return ids
       .map((id) => byId.get(String(id)))
-      .filter((doc): doc is Record<string, unknown> => Boolean(doc))
+      .filter(
+        (doc): doc is Record<string, unknown> =>
+          Boolean(doc) && inTenant(doc as Record<string, unknown>),
+      )
       .map((doc) => pickPaths(doc, source.fields))
   }
 
@@ -120,7 +138,11 @@ const loadCollectionSource = async (
     disableErrors: true,
     ...(req ? { req } : {}),
   })
-  return isObject(doc) ? pickPaths(doc, source.fields) : null
+  if (!isObject(doc)) return null
+  if (!inTenant(doc)) {
+    throw new MissingSourceError(source.alias, `document "${id}" belongs to another tenant`)
+  }
+  return pickPaths(doc, source.fields)
 }
 
 /**
@@ -147,6 +169,8 @@ export const buildDataContext = async ({
   dataResolvers = {},
   computed = {},
   isSensitive = defaultSensitiveFieldMatcher,
+  resolverReq,
+  tenancy,
 }: BuildDataContextArgs): Promise<DataContextResult> => {
   const context: NotificationDataContext = {
     event: event.name,
@@ -157,6 +181,7 @@ export const buildDataContext = async ({
       eventId: event.eventId,
       occurredAt: event.occurredAt,
       classification: event.classification,
+      ...(event.tenant ? { tenant: event.tenant } : {}),
     },
   }
   if (doc !== undefined) context.doc = stripSensitiveFields(doc, isSensitive) as typeof doc
@@ -190,7 +215,7 @@ export const buildDataContext = async ({
             : null
           break
         case 'collection':
-          value = await loadCollectionSource(source, scope, payload, overrideAccess, req)
+          value = await loadCollectionSource(source, scope, payload, overrideAccess, req, tenancy)
           break
         case 'resolver': {
           const definition = dataResolvers[source.name]
@@ -204,6 +229,7 @@ export const buildDataContext = async ({
             event,
             context,
             input: source.input,
+            req: resolverReq,
           })
           break
         }

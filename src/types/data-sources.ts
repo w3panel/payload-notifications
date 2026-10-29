@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import type { NotificationEvent, NotificationEventSchema } from './events'
 
 /**
@@ -105,6 +105,7 @@ export type NotificationTriggerInfo = {
   eventId?: string
   occurredAt?: string
   classification?: 'transactional' | 'marketing'
+  tenant?: string
 }
 
 /**
@@ -146,6 +147,11 @@ export type NotificationResolverArgs = {
   input: Record<string, unknown>
   /** Aborted when the resolver times out. */
   signal: AbortSignal
+  /**
+   * The job request. Pass it to Payload writes (`payload.update({ …, req })`) so
+   * collection events they cause are depth-tracked and join the job's transaction.
+   */
+  req?: PayloadRequest
 }
 
 export type NotificationDataResolverHandler = (

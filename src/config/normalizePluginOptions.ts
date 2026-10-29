@@ -8,6 +8,7 @@ import {
   normalizeRecipientsOptions,
 } from '../recipients/options'
 import { normalizeCollectionEvents } from '../events/collectionEvents'
+import { DEFAULT_MAX_EVENT_DEPTH } from '../events/depth'
 import { compileCodeTriggers } from '../triggers/compile'
 import { validateTrigger } from '../triggers/validate'
 import { isValidEventName } from '../events/names'
@@ -66,6 +67,23 @@ const normalizeEventRegistry = (
   }
 
   return { ...events }
+}
+
+const normalizeMaxEventDepth = (value: number | undefined): number => {
+  if (value === undefined) return DEFAULT_MAX_EVENT_DEPTH
+  if (!Number.isInteger(value) || value < 1 || value > 10) {
+    throw new Error('payload-notifications: maxEventDepth must be an integer between 1 and 10')
+  }
+  return value
+}
+
+const normalizeTenancy = (
+  tenancy: NonNullable<NotificationsPluginOptions['tenancy']>,
+): NonNullable<NormalizedNotificationsPluginOptions['tenancy']> => {
+  if (typeof tenancy.field !== 'string' || !tenancy.field) {
+    throw new Error('payload-notifications: tenancy.field is required')
+  }
+  return { field: tenancy.field, userField: tenancy.userField || tenancy.field }
 }
 
 const normalizeConditionRegistry = (
@@ -286,6 +304,8 @@ export const normalizePluginOptions = (
     recipientQueries,
     conditions: normalizeConditionRegistry(options.conditions),
     collectionEvents: normalizeCollectionEvents(options.collectionEvents),
+    maxEventDepth: normalizeMaxEventDepth(options.maxEventDepth),
+    ...(options.tenancy ? { tenancy: normalizeTenancy(options.tenancy) } : {}),
   }
 
   // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).

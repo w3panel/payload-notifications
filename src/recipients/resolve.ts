@@ -1,4 +1,4 @@
-import type { Payload, Where } from 'payload'
+import type { Payload, PayloadRequest, Where } from 'payload'
 import type {
   NormalizedNotificationsPluginOptions,
   NotificationDataContext,
@@ -91,6 +91,8 @@ export type ResolveRecipientsArgs = {
   options: NormalizedNotificationsPluginOptions
   /** Label used in warnings, e.g. `trigger "order-paid"`. */
   owner?: string
+  /** Job request handed to recipient resolvers. */
+  req?: PayloadRequest
 }
 
 export type ResolveRecipientsResult = {
@@ -112,6 +114,7 @@ export const resolveRecipients = async ({
   definitions = DEFAULT_RECIPIENTS,
   options,
   owner = 'recipients',
+  req,
 }: ResolveRecipientsArgs): Promise<ResolveRecipientsResult> => {
   const settings = options.recipients
   const warnings: string[] = []
@@ -157,6 +160,10 @@ export const resolveRecipients = async ({
           where = typeof query.where === 'function' ? query.where(context) : query.where
           limit = query.maxResults ?? 50
         }
+        // Role / query recipients stay inside the event's tenant.
+        if (options.tenancy && event.tenant) {
+          where = { and: [where, { [options.tenancy.userField]: { equals: event.tenant } }] }
+        }
         const result = await payload.find({
           collection: options.userCollectionSlug as never,
           where,
@@ -183,6 +190,7 @@ export const resolveRecipients = async ({
             event,
             context,
             input: definition.input ?? {},
+            req,
           })
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)

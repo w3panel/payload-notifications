@@ -227,6 +227,12 @@ export {
   validateCollectionEvents,
 } from './events/collectionEvents'
 export type { QueueCollectionEvent } from './events/collectionEvents'
+export {
+  DEFAULT_MAX_EVENT_DEPTH,
+  EVENT_DEPTH_CONTEXT_KEY,
+  getEventDepth,
+  setEventDepth,
+} from './events/depth'
 export { getRuntimeOptions } from './config/runtime'
 export { eventsListEndpoint } from './endpoints/events'
 export {
