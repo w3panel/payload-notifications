@@ -1,7 +1,10 @@
 'use client'
 
 import React, { useCallback, useState } from 'react'
-import { useForm } from '@payloadcms/ui'
+import { useField, useForm } from '@payloadcms/ui'
+import type { EmailDesign } from '../studio/model'
+import { STUDIO_CSS } from './studio/styles'
+import { VisualEmailEditor } from './studio/VisualEmailEditor'
 import {
   buildTemplateApiPath,
   CHANNEL_OPTIONS,
@@ -230,9 +233,16 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
     return data && typeof data === 'object' ? data : {}
   }, [getData])
 
+  const editor = useField<string>({ path: 'email.editor' })
+  const design = useField<EmailDesign | null>({ path: 'email.design' })
+
   return (
-    <div>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>Template studio</div>
+    <div className="pn-studio">
+      <style>{STUDIO_CSS}</style>
+      <div style={{ fontWeight: 600 }}>Template studio</div>
+      {editor.value === 'visual' ? (
+        <VisualEmailEditor design={design.value} onChange={(next) => design.setValue(next)} />
+      ) : null}
       <StudioInner collectionSlug={collectionSlug} apiRoute={apiRoute} getDoc={getDoc} />
     </div>
   )
