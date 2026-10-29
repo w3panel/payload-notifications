@@ -9,15 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0-beta.2] - 2026-10-29
 
-### Fixed
-- Found by testing in a Payload 3 / Next.js / D1 app: the first publish of a draft template is now version 1 (new templates start at version 0); the delivery inspector masks the recipient's email and phone; the generated HTML / text bodies are hidden while the visual designer is used; the designer layout follows the form width
-
 ### Docs
 - Migration guide: on SQLite / D1, the generated migration's `notification_templates` rebuild copies columns that don't exist yet; how to check and fix it
 
 ## [0.4.0-beta.1] - 2026-10-29
 
 First beta of the notification automation release (roadmap Phases 1–9). 0.3.x configurations keep working; see [docs/migration.md](docs/migration.md). Published to npm `next` for validation before 1.0.0.
+
+### Fixed
+- Found by testing in a Payload 3 / Next.js / D1 app: the first publish of a draft template is now version 1 (new templates start at version 0); the delivery inspector masks the recipient's email and phone; the generated HTML / text bodies are hidden while the visual designer is used; the designer layout follows the form width
 
 ### Added — Events, triggers and deliveries (Phases 1–4)
 - Event registry with Standard Schema validation, sample payloads and `eventsStrict`
