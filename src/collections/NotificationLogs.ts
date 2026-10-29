@@ -1,4 +1,5 @@
 import type { Access, CollectionConfig, Field, GroupField } from 'payload'
+import { versionedCollectionDefaults } from '../compat'
 
 export type NotificationLogsCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -158,7 +159,7 @@ export const NotificationLogsCollection = ({
 }: BuildNotificationLogsCollectionArgs = {}): CollectionConfig => ({
   slug,
   versions: false,
-  authorship: false,
+  ...versionedCollectionDefaults(),
   labels: {
     singular: 'Notification Log',
     plural: 'Notification Logs',

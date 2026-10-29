@@ -17,9 +17,25 @@ jobs:
       - run: bun run format:check
       - run: bun test
 
+  # One build serves both majors: Payload 3 on npm `latest`, Payload 4 on `next`.
+  payload-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        payload: ['3.92.1', '4.0.0-beta.4']
+    name: payload@${{ matrix.payload }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun add --dev payload@${{ matrix.payload }}
+      - run: bunx tsc --noEmit -p .
+      - run: bun test
+
   build:
     runs-on: ubuntu-latest
-    needs: lint-and-test
+    needs: [lint-and-test, payload-compat]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

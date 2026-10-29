@@ -250,6 +250,7 @@ describe('sending a delivery', () => {
       channels: ['email', 'inapp'],
     })({
       collections: [],
+      jobs: { enableConcurrencyControl: true },
     } as never)
     const tasks = (config.jobs as { tasks: Doc[] }).tasks
     const sendTask = tasks.find((task) => task.slug === 'notification:send') as {

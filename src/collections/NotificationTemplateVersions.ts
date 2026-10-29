@@ -1,4 +1,5 @@
 import type { Access, CollectionConfig } from 'payload'
+import { versionedCollectionDefaults } from '../compat'
 
 /**
  * Immutable published snapshots of notification templates. Written on publish;
@@ -18,7 +19,7 @@ export const NotificationTemplateVersionsCollection = ({
   return {
     slug,
     versions: false,
-    authorship: false,
+    ...versionedCollectionDefaults(),
     labels: { singular: 'Notification Template Version', plural: 'Notification Template Versions' },
     access: { read, create: deny, update: deny, delete: deny },
     admin: {

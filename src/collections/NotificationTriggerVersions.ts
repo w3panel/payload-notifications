@@ -1,4 +1,5 @@
 import type { Access, CollectionConfig } from 'payload'
+import { versionedCollectionDefaults } from '../compat'
 
 /**
  * Immutable published snapshots of admin triggers. Written only by the publish
@@ -18,7 +19,7 @@ export const NotificationTriggerVersionsCollection = ({
   return {
     slug,
     versions: false,
-    authorship: false,
+    ...versionedCollectionDefaults(),
     labels: { singular: 'Notification Trigger Version', plural: 'Notification Trigger Versions' },
     access: { read, create: deny, update: deny, delete: deny },
     admin: {

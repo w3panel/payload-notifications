@@ -39,6 +39,7 @@ import {
   NotificationTemplatesCollection,
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
+import { supportsTaskConcurrency } from './compat'
 import { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
 import { PLUGIN_CUSTOM_KEY, type PluginCustomConfig } from './config/runtime'
 import { dataSourcesListEndpoint } from './endpoints/dataSources'
@@ -195,7 +196,27 @@ const buildProcessEventTask = (runtime: RuntimeRef): TaskConfig<any> => ({
   handler: createLiveTaskHandler(NOTIFICATION_PROCESS_EVENT_TASK, runtime),
 })
 
-const buildSendTask = (runtime: RuntimeRef): TaskConfig<any> => ({
+/** Concurrency key for send jobs: one at a time per delivery (or per legacy fingerprint). */
+const sendConcurrencyKey = ({
+  input,
+  queue,
+}: {
+  input?: Record<string, unknown>
+  queue: string
+}): string => {
+  if (typeof input?.deliveryId === 'string' && input.deliveryId) {
+    return `${queue}::delivery::${input.deliveryId}`
+  }
+  const userId = typeof input?.userId === 'string' ? input.userId : 'unknown'
+  const channel = typeof input?.channel === 'string' ? input.channel : 'unknown'
+  const event = typeof input?.event === 'string' ? input.event : 'unknown'
+  const template = typeof input?.template === 'string' ? input.template : 'unknown'
+  const idempotencyKey =
+    typeof input?.idempotencyKey === 'string' ? input.idempotencyKey : 'no-idempotency-key'
+  return `${queue}::${userId}::${channel}::${event}::${template}::${idempotencyKey}`
+}
+
+const buildSendTask = (runtime: RuntimeRef, withConcurrency: boolean): TaskConfig<any> => ({
   slug: NOTIFICATION_SEND_TASK,
   label: 'Send notification',
   interfaceName: 'NotificationSendTask',
@@ -205,18 +226,8 @@ const buildSendTask = (runtime: RuntimeRef): TaskConfig<any> => ({
     attempts: 2,
     backoff: { type: 'exponential', delay: 5000 },
   },
-  concurrency: ({ input, queue }) => {
-    if (typeof input?.deliveryId === 'string' && input.deliveryId) {
-      return `${queue}::delivery::${input.deliveryId}`
-    }
-    const userId = typeof input?.userId === 'string' ? input.userId : 'unknown'
-    const channel = typeof input?.channel === 'string' ? input.channel : 'unknown'
-    const event = typeof input?.event === 'string' ? input.event : 'unknown'
-    const template = typeof input?.template === 'string' ? input.template : 'unknown'
-    const idempotencyKey =
-      typeof input?.idempotencyKey === 'string' ? input.idempotencyKey : 'no-idempotency-key'
-    return `${queue}::${userId}::${channel}::${event}::${template}::${idempotencyKey}`
-  },
+  // Payload 3 only allows concurrency keys with jobs.enableConcurrencyControl.
+  ...(withConcurrency ? { concurrency: sendConcurrencyKey } : {}),
   onFail: createSendOnFail(runtime),
   handler: createLiveTaskHandler(NOTIFICATION_SEND_TASK, runtime),
 })
@@ -234,7 +245,7 @@ const registerTaskDefinitions = (
 
   const builders: Record<string, () => TaskConfig<any>> = {
     [NOTIFICATION_PROCESS_EVENT_TASK]: () => buildProcessEventTask(runtime),
-    [NOTIFICATION_SEND_TASK]: () => buildSendTask(runtime),
+    [NOTIFICATION_SEND_TASK]: () => buildSendTask(runtime, supportsTaskConcurrency(config)),
   }
 
   for (const task of tasks) {

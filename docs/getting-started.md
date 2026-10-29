@@ -7,7 +7,7 @@ bun add @wtree/payload-notifications
 # or: npm i / pnpm add / yarn add
 ```
 
-Peer: Payload `>=4.0.0-beta.4 <5`. For the admin template studio, the host should also provide `react` and `@payloadcms/ui` (already present in typical Payload apps).
+Peer: Payload `^3.92.0` or `>=4.0.0-beta.4 <5` (see [COMPATIBILITY.md](../COMPATIBILITY.md)). For the admin template studio, the host should also provide `react` and `@payloadcms/ui` (already present in typical Payload apps).
 
 ## Minimal config
 
