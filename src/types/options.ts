@@ -19,7 +19,12 @@ import type {
   NotificationPolicyDecision,
   PreferenceFieldMapping,
 } from './policy'
-import type { EmailProviderConfig, SMSProviderConfig, WhatsAppProviderConfig } from './providers'
+import type {
+  EmailProviderConfig,
+  NotificationProvider,
+  SMSProviderConfig,
+  WhatsAppProviderConfig,
+} from './providers'
 import type { NotificationTemplateRegistry } from './templates'
 import type {
   NotificationRecipientQueryDefinition,
@@ -29,6 +34,7 @@ import type {
 import type {
   ConditionDefinition,
   ConditionHandler,
+  NotificationRetryPolicy,
   NotificationRule,
   NotificationTrigger,
   NotificationTriggerInput,
@@ -74,6 +80,10 @@ export type NotificationsPluginOptions = {
     email?: EmailProviderConfig
     whatsapp?: Partial<WhatsAppProviderConfig>
     sms?: Partial<SMSProviderConfig>
+    /** Custom providers per channel; they replace the built-in provider for that channel. */
+    custom?: Partial<Record<NotificationChannel, NotificationProvider>>
+    /** Provider call timeout. A timed-out send has an unknown outcome and is not retried. Default 30000. */
+    timeoutMs?: number
   }
   preferences?: {
     fields?: PreferenceFieldMapping
@@ -148,6 +158,18 @@ export type NotificationsPluginOptions = {
     /** How long published admin triggers are cached per instance. Default 30000 ms. */
     cacheTtlMs?: number
   }
+  /** Default retry policy and limits for deliveries. */
+  reliability?: NotificationRetryPolicy & {
+    /** Upper bound for any trigger's `attempts`. Default 10. */
+    maxAttempts?: number
+    /** `sending` deliveries older than this are marked `unknown` by reconciliation. Default 30. */
+    staleSendingMinutes?: number
+  }
+  /** Attempt log settings. */
+  logs?: {
+    /** Store rendered subject / text on attempt logs. Default false (may contain personal data). */
+    storeRendered?: boolean
+  }
   /** Store every emitted event in `notification-events` for audit and replay. Default false. */
   eventsInbox?: boolean
   /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
@@ -186,6 +208,8 @@ export type NormalizedNotificationsPluginOptions = {
     email?: EmailProviderConfig
     whatsapp?: Partial<WhatsAppProviderConfig>
     sms?: Partial<SMSProviderConfig>
+    custom: Partial<Record<NotificationChannel, NotificationProvider>>
+    timeoutMs: number
   }
   preferences: {
     fields: {
@@ -232,6 +256,14 @@ export type NormalizedNotificationsPluginOptions = {
   collectionEvents: Record<string, NormalizedCollectionEventConfig>
   maxEventDepth: number
   eventsInbox: boolean
+  reliability: {
+    attempts: number
+    backoff: { type: 'exponential' | 'fixed'; delayMs: number; maxDelayMs: number }
+    jitter: boolean
+    maxAttempts: number
+    staleSendingMinutes: number
+  }
+  logs: { storeRendered: boolean }
   access: {
     manageTriggers: NotificationAccessCheck
     publishTriggers: NotificationAccessCheck

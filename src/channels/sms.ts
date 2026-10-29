@@ -65,7 +65,7 @@ export const sendSMSNotification = async ({
 
   const body = rendered?.body || renderDefinition({ body: input.template }, context).body
 
-  const provider = createSMSProvider(options)
+  const provider = createSMSProvider(options, payload)
 
   try {
     const result = await provider.send({

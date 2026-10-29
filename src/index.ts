@@ -7,6 +7,14 @@ export {
 export { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
 export type {
   ChannelProviderResult,
+  NotificationProvider,
+  ProviderCapabilities,
+  ProviderInboundMessage,
+  ProviderSendInput,
+  ProviderSendResult,
+  ProviderStatusUpdate,
+  ProviderWebhookRequest,
+  ProviderWebhookResult,
   CollectionDataSource,
   ComputedDataSource,
   DataCollectionAllowlist,
@@ -79,6 +87,8 @@ export type {
   NotificationCondition,
   NotificationDuration,
   NotificationDedupe,
+  NotificationRetryPolicy,
+  NotificationTriggerReliability,
   NotificationSchedule,
   NotificationScheduleOptions,
   ContextRecipient,
@@ -249,6 +259,24 @@ export { buildDeliveryKey, findDedupeMatch, planDeliveries } from './deliveries/
 export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
 export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
 export { dispatchToChannel } from './channels/dispatch'
+export {
+  classifySendFailure,
+  kindForStatus,
+  ProviderError,
+  ProviderTimeoutError,
+} from './providers/errors'
+export type { DeliveryOutcome, SendFailureKind } from './providers/errors'
+export {
+  builtinProvider,
+  inAppProvider,
+  payloadEmailProvider,
+  resolveProvider,
+} from './providers/builtin'
+export { callProvider } from './deliveries/providerCall'
+export type { ProviderCallResult } from './deliveries/providerCall'
+export { resolveRetryPolicy, retryDelayMs } from './deliveries/retry'
+export type { ResolvedRetryPolicy } from './deliveries/retry'
+export { ATTEMPT_OUTCOMES } from './collections/NotificationLogs'
 export {
   applyQuietHours,
   computeSchedule,

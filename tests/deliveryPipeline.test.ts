@@ -214,23 +214,31 @@ describe('sending a delivery', () => {
     expect(memory.docs('notification-deliveries')[0].status).toBe('failed')
   })
 
-  it('keeps retriable failures in sending and throws for a job retry', async () => {
+  it('re-queues retryable failures with a back-off instead of throwing', async () => {
     const sendEmail = mock(async () => {
-      throw new Error('SMTP timeout')
+      throw new Error('503 Service Unavailable')
     })
     const memory = createMemoryPayload({ users }, { sendEmail })
     await processEvent({ payload: memory.payload, event, options })
 
-    await expect(sendQueued(memory, 0)).rejects.toThrow('SMTP timeout')
+    const result = await sendQueued(memory, 0)
+    expect(result?.status).toBe('queued')
     expect(memory.docs('notification-deliveries')[0]).toMatchObject({
-      status: 'sending',
+      status: 'queued',
       attempts: 1,
-      lastError: 'SMTP timeout',
+      maxAttempts: 3,
+      lastError: '503 Service Unavailable',
     })
+    const retryJob = (memory.queue.mock.calls.at(-1) as unknown as [Doc])[0]
+    expect(retryJob.waitUntil).toBeInstanceOf(Date)
 
-    // The retry runs the same delivery again
+    // The retry job sends the same delivery again
     sendEmail.mockImplementation(async () => undefined)
-    const retry = await sendQueued(memory, 0)
+    const retry = await sendNotification({
+      payload: memory.payload,
+      input: retryJob.input as never,
+      options,
+    })
     expect(retry?.status).toBe('sent')
     expect(memory.docs('notification-deliveries')[0].attempts).toBe(2)
   })

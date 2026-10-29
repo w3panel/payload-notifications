@@ -106,6 +106,26 @@ export type ConditionDefinition = {
   description?: string
 }
 
+/** Retry policy for retryable send failures (rate limits, 5xx, refused connections). */
+export type NotificationRetryPolicy = {
+  /** Total attempts including the first. */
+  attempts?: number
+  backoff?: {
+    type?: 'exponential' | 'fixed'
+    /** Base delay. Default 5000 ms. */
+    delayMs?: number
+    /** Cap for exponential delays. Default 1 hour. */
+    maxDelayMs?: number
+  }
+  /** Randomize delays (50–100% of the computed delay). Default true. */
+  jitter?: boolean
+}
+
+export type NotificationTriggerReliability = NotificationRetryPolicy & {
+  /** Per-channel overrides, e.g. fewer attempts for SMS. */
+  channels?: Partial<Record<NotificationChannel, NotificationRetryPolicy>>
+}
+
 export type NotificationDedupe = {
   /** Template rendered against the trigger context, e.g. `order.paid:{{ order.id }}`. */
   key: string
@@ -172,6 +192,8 @@ export type NotificationTrigger = {
    * trigger and an `orders` update trigger.
    */
   dedupe?: NotificationDedupe
+  /** Retry policy for this trigger's deliveries (within `reliability.maxAttempts`). */
+  reliability?: NotificationTriggerReliability
   admin?: {
     policy?: TriggerAdminPolicy
     /** Fields a `managed` override may replace. Default: all overridable fields. */

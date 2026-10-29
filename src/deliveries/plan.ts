@@ -12,6 +12,7 @@ import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
 import { evaluateTriggerPlan } from './evaluate'
+import { resolveRetryPolicy } from './retry'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
 
@@ -70,6 +71,12 @@ const findDeliveryByKey = async (
   const doc = existing.docs?.[0] as { id: string | number; status?: string } | undefined
   return doc ? { id: String(doc.id), status: doc.status } : undefined
 }
+
+/** Delivery fields for a resolved retry policy. */
+const retryFields = (policy: ReturnType<typeof resolveRetryPolicy>) => ({
+  maxAttempts: policy.maxAttempts,
+  retryPolicy: { backoff: policy.backoff, jitter: policy.jitter },
+})
 
 /** Statuses that make a delivery count for dedupe (failed / skipped / cancelled ones do not). */
 const DEDUPE_STATUSES = ['planned', 'queued', 'sending', 'sent', 'delivered', 'unknown']
@@ -279,6 +286,7 @@ const planTrigger = async ({
       classification,
       idempotencyKey,
       dedupeKey: plan.dedupeKey,
+      ...retryFields(resolveRetryPolicy(options, trigger.reliability, delivery.channel)),
       skipReason,
       scheduledFor: sendAt?.toISOString(),
       recheckConditions: trigger.schedule?.recheckConditions === true,

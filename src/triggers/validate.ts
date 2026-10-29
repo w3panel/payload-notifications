@@ -2,6 +2,7 @@ import type { NormalizedNotificationsPluginOptions, NotificationTrigger } from '
 import { DEFAULT_RECIPIENTS, recipientAlias } from '../recipients/resolve'
 import { validateRecipientDefinitions } from '../recipients/validate'
 import { collectFieldPaths } from '../events/registry'
+import { validateReliability } from '../deliveries/retry'
 import { parseDuration } from '../deliveries/schedule'
 import { compile as compileTemplate } from '../templates/engine'
 import { validateCondition, type ConditionValidationContext } from './conditions'
@@ -30,6 +31,7 @@ export const validateTrigger = (
     | 'conditions'
     | 'dataResolvers'
     | 'collectionEvents'
+    | 'reliability'
   >,
   owner = `trigger "${trigger.slug}"`,
 ): TriggerValidationResult => {
@@ -68,6 +70,7 @@ export const validateTrigger = (
   const conditionContext = conditionContextFor(trigger, options, owner)
   errors.push(...validateSchedule(trigger, conditionContext))
   errors.push(...validateDedupe(trigger, conditionContext.owner))
+  errors.push(...validateReliability(trigger.reliability, options.reliability.maxAttempts, owner))
   const collect = (result: { errors: string[]; warnings: string[] }) => {
     errors.push(...result.errors)
     warnings.push(...result.warnings)

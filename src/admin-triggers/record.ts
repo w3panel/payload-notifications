@@ -11,6 +11,7 @@ export const DEFINITION_FIELDS = [
   'deliveries',
   'schedule',
   'dedupe',
+  'reliability',
   'classification',
   'overrides',
 ] as const

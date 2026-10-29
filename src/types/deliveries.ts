@@ -58,6 +58,7 @@ export type NotificationDispatchStatus =
   | 'failed'
   | 'skipped'
   | 'cancelled'
+  | 'unknown'
 
 export type NotificationDispatchResult = {
   channel: NotificationChannel

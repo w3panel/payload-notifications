@@ -367,6 +367,7 @@ export const registerCollections = (
     next.push(
       NotificationLogsCollection({
         userCollectionSlug: options.userCollectionSlug,
+        deliveriesSlug: options.collections.deliveries,
         slug: options.collections.logs,
         overrides: overrides?.logs,
       }),

@@ -4,6 +4,7 @@ import type {
   SMSProviderAdapter,
   SMSProviderSendInput,
 } from '../types'
+import { ProviderError } from './errors'
 
 const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01'
 
@@ -61,7 +62,10 @@ export const createTwilioSMSProvider = (
 
       if (!response.ok || data.error_code) {
         const errorMessage = data.error_message || `Twilio API returned ${response.status}`
-        throw new Error(errorMessage)
+        throw new ProviderError(errorMessage, {
+          status: response.ok ? 400 : response.status,
+          code: data.error_code !== undefined ? String(data.error_code) : undefined,
+        })
       }
 
       return {
