@@ -92,6 +92,16 @@ export const startPayload = async ({
           { name: 'name', type: 'text' },
           { name: 'phone', type: 'text' },
           { name: 'role', type: 'text' },
+          // 0.3.x-style preference fields (preferences.fields).
+          {
+            name: 'notificationChannels',
+            type: 'group',
+            fields: [
+              { name: 'email', type: 'checkbox' },
+              { name: 'inapp', type: 'checkbox' },
+            ],
+          },
+          { name: 'marketingOptIn', type: 'checkbox' },
         ],
       },
       ...collections,
