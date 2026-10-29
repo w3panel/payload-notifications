@@ -104,4 +104,6 @@ export const STUDIO_CSS = `
 .pn-overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 .pn-list-plain{margin:0;padding-left:16px;font-size:13px}
 .pn-dashboard{margin-bottom:24px}
+.pn-settings th{width:240px;font-weight:500;color:var(--pn-muted);vertical-align:top}
+.pn-error{color:#b91c1c}
 `

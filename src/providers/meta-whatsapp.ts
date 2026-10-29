@@ -6,7 +6,7 @@ import type {
 } from '../types'
 import { ProviderError } from './errors'
 
-const META_GRAPH_API_VERSION = 'v25.0'
+export const META_GRAPH_API_VERSION = 'v25.0'
 const META_GRAPH_API_BASE = 'https://graph.facebook.com'
 
 type MetaWhatsAppMessageResponse = {

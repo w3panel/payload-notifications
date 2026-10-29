@@ -35,6 +35,7 @@ import {
 import { accessWithTenant } from './admin-ops/access'
 import { deliveryEndpoints } from './admin-ops/deliveries'
 import { withAdminComponents } from './admin-ops/adminConfig'
+import { settingsEndpoints } from './admin-ops/settings'
 import { statsEndpoint } from './admin-ops/stats'
 import { NotificationTemplatePartialsCollection } from './collections/NotificationTemplatePartials'
 import { NotificationThemeGlobal } from './collections/NotificationTheme'
@@ -324,6 +325,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         ...adminTriggerRootEndpoints(() => runtime.options),
         ...unsubscribeEndpoints(() => runtime.options),
         statsEndpoint(() => runtime.options),
+        ...settingsEndpoints(() => runtime.options),
         ...webhookEndpoints(() => runtime.options),
       ],
       admin: withAdminComponents(config, normalizedOptions),
