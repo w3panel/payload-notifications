@@ -8,7 +8,7 @@ import type {
   NotificationDataResolverRegistry,
   NotificationsDataOptions,
 } from './data-sources'
-import type { NotificationObservabilityHook } from './deliveries'
+import type { NotificationLifecycleHook, NotificationObservabilityHook } from './deliveries'
 import type {
   CollectionEventConfig,
   NormalizedCollectionEventConfig,
@@ -19,7 +19,12 @@ import type {
   NotificationPolicyDecision,
   PreferenceFieldMapping,
 } from './policy'
-import type { EmailProviderConfig, SMSProviderConfig, WhatsAppProviderConfig } from './providers'
+import type {
+  EmailProviderConfig,
+  NotificationProvider,
+  SMSProviderConfig,
+  WhatsAppProviderConfig,
+} from './providers'
 import type { NotificationTemplateRegistry } from './templates'
 import type {
   NotificationRecipientQueryDefinition,
@@ -29,6 +34,7 @@ import type {
 import type {
   ConditionDefinition,
   ConditionHandler,
+  NotificationRetryPolicy,
   NotificationRule,
   NotificationTrigger,
   NotificationTriggerInput,
@@ -55,6 +61,10 @@ export type NotificationsPluginOptions = {
     triggers?: string
     /** Published admin trigger snapshots. */
     triggerVersions?: string
+    /** User preferences (with `preferences.mode: 'collection'`). */
+    preferences?: string
+    /** Suppressed destinations (bounces, STOP replies). */
+    suppressions?: string
     /** Event inbox slug (only with `eventsInbox: true`). */
     events?: string
   }
@@ -74,9 +84,32 @@ export type NotificationsPluginOptions = {
     email?: EmailProviderConfig
     whatsapp?: Partial<WhatsAppProviderConfig>
     sms?: Partial<SMSProviderConfig>
+    /** Custom providers per channel; they replace the built-in provider for that channel. */
+    custom?: Partial<Record<NotificationChannel, NotificationProvider>>
+    /** Provider call timeout. A timed-out send has an unknown outcome and is not retried. Default 30000. */
+    timeoutMs?: number
   }
   preferences?: {
     fields?: PreferenceFieldMapping
+    /**
+     * `userFields` (default): opt-outs come from fields on the user (`fields`).
+     * `collection`: per user × channel × category records in `notification-preferences`.
+     */
+    mode?: 'userFields' | 'collection'
+    /**
+     * Categories that ignore opt-outs in collection mode (suppressions still
+     * apply). `transactional` covers every non-marketing delivery. Default ['transactional'].
+     */
+    mandatoryCategories?: string[]
+    /** Collection mode: marketing needs an explicit opt-in record. Default false. */
+    marketingRequiresOptIn?: boolean
+    /** Signed one-click unsubscribe links (collection mode). */
+    unsubscribe?: {
+      /** HMAC secret for unsubscribe tokens. */
+      secret: string
+      /** Public origin of the API, e.g. https://shop.example.com. Defaults to `serverURL`. */
+      baseUrl?: string
+    }
   }
   policy?: {
     canSend?: (
@@ -85,6 +118,10 @@ export type NotificationsPluginOptions = {
   }
   observability?: {
     onDispatch?: NotificationObservabilityHook
+    /** Every lifecycle stage: matched, planned, skipped, sent, retrying, failed, unknown, cancelled, delivered. */
+    onEvent?: NotificationLifecycleHook
+    /** Structured `payload.logger` output per lifecycle stage (personal data masked). Default false. */
+    log?: boolean
   }
   rules?: NotificationRule[]
   /** Registered application events (label, schema, default classification, sample payload). */
@@ -148,6 +185,38 @@ export type NotificationsPluginOptions = {
     /** How long published admin triggers are cached per instance. Default 30000 ms. */
     cacheTtlMs?: number
   }
+  /** Default retry policy and limits for deliveries. */
+  reliability?: NotificationRetryPolicy & {
+    /** Upper bound for any trigger's `attempts`. Default 10. */
+    maxAttempts?: number
+    /** `sending` deliveries older than this are marked `unknown` by reconciliation. Default 30. */
+    staleSendingMinutes?: number
+  }
+  /** Attempt log settings. */
+  logs?: {
+    /** Store rendered subject / text on attempt logs. Default false (may contain personal data). */
+    storeRendered?: boolean
+  }
+  /** Provider webhooks (delivery status, STOP replies). */
+  webhooks?: {
+    /**
+     * Public origin the providers call (e.g. https://shop.example.com) when the
+     * server sits behind a proxy; Twilio signatures cover the full URL.
+     */
+    publicUrl?: string
+    /** Defaults to the Twilio auth token in `providers.sms` / `providers.whatsapp`. */
+    twilio?: { authToken?: string }
+    meta?: { appSecret: string; verifyToken: string }
+  }
+  /** Scheduled maintenance tasks. */
+  maintenance?: {
+    /** Cron for `notification:reconcile` (stale / unknown deliveries). */
+    reconcileCron?: string
+    /** Cron for `notification:retention`. */
+    retentionCron?: string
+    /** Delete attempt logs, final deliveries and processed inbox events older than these. */
+    retention?: { logsDays?: number; deliveriesDays?: number; eventsDays?: number }
+  }
   /** Store every emitted event in `notification-events` for audit and replay. Default false. */
   eventsInbox?: boolean
   /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
@@ -171,6 +240,8 @@ export type NormalizedNotificationsPluginOptions = {
     events: string
     triggers: string
     triggerVersions: string
+    preferences: string
+    suppressions: string
   }
   jobs: {
     queue: string
@@ -186,12 +257,18 @@ export type NormalizedNotificationsPluginOptions = {
     email?: EmailProviderConfig
     whatsapp?: Partial<WhatsAppProviderConfig>
     sms?: Partial<SMSProviderConfig>
+    custom: Partial<Record<NotificationChannel, NotificationProvider>>
+    timeoutMs: number
   }
   preferences: {
     fields: {
       channels: string
       marketingConsent: string
     }
+    mode: 'userFields' | 'collection'
+    mandatoryCategories: string[]
+    marketingRequiresOptIn: boolean
+    unsubscribe?: { secret: string; baseUrl?: string }
   }
   policy: {
     canSend?: (
@@ -200,6 +277,8 @@ export type NormalizedNotificationsPluginOptions = {
   }
   observability: {
     onDispatch?: NotificationObservabilityHook
+    onEvent?: NotificationLifecycleHook
+    log: boolean
   }
   rules: NotificationRule[]
   events: NotificationEventRegistry
@@ -232,6 +311,24 @@ export type NormalizedNotificationsPluginOptions = {
   collectionEvents: Record<string, NormalizedCollectionEventConfig>
   maxEventDepth: number
   eventsInbox: boolean
+  reliability: {
+    attempts: number
+    backoff: { type: 'exponential' | 'fixed'; delayMs: number; maxDelayMs: number }
+    jitter: boolean
+    maxAttempts: number
+    staleSendingMinutes: number
+  }
+  logs: { storeRendered: boolean }
+  webhooks: {
+    publicUrl?: string
+    twilio?: { authToken?: string }
+    meta?: { appSecret: string; verifyToken: string }
+  }
+  maintenance: {
+    reconcileCron?: string
+    retentionCron?: string
+    retention: { logsDays?: number; deliveriesDays?: number; eventsDays?: number }
+  }
   access: {
     manageTriggers: NotificationAccessCheck
     publishTriggers: NotificationAccessCheck

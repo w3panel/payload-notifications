@@ -4,6 +4,7 @@ import type {
   WhatsAppProviderAdapter,
   WhatsAppProviderSendInput,
 } from '../types'
+import { ProviderError } from './errors'
 
 const META_GRAPH_API_VERSION = 'v25.0'
 const META_GRAPH_API_BASE = 'https://graph.facebook.com'
@@ -68,7 +69,10 @@ export const createMetaWhatsAppProvider = (
 
       if (!response.ok || data.error) {
         const errorMessage = data.error?.message || `Meta WhatsApp API returned ${response.status}`
-        throw new Error(errorMessage)
+        throw new ProviderError(errorMessage, {
+          status: response.ok ? 400 : response.status,
+          code: data.error?.code !== undefined ? String(data.error.code) : undefined,
+        })
       }
 
       const messageId = data.messages?.[0]?.id

@@ -177,4 +177,15 @@ The plugin validates all provider credentials at initialization. If required fie
 
 ## Error handling
 
-All providers throw on API errors with the upstream error message. The channel handlers catch these errors, log them to the notification-logs collection, and return a `failed` dispatch result. The reliability layer classifies failures as `retriable` (timeout, rate limit, temporary) or `terminal` (validation, auth) and re-queues retriable failures up to 3 times.
+Providers throw `ProviderError` with the HTTP status. Trigger-based deliveries classify failures as:
+
+- **`retryable`** (429, 502, 503): re-queued with a back-off
+- **`permanent`** (other 4xx): failed, with fallback if configured
+- **`unknown`** (timeouts, 5xx): never re-sent automatically
+
+Status webhooks (`/api/payload-notifications/webhooks/twilio` and `/webhooks/meta`) record
+delivered / read / failed and STOP replies. See [reliability.md](./reliability.md) for retries,
+fallback, webhooks, custom providers (`providers.custom`) and reconciliation.
+
+Direct `queueNotificationSend` calls keep the older behaviour: retriable failures throw so Payload
+retries the job.

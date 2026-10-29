@@ -1,4 +1,6 @@
 import type { Payload } from 'payload'
+import { createSensitiveFieldMatcher, redactContext } from '../data/sensitive'
+import type { DeliveryOutcome } from '../providers/errors'
 import type {
   NormalizedNotificationsPluginOptions,
   NotificationDispatchStatus,
@@ -30,6 +32,12 @@ export type WriteNotificationLogInput = {
   templateVersion?: number
   renderDurationMs?: number
   meta?: Record<string, unknown>
+  /** Provider call duration. */
+  durationMs?: number
+  /** Outcome in the delivery failure taxonomy. */
+  outcome?: DeliveryOutcome
+  /** Rendered content; stored only with `logs.storeRendered`. */
+  rendered?: { subject?: string; title?: string; text?: string }
 }
 
 /**
@@ -50,13 +58,26 @@ export const writeNotificationLog = async ({
   templateVersion,
   renderDurationMs,
   meta,
+  durationMs,
+  outcome,
+  rendered,
 }: WriteNotificationLogInput) => {
+  // Provider responses can echo credentials or message content; mask sensitive keys.
+  const safeRaw =
+    providerResponseRaw !== undefined
+      ? redactContext(
+          providerResponseRaw,
+          [],
+          createSensitiveFieldMatcher(options.data?.sensitiveFields),
+        )
+      : undefined
+
   const providerResponse =
     provider || providerMessageId || providerResponseRaw !== undefined
       ? {
           ...(provider ? { provider } : {}),
           ...(providerMessageId ? { messageID: providerMessageId } : {}),
-          ...(providerResponseRaw !== undefined ? { raw: providerResponseRaw } : {}),
+          ...(safeRaw !== undefined ? { raw: safeRaw } : {}),
         }
       : undefined
 
@@ -87,7 +108,17 @@ export const writeNotificationLog = async ({
       ...(typeof templateVersion === 'number' ? { templateVersion } : {}),
       ...(typeof renderDurationMs === 'number' ? { renderDurationMs } : {}),
       ...(providerResponse ? { providerResponse } : {}),
-      ...(jobMeta ? { meta: jobMeta } : {}),
+      ...(input.deliveryId !== undefined ? { delivery: input.deliveryId } : {}),
+      ...(outcome ? { outcome } : {}),
+      ...(typeof durationMs === 'number' ? { durationMs } : {}),
+      ...(jobMeta || (rendered && options.logs?.storeRendered)
+        ? {
+            meta: {
+              ...jobMeta,
+              ...(rendered && options.logs?.storeRendered ? { rendered } : {}),
+            },
+          }
+        : {}),
     },
   })
 }

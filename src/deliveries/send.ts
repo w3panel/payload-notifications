@@ -3,15 +3,23 @@ import type {
   AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationDispatchResult,
+  NotificationLifecycleStage,
   NotificationSendInput,
   NotificationTemplateContext,
   NotificationTemplateDefinition,
 } from '../types'
-import { dispatchToChannel } from '../channels/dispatch'
-import { recheckDelivery } from './recheck'
+import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
-import { evaluateNotificationPolicy } from '../policy/evaluatePolicy'
-import { classifyDispatchFailure, createObservabilityEvent } from '../reliability'
+import { deliveryCategory, evaluateDeliveryPolicy, isMandatory } from '../policy/deliveryPolicy'
+import { buildUnsubscribeUrl } from '../endpoints/unsubscribe'
+import type { DeliveryOutcome } from '../providers/errors'
+import { resolveProvider } from '../providers/builtin'
+import { emitLifecycle } from '../observability'
+import { createObservabilityEvent } from '../reliability'
+import { callProvider } from './providerCall'
+import { createFallbackDelivery, type FallbackSource } from './fallback'
+import { recheckDelivery } from './recheck'
+import { retryDelayMs, type ResolvedRetryPolicy } from './retry'
 import { mergeTemplateDefinition, renderDefinition } from '../templates/renderDefinition'
 import { resolveTemplate } from '../templates/resolve'
 
@@ -22,6 +30,7 @@ export const FINAL_DELIVERY_STATUSES = new Set([
   'failed',
   'skipped',
   'cancelled',
+  'unknown',
 ])
 
 type DeliveryDoc = {
@@ -41,7 +50,10 @@ type DeliveryDoc = {
   trigger: string
   recipientAlias?: string | null
   recheckConditions?: boolean | null
-}
+  category?: string | null
+  maxAttempts?: number | null
+  retryPolicy?: Pick<ResolvedRetryPolicy, 'backoff' | 'jitter'> | null
+} & FallbackSource
 
 const updateDelivery = (
   payload: Payload,
@@ -56,28 +68,19 @@ const updateDelivery = (
     overrideAccess: true,
   })
 
-/** Maps a dispatch result onto the delivery record. */
-const deliveryUpdateFor = (
-  result: NotificationDispatchResult,
-  retriable: boolean,
-): Record<string, unknown> => {
-  switch (result.status) {
+/** Lifecycle stage for a send result. */
+const stageFor = (status: NotificationDispatchResult['status']): NotificationLifecycleStage => {
+  switch (status) {
     case 'sent':
     case 'stored':
+      return 'sent'
     case 'queued':
-      return {
-        status: 'sent',
-        sentAt: new Date().toISOString(),
-        ...(result.providerMessageId ? { providerMessageId: result.providerMessageId } : {}),
-        lastError: null,
-      }
-    case 'skipped':
-      return { status: 'skipped', skipReason: result.reason ?? null }
-    case 'cancelled':
-      return { status: 'cancelled', skipReason: result.reason ?? null }
+      return 'retrying'
     case 'failed':
-      // Retriable failures stay `sending`; the job retry picks the delivery up again.
-      return { status: retriable ? 'sending' : 'failed', lastError: result.reason ?? null }
+    case 'unknown':
+    case 'cancelled':
+    case 'skipped':
+      return status
   }
 }
 
@@ -122,9 +125,8 @@ export const sendDelivery = async ({
     }
   }
 
+  const fingerprint = delivery.idempotencyKey
   const attempt = (delivery.attempts ?? 0) + 1
-  await updateDelivery(payload, options, deliveryId, { status: 'sending', attempts: attempt })
-
   const sendInput: NotificationSendInput = {
     userId: delivery.recipientId ?? '',
     channel: delivery.channel,
@@ -140,36 +142,84 @@ export const sendDelivery = async ({
     attempt,
     jobId: input.jobId,
   }
-  const fingerprint = delivery.idempotencyKey
 
-  const finish = async (
+  const report = async (
     result: NotificationDispatchResult,
     classification?: 'retriable' | 'terminal',
-    extra: Record<string, unknown> = {},
-  ): Promise<NotificationDispatchResult> => {
-    await updateDelivery(payload, options, deliveryId, {
-      ...deliveryUpdateFor(result, classification === 'retriable'),
-      ...extra,
-    })
+    durationMs?: number,
+  ) => {
+    const stage = stageFor(result.status)
+    const triggerSource =
+      delivery.triggerOrigin === 'admin' || delivery.triggerOrigin === 'code'
+        ? delivery.triggerOrigin
+        : undefined
     if (options.observability.onDispatch) {
       await options.observability.onDispatch(
-        createObservabilityEvent({ input: sendInput, result, fingerprint, classification }),
+        createObservabilityEvent({
+          input: sendInput,
+          result,
+          fingerprint,
+          classification,
+          extra: { trigger: delivery.trigger, triggerSource, stage, durationMs },
+        }),
       )
     }
+    await emitLifecycle(payload, options, {
+      stage,
+      event: delivery.event,
+      eventId: delivery.eventId ?? undefined,
+      trigger: delivery.trigger,
+      triggerSource,
+      deliveryId,
+      channel: delivery.channel,
+      recipient: delivery.recipientKey,
+      reason: result.reason,
+      provider: result.provider,
+      providerMessageId: result.providerMessageId,
+      attempt,
+      durationMs,
+    })
     return result
   }
 
-  const stop = async (status: 'failed' | 'skipped' | 'cancelled', reason: string) => {
+  /** Ends the delivery without a provider call (policy, missing user, recheck). */
+  const stop = async (
+    status: 'failed' | 'skipped' | 'cancelled' | 'unknown',
+    reason: string,
+    outcome: DeliveryOutcome,
+  ) => {
     await writeNotificationLog({
       payload,
       options,
       input: sendInput,
-      status: status === 'cancelled' ? 'skipped' : status,
+      status: status === 'failed' ? 'failed' : 'skipped',
       error: status === 'cancelled' ? `Cancelled: ${reason}` : reason,
       fingerprint,
       failureClassification: 'terminal',
+      outcome,
     })
-    return finish({ channel: delivery.channel, status, reason }, 'terminal')
+    await updateDelivery(payload, options, deliveryId, {
+      status,
+      ...(status === 'failed' || status === 'unknown'
+        ? { lastError: reason }
+        : { skipReason: reason }),
+    })
+    if (outcome === 'policy' || outcome === 'permanent') {
+      await createFallbackDelivery({
+        payload,
+        options,
+        primary: delivery,
+        reason: outcome,
+        detail: reason,
+      })
+    }
+    return report({ channel: delivery.channel, status, reason }, 'terminal')
+  }
+
+  // A previous attempt was interrupted after the provider call started: the
+  // outcome is ambiguous, so never send again automatically.
+  if (delivery.status === 'sending') {
+    return stop('unknown', 'A previous send attempt was interrupted; outcome unknown', 'unknown')
   }
 
   // Consent and preferences are checked at send time against the current user.
@@ -181,13 +231,21 @@ export const sendDelivery = async ({
       id: delivery.recipientId,
       disableErrors: true,
     })
-    if (!found) return stop('failed', 'User not found')
+    if (!found) return stop('failed', 'User not found', 'permanent')
     user = found as Record<string, unknown>
   }
 
-  const policy = await evaluateNotificationPolicy({ user, input: sendInput, options })
+  const category = deliveryCategory(delivery.category, delivery.classification)
+  const policy = await evaluateDeliveryPolicy({
+    payload,
+    options,
+    user,
+    input: sendInput,
+    destination: delivery.destination ?? undefined,
+    category,
+  })
   if (!policy.allow) {
-    return stop('skipped', policy.reason || 'Notification blocked by policy')
+    return stop('skipped', policy.reason || 'Notification blocked by policy', 'policy')
   }
 
   const resolved = await resolveTemplate({
@@ -207,45 +265,177 @@ export const sendDelivery = async ({
   // Scheduled deliveries can re-check that they still apply, rendering from fresh data.
   if (delivery.recheckConditions) {
     const recheck = await recheckDelivery({ payload, delivery, options, adminTriggers })
-    if (!recheck.ok) return stop('cancelled', recheck.reason)
+    if (!recheck.ok) return stop('cancelled', recheck.reason, 'cancelled')
     context = recheck.context
   }
+
+  // Opt-out-able deliveries carry a signed one-click unsubscribe link.
+  const unsubscribeUrl =
+    delivery.recipientId && !isMandatory(options, category, sendInput.classification)
+      ? await buildUnsubscribeUrl(payload, options, {
+          u: delivery.recipientId,
+          c: category,
+        })
+      : undefined
+  if (unsubscribeUrl) context = { ...context, unsubscribeUrl }
 
   const renderStarted = Date.now()
   const rendered = renderDefinition(definition, context)
   const renderDurationMs = Date.now() - renderStarted
 
-  const dispatched =
-    (await dispatchToChannel({
-      payload,
-      input: sendInput,
-      options,
-      rendered,
-      fingerprint,
-      templateSlug: resolved.templateSlug,
-      templateVersion: resolved.templateVersion,
-      renderDurationMs,
-      context,
-    })) || ({ channel: delivery.channel, status: 'sent' } satisfies NotificationDispatchResult)
-
-  const classification =
-    dispatched.status === 'failed' && dispatched.reason
-      ? classifyDispatchFailure(dispatched.reason).classification
-      : undefined
-
-  const result = await finish(
-    dispatched,
-    classification,
-    typeof resolved.templateVersion === 'number'
-      ? { templateVersion: resolved.templateVersion }
-      : {},
-  )
-
-  if (result.status === 'failed' && classification === 'retriable') {
-    throw new Error(result.reason || 'Retriable notification dispatch failure')
+  const provider = resolveProvider(delivery.channel, options)
+  if (!provider || !delivery.destination) {
+    return stop(
+      'failed',
+      provider ? 'Delivery has no destination' : `No provider configured for ${delivery.channel}`,
+      'permanent',
+    )
   }
 
-  return result
+  // Only now is the delivery "sending": anything thrown before this point is safe to retry.
+  await updateDelivery(payload, options, deliveryId, { status: 'sending', attempts: attempt })
+  const call = await callProvider(
+    provider,
+    {
+      to: delivery.destination,
+      channel: delivery.channel,
+      content: provider.capabilities.html ? rendered : { ...rendered, html: '' },
+      idempotencyKey: delivery.idempotencyKey,
+      ...(unsubscribeUrl && delivery.channel === 'email'
+        ? {
+            headers: {
+              'List-Unsubscribe': `<${unsubscribeUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
+          }
+        : {}),
+      payload,
+      options,
+      meta: { deliveryId, event: delivery.event, eventPayload: delivery.context?.payload },
+    },
+    options.providers.timeoutMs,
+  )
+
+  const versionPatch =
+    typeof resolved.templateVersion === 'number'
+      ? { templateVersion: resolved.templateVersion }
+      : {}
+  const logBase = {
+    payload,
+    options,
+    input: sendInput,
+    fingerprint,
+    provider: provider.name,
+    templateSlug: resolved.templateSlug,
+    templateVersion: resolved.templateVersion,
+    renderDurationMs,
+    durationMs: call.durationMs,
+    rendered: { subject: rendered.subject, title: rendered.title, text: rendered.text },
+  }
+
+  if (call.ok) {
+    const status = call.result.status === 'stored' ? 'stored' : 'sent'
+    await writeNotificationLog({
+      ...logBase,
+      status,
+      outcome: status,
+      providerMessageId: call.result.providerMessageId,
+      providerResponseRaw: call.result.response,
+    })
+    await updateDelivery(payload, options, deliveryId, {
+      status: 'sent',
+      sentAt: new Date().toISOString(),
+      lastError: null,
+      nextAttemptAt: null,
+      ...(call.result.providerMessageId
+        ? { providerMessageId: call.result.providerMessageId }
+        : {}),
+      ...versionPatch,
+    })
+    return report(
+      {
+        channel: delivery.channel,
+        status,
+        provider: provider.name,
+        providerMessageId: call.result.providerMessageId,
+        response: call.result.response,
+      },
+      undefined,
+      call.durationMs,
+    )
+  }
+
+  await writeNotificationLog({
+    ...logBase,
+    status: 'failed',
+    error: call.message,
+    outcome: call.kind,
+    failureClassification: call.kind === 'retryable' ? 'retriable' : 'terminal',
+  })
+
+  const maxAttempts = delivery.maxAttempts ?? 1
+  if (call.kind === 'retryable' && attempt < maxAttempts) {
+    const policy = delivery.retryPolicy ?? options.reliability
+    const waitUntil = new Date(Date.now() + retryDelayMs(policy, attempt + 1))
+    await updateDelivery(payload, options, deliveryId, {
+      status: 'queued',
+      lastError: call.message,
+      nextAttemptAt: waitUntil.toISOString(),
+      ...versionPatch,
+    })
+    await payload.jobs.queue({
+      overrideAccess: true,
+      task: NOTIFICATION_SEND_TASK,
+      queue: options.jobs.queue,
+      input: {
+        deliveryId,
+        userId: delivery.recipientId ?? '',
+        channel: delivery.channel,
+        template: delivery.templateSlug,
+        event: delivery.event,
+        eventId: delivery.eventId,
+      },
+      waitUntil,
+    })
+    return report(
+      {
+        channel: delivery.channel,
+        status: 'queued',
+        reason: `Retry ${attempt + 1}/${maxAttempts} at ${waitUntil.toISOString()}: ${call.message}`,
+        provider: provider.name,
+      },
+      'retriable',
+      call.durationMs,
+    )
+  }
+
+  const status = call.kind === 'unknown' ? 'unknown' : 'failed'
+  await updateDelivery(payload, options, deliveryId, {
+    status,
+    lastError: call.message,
+    nextAttemptAt: null,
+    ...versionPatch,
+  })
+  // Permanent failures and exhausted retries may fall back; unknown outcomes never do.
+  if (status === 'failed') {
+    await createFallbackDelivery({
+      payload,
+      options,
+      primary: delivery,
+      reason: 'permanent',
+      detail: call.message,
+    })
+  }
+  return report(
+    {
+      channel: delivery.channel,
+      status,
+      reason: call.kind === 'unknown' ? `Outcome unknown: ${call.message}` : call.message,
+      provider: provider.name,
+    },
+    'terminal',
+    call.durationMs,
+  )
 }
 
 /** Marks a delivery failed after its send job exhausted retries. */

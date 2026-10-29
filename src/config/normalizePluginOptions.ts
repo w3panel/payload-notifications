@@ -13,6 +13,7 @@ import {
 } from '../recipients/options'
 import { normalizeCollectionEvents } from '../events/collectionEvents'
 import { DEFAULT_MAX_EVENT_DEPTH } from '../events/depth'
+import { normalizeReliabilityOptions } from '../deliveries/retry'
 import { isValidTimeZone, parseClock } from '../deliveries/schedule'
 import { compileCodeTriggers } from '../triggers/compile'
 import { validateTrigger } from '../triggers/validate'
@@ -72,6 +73,95 @@ const normalizeEventRegistry = (
   }
 
   return { ...events }
+}
+
+const normalizePreferenceMode = (preferences: NotificationsPluginOptions['preferences']) => {
+  const mode = preferences?.mode ?? 'userFields'
+  if (mode !== 'userFields' && mode !== 'collection') {
+    throw new Error("payload-notifications: preferences.mode must be 'userFields' or 'collection'")
+  }
+  const unsubscribe = preferences?.unsubscribe
+  if (unsubscribe) {
+    if (typeof unsubscribe.secret !== 'string' || unsubscribe.secret.length < 16) {
+      throw new Error(
+        'payload-notifications: preferences.unsubscribe.secret must be at least 16 characters',
+      )
+    }
+    if (mode !== 'collection') {
+      throw new Error(
+        "payload-notifications: preferences.unsubscribe needs preferences.mode: 'collection'",
+      )
+    }
+  }
+  return {
+    mode,
+    mandatoryCategories: preferences?.mandatoryCategories ?? ['transactional'],
+    marketingRequiresOptIn: preferences?.marketingRequiresOptIn === true,
+    ...(unsubscribe
+      ? { unsubscribe: { secret: unsubscribe.secret, baseUrl: unsubscribe.baseUrl } }
+      : {}),
+  } as const
+}
+
+const normalizeWebhooks = (
+  webhooks: NotificationsPluginOptions['webhooks'],
+): NormalizedNotificationsPluginOptions['webhooks'] => {
+  if (webhooks?.meta && (!webhooks.meta.appSecret || !webhooks.meta.verifyToken)) {
+    throw new Error('payload-notifications: webhooks.meta needs appSecret and verifyToken')
+  }
+  return { ...webhooks }
+}
+
+const normalizeMaintenance = (
+  maintenance: NotificationsPluginOptions['maintenance'],
+): NormalizedNotificationsPluginOptions['maintenance'] => {
+  const retention = maintenance?.retention ?? {}
+  for (const [key, value] of Object.entries(retention)) {
+    if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+      throw new Error(
+        `payload-notifications: maintenance.retention.${key} must be a positive number of days`,
+      )
+    }
+  }
+  return {
+    reconcileCron: maintenance?.reconcileCron,
+    retentionCron: maintenance?.retentionCron,
+    retention: { ...retention },
+  }
+}
+
+const normalizeCustomProviders = (
+  custom: NonNullable<NotificationsPluginOptions['providers']>['custom'],
+): NormalizedNotificationsPluginOptions['providers']['custom'] => {
+  const errors: string[] = []
+  for (const [channel, provider] of Object.entries(custom ?? {})) {
+    if (!provider || typeof provider.send !== 'function' || typeof provider.name !== 'string') {
+      errors.push(`providers.custom.${channel} must be a provider with a name and send()`)
+      continue
+    }
+    if (!provider.channels?.includes(channel as never)) {
+      errors.push(
+        `providers.custom.${channel}: provider "${provider.name}" does not support ${channel}`,
+      )
+    }
+    errors.push(
+      ...(provider.validateConfig?.() ?? []).map(
+        (error) => `providers.custom.${channel}: ${error}`,
+      ),
+    )
+  }
+  if (errors.length) {
+    throw new Error(`payload-notifications: invalid providers\n  - ${errors.join('\n  - ')}`)
+  }
+  return { ...custom }
+}
+
+const normalizeTimeout = (value: number | undefined): number => {
+  if (value === undefined) return 30_000
+  if (!Number.isInteger(value) || value < 100 || value > 300_000) {
+    throw new Error('payload-notifications: providers.timeoutMs must be between 100 and 300000')
+  }
+  return value
 }
 
 const isLoggedIn: NotificationAccessCheck = ({ req }) => Boolean(req.user)
@@ -225,6 +315,8 @@ export const normalizePluginOptions = (
   const triggersSlug = options.collections?.triggers || 'notification-triggers'
   const triggerVersionsSlug =
     options.collections?.triggerVersions || 'notification-trigger-versions'
+  const preferencesSlug = options.collections?.preferences || 'notification-preferences'
+  const suppressionsSlug = options.collections?.suppressions || 'notification-suppressions'
 
   const allSlugs = [
     notificationsSlug,
@@ -234,6 +326,8 @@ export const normalizePluginOptions = (
     eventsSlug,
     triggersSlug,
     triggerVersionsSlug,
+    preferencesSlug,
+    suppressionsSlug,
   ]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
@@ -247,13 +341,21 @@ export const normalizePluginOptions = (
     }
   }
 
-  if (channels.includes('whatsapp') && !options.providers?.whatsapp?.provider) {
+  if (
+    channels.includes('whatsapp') &&
+    !options.providers?.whatsapp?.provider &&
+    !options.providers?.custom?.whatsapp
+  ) {
     throw new Error(
       'payload-notifications: providers.whatsapp.provider is required when whatsapp channel is enabled',
     )
   }
 
-  if (channels.includes('sms') && !options.providers?.sms?.provider) {
+  if (
+    channels.includes('sms') &&
+    !options.providers?.sms?.provider &&
+    !options.providers?.custom?.sms
+  ) {
     throw new Error(
       'payload-notifications: providers.sms.provider is required when sms channel is enabled',
     )
@@ -339,6 +441,8 @@ export const normalizePluginOptions = (
       events: eventsSlug,
       triggers: triggersSlug,
       triggerVersions: triggerVersionsSlug,
+      preferences: preferencesSlug,
+      suppressions: suppressionsSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
@@ -348,6 +452,8 @@ export const normalizePluginOptions = (
       email: options.providers?.email,
       whatsapp: options.providers?.whatsapp,
       sms: options.providers?.sms,
+      custom: normalizeCustomProviders(options.providers?.custom),
+      timeoutMs: normalizeTimeout(options.providers?.timeoutMs),
     },
     preferences: {
       fields: {
@@ -355,12 +461,15 @@ export const normalizePluginOptions = (
         marketingConsent:
           options.preferences?.fields?.marketingConsent || 'notificationPreferences.marketing',
       },
+      ...normalizePreferenceMode(options.preferences),
     },
     policy: {
       canSend: options.policy?.canSend,
     },
     observability: {
       onDispatch: options.observability?.onDispatch,
+      onEvent: options.observability?.onEvent,
+      log: options.observability?.log === true,
     },
     rules,
     events: normalizeEventRegistry(options.events),
@@ -376,6 +485,10 @@ export const normalizePluginOptions = (
     collectionEvents: normalizeCollectionEvents(options.collectionEvents),
     maxEventDepth: normalizeMaxEventDepth(options.maxEventDepth),
     eventsInbox: options.eventsInbox === true,
+    reliability: normalizeReliabilityOptions(options.reliability),
+    logs: { storeRendered: options.logs?.storeRendered === true },
+    webhooks: normalizeWebhooks(options.webhooks),
+    maintenance: normalizeMaintenance(options.maintenance),
     access: normalizeAccess(options.access),
     adminTriggers: normalizeAdminTriggers(options.adminTriggers),
     ...(options.tenancy ? { tenancy: normalizeTenancy(options.tenancy) } : {}),
@@ -414,13 +527,21 @@ export const validateNormalizedOptions = (
     throw new Error('payload-notifications: at least one channel must be enabled')
   }
 
-  if (options.channels.includes('sms') && !options.providers.sms?.provider) {
+  if (
+    options.channels.includes('sms') &&
+    !options.providers.sms?.provider &&
+    !options.providers.custom.sms
+  ) {
     throw new Error(
       'payload-notifications: providers.sms.provider is required when sms channel is enabled',
     )
   }
 
-  if (options.channels.includes('whatsapp') && !options.providers.whatsapp?.provider) {
+  if (
+    options.channels.includes('whatsapp') &&
+    !options.providers.whatsapp?.provider &&
+    !options.providers.custom.whatsapp
+  ) {
     throw new Error(
       'payload-notifications: providers.whatsapp.provider is required when whatsapp channel is enabled',
     )

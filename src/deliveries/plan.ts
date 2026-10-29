@@ -12,6 +12,10 @@ import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
 import { evaluateTriggerPlan } from './evaluate'
+import { emitLifecycle } from '../observability'
+import { deliveryCategory } from '../policy/deliveryPolicy'
+import { resolveRetryPolicy } from './retry'
+import { createFallbackDelivery, type FallbackSource } from './fallback'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
 
@@ -20,7 +24,7 @@ export type PlannedDelivery = {
   trigger: string
   channel: string
   recipientKey: string
-  status: 'queued' | 'skipped' | 'existing'
+  status: 'queued' | 'skipped' | 'existing' | 'duplicate'
   reason?: string
 }
 
@@ -69,6 +73,61 @@ const findDeliveryByKey = async (
   })
   const doc = existing.docs?.[0] as { id: string | number; status?: string } | undefined
   return doc ? { id: String(doc.id), status: doc.status } : undefined
+}
+
+/** Delivery fields for a resolved retry policy. */
+const retryFields = (policy: ReturnType<typeof resolveRetryPolicy>) => ({
+  maxAttempts: policy.maxAttempts,
+  retryPolicy: { backoff: policy.backoff, jitter: policy.jitter },
+})
+
+/** Statuses that make a delivery count for dedupe (failed / skipped / cancelled ones do not). */
+const DEDUPE_STATUSES = ['planned', 'queued', 'sending', 'sent', 'delivered', 'unknown']
+
+/** An earlier delivery with the same dedupe key, recipient and channel (within the window). */
+export const findDedupeMatch = async (
+  payload: Payload,
+  options: NormalizedNotificationsPluginOptions,
+  {
+    dedupeKey,
+    recipientKey,
+    channel,
+    windowSeconds,
+    now = new Date(),
+  }: {
+    dedupeKey: string
+    recipientKey: string
+    channel: string
+    windowSeconds?: number
+    now?: Date
+  },
+): Promise<string | undefined> => {
+  const result = await payload.find({
+    collection: options.collections.deliveries as never,
+    where: {
+      and: [
+        { dedupeKey: { equals: dedupeKey } },
+        { recipientKey: { equals: recipientKey } },
+        { channel: { equals: channel } },
+        { status: { in: DEDUPE_STATUSES } },
+        ...(windowSeconds
+          ? [
+              {
+                createdAt: {
+                  greater_than: new Date(now.getTime() - windowSeconds * 1000).toISOString(),
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+    pagination: false,
+  })
+  const doc = result.docs?.[0] as { id: string | number } | undefined
+  return doc ? String(doc.id) : undefined
 }
 
 /**
@@ -120,6 +179,14 @@ export const planDeliveries = async ({
   const isSensitive = createSensitiveFieldMatcher(options.data.sensitiveFields)
 
   for (const entry of matched) {
+    await emitLifecycle(payload, options, {
+      stage: 'matched',
+      event: event.name,
+      eventId,
+      trigger: entry.trigger.slug,
+      triggerSource: entry.origin,
+      triggerVersion: entry.version,
+    })
     await planTrigger({ payload, event, entry, options, isSensitive, result, req })
   }
 
@@ -161,6 +228,15 @@ const planTrigger = async ({
       failureClassification: 'terminal',
       meta: { eventId: event.eventId, trigger: snapshot },
     })
+    await emitLifecycle(payload, options, {
+      stage: 'skipped',
+      event: event.name,
+      eventId: event.eventId,
+      trigger: trigger.slug,
+      triggerSource: snapshot.origin,
+      triggerVersion: snapshot.version,
+      reason: error,
+    })
   }
 
   const plan = await evaluateTriggerPlan({ payload, event, trigger, options, isSensitive, req })
@@ -196,7 +272,21 @@ const planTrigger = async ({
       continue
     }
 
-    const skipReason = destination ? undefined : `No ${delivery.channel} destination for recipient`
+    const duplicateOf = plan.dedupeKey
+      ? await findDedupeMatch(payload, options, {
+          dedupeKey: plan.dedupeKey,
+          recipientKey: recipient.key,
+          channel: delivery.channel,
+          windowSeconds: trigger.dedupe?.windowSeconds,
+          now,
+        })
+      : undefined
+
+    const skipReason = duplicateOf
+      ? `Duplicate of delivery ${duplicateOf} (dedupe key)`
+      : destination
+        ? undefined
+        : `No ${delivery.channel} destination for recipient`
     const record = {
       event: event.name,
       eventId: event.eventId,
@@ -215,6 +305,11 @@ const planTrigger = async ({
       destinationMasked: maskDestination(destination),
       classification,
       idempotencyKey,
+      dedupeKey: plan.dedupeKey,
+      category: deliveryCategory(trigger.category, classification),
+      fallback: delivery.fallback,
+      recipientDestinations: recipient.destinations,
+      ...retryFields(resolveRetryPolicy(options, trigger.reliability, delivery.channel)),
       skipReason,
       scheduledFor: sendAt?.toISOString(),
       recheckConditions: trigger.schedule?.recheckConditions === true,
@@ -258,7 +353,33 @@ const planTrigger = async ({
         fingerprint: idempotencyKey,
         failureClassification: 'terminal',
       })
-      result.deliveries.push({ ...planned, deliveryId, status: 'skipped', reason: skipReason })
+      result.deliveries.push({
+        ...planned,
+        deliveryId,
+        status: duplicateOf ? 'duplicate' : 'skipped',
+        reason: skipReason,
+      })
+      await emitLifecycle(payload, options, {
+        stage: 'skipped',
+        event: event.name,
+        eventId: event.eventId,
+        trigger: trigger.slug,
+        triggerSource: snapshot.origin,
+        triggerVersion: snapshot.version,
+        deliveryId,
+        channel: delivery.channel,
+        recipient: recipient.key,
+        reason: skipReason,
+      })
+      if (!duplicateOf) {
+        await createFallbackDelivery({
+          payload,
+          options,
+          primary: { ...(record as unknown as FallbackSource), id: deliveryId },
+          reason: 'no-destination',
+          detail: skipReason ?? 'no destination',
+        })
+      }
       continue
     }
 
@@ -279,5 +400,16 @@ const planTrigger = async ({
       ...(sendAt && sendAt > now ? { waitUntil: sendAt } : {}),
     })
     result.deliveries.push({ ...planned, deliveryId })
+    await emitLifecycle(payload, options, {
+      stage: 'planned',
+      event: event.name,
+      eventId: event.eventId,
+      trigger: trigger.slug,
+      triggerSource: snapshot.origin,
+      triggerVersion: snapshot.version,
+      deliveryId,
+      channel: delivery.channel,
+      recipient: recipient.key,
+    })
   }
 }

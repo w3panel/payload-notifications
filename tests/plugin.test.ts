@@ -27,11 +27,12 @@ describe('payload-notifications', () => {
       'notifications',
       'notification-logs',
       'notification-templates',
+      'notification-suppressions',
       'notification-triggers',
       'notification-trigger-versions',
       'notification-deliveries',
     ])
-    expect(secondPass).toHaveLength(6)
+    expect(secondPass).toHaveLength(7)
   })
 
   it('respects custom collection slugs', () => {
@@ -83,9 +84,14 @@ describe('payload-notifications', () => {
     const plugin = notificationsPlugin()
     const config = plugin({ collections: [] })
 
-    expect(config.collections).toHaveLength(6)
+    expect(config.collections).toHaveLength(7)
     const tasks = config.jobs && 'tasks' in config.jobs ? (config.jobs.tasks as any[]) : []
-    expect(tasks).toHaveLength(2)
+    expect(tasks.map((task) => task.slug)).toEqual([
+      'notification:process-event',
+      'notification:send',
+      'notification:reconcile',
+      'notification:retention',
+    ])
 
     const sendTask = tasks.find((task) => task.slug === 'notification:send')
     expect(sendTask?.retries?.attempts).toBe(2)

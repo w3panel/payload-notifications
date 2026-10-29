@@ -14,6 +14,8 @@
 | `collections.events` | `'notification-events'` | Event inbox slug (with `eventsInbox`) |
 | `collections.triggers` | `'notification-triggers'` | Admin-created triggers |
 | `collections.triggerVersions` | `'notification-trigger-versions'` | Published admin trigger snapshots |
+| `collections.preferences` | `'notification-preferences'` | User preferences (collection mode) |
+| `collections.suppressions` | `'notification-suppressions'` | Suppressed destinations |
 | `jobs.queue` | `'notifications'` | Payload jobs queue name |
 | `templates.registry` | package starters | Code templates keyed by slug |
 | `templates.seedOnInit` | `false` | Seed missing DB templates from registry on init |
@@ -21,10 +23,18 @@
 | `providers.email` | — | `defaultFromAddress`, `defaultFromName` |
 | `providers.whatsapp` | — | `meta` or `twilio` credentials |
 | `providers.sms` | — | `twilio` credentials |
+| `providers.custom` | `{}` | Custom `NotificationProvider` per channel — see [reliability.md](./reliability.md#providers) |
+| `providers.timeoutMs` | `30000` | Provider call timeout (timeouts are `unknown`, not retried) |
 | `preferences.fields.channels` | `notificationPreferences.channels` | Dot-path on user |
 | `preferences.fields.marketingConsent` | `notificationPreferences.marketing` | Dot-path on user |
+| `preferences.mode` | `'userFields'` | `'collection'` uses `notification-preferences` — see [preferences-and-policy.md](./preferences-and-policy.md) |
+| `preferences.mandatoryCategories` | `['transactional']` | Categories that ignore opt-outs (collection mode) |
+| `preferences.marketingRequiresOptIn` | `false` | Marketing needs an explicit opt-in record |
+| `preferences.unsubscribe` | — | `{ secret, baseUrl? }`: signed one-click unsubscribe links and headers |
 | `policy.canSend` | — | Custom allow/deny hook |
 | `observability.onDispatch` | — | Dispatch telemetry hook |
+| `observability.onEvent` | — | Lifecycle events for every stage — see [observability.md](./observability.md) |
+| `observability.log` | `false` | Structured `payload.logger` output per stage |
 | `rules` | `[]` | Legacy event → channels → template fan-out (optional `data.sources`); compiled into triggers |
 | `triggers` | `[]` | Code-defined triggers (`slug`, `source`/`event`, `data`, `recipients`, `deliveries`, `admin.policy`) — see [triggers.md](./triggers.md) |
 | `recipients.destinationFields` | email `email`; sms `phone`/`phoneNumber`; whatsapp `whatsapp`/`phone`/`phoneNumber` | User fields read per destination (also `name`, `locale`, `timezone`) |
@@ -45,6 +55,12 @@
 | `access.testSend` | `isAdmin` | Trigger test sends and template test-send |
 | `adminTriggers.cancelQueuedOnDisable` | `false` | Cancel queued deliveries when a trigger is disabled / archived |
 | `adminTriggers.cacheTtlMs` | `30000` | Per-instance cache for published admin triggers |
+| `reliability.attempts` / `backoff` / `jitter` | `3` / exponential 5s→1h / `true` | Default retry policy — see [reliability.md](./reliability.md) |
+| `reliability.maxAttempts` | `10` | Cap for any trigger's attempts |
+| `reliability.staleSendingMinutes` | `30` | Reconciliation threshold for stuck sends |
+| `logs.storeRendered` | `false` | Store rendered subject / text on attempt logs |
+| `webhooks.publicUrl` / `twilio` / `meta` | — | Provider webhook settings (signature verification) |
+| `maintenance.reconcileCron` / `retentionCron` / `retention` | — | Scheduled reconcile / retention tasks |
 | `events` | `{}` | Registered application events (`label`, `description`, `classification`, `schema`, `samplePayload`, `docsUrl`) — see [events.md](./events.md) |
 | `eventsStrict` | `false` | Reject emits for events missing from `events` |
 | `data.collections` | `{}` | Collections/fields data sources may read — see [data-sources.md](./data-sources.md) |

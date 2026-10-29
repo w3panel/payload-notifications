@@ -51,6 +51,8 @@ export type TriggerOverridableField =
   | 'data'
   | 'conditions'
   | 'schedule'
+  | 'dedupe'
+  | 'reliability'
 
 export type ConditionOperator =
   | 'equals'
@@ -104,6 +106,33 @@ export type ConditionDefinition = {
   description?: string
 }
 
+/** Retry policy for retryable send failures (rate limits, 5xx, refused connections). */
+export type NotificationRetryPolicy = {
+  /** Total attempts including the first. */
+  attempts?: number
+  backoff?: {
+    type?: 'exponential' | 'fixed'
+    /** Base delay. Default 5000 ms. */
+    delayMs?: number
+    /** Cap for exponential delays. Default 1 hour. */
+    maxDelayMs?: number
+  }
+  /** Randomize delays (50–100% of the computed delay). Default true. */
+  jitter?: boolean
+}
+
+export type NotificationTriggerReliability = NotificationRetryPolicy & {
+  /** Per-channel overrides, e.g. fewer attempts for SMS. */
+  channels?: Partial<Record<NotificationChannel, NotificationRetryPolicy>>
+}
+
+export type NotificationDedupe = {
+  /** Template rendered against the trigger context, e.g. `order.paid:{{ order.id }}`. */
+  key: string
+  /** Only deliveries created within this many seconds count. Default: any age. */
+  windowSeconds?: number
+}
+
 /** A duration in milliseconds, or a string such as `30m`, `24h`, `2d`, `-24h`. */
 export type NotificationDuration = number | string
 
@@ -135,6 +164,19 @@ export type NotificationDeliveryDefinition = {
   templateOverrides?: Partial<NotificationTemplateDefinition>
   /** Per-recipient condition; the context also has `recipient.*`. */
   when?: NotificationCondition
+  /** Another channel to try when this delivery cannot be sent. */
+  fallback?: NotificationDeliveryFallback
+}
+
+export type NotificationDeliveryFallback = {
+  channel: NotificationChannel
+  /** Defaults to the delivery's template. */
+  template?: string
+  /**
+   * When to fall back. Default: all. Never for `unknown` outcomes (the first
+   * message may have been sent).
+   */
+  on?: Array<'permanent' | 'no-destination' | 'policy'>
 }
 
 export type NotificationTrigger = {
@@ -154,8 +196,22 @@ export type NotificationTrigger = {
   deliveries: NotificationDeliveryDefinition[]
   /** Overrides the event classification for these deliveries. */
   classification?: NotificationClassification
+  /**
+   * Preference category users opt in / out of (e.g. `order-updates`,
+   * `newsletter`). Defaults to the classification.
+   */
+  category?: string
   /** When deliveries are sent. Default: immediately. */
   schedule?: NotificationSchedule & NotificationScheduleOptions
+  /**
+   * Cross-trigger duplicate protection: deliveries with the same rendered `key`,
+   * recipient and channel (within `windowSeconds`, if set) are skipped as
+   * duplicates — e.g. `order.paid:{{ order.id }}` on both an `order.paid` event
+   * trigger and an `orders` update trigger.
+   */
+  dedupe?: NotificationDedupe
+  /** Retry policy for this trigger's deliveries (within `reliability.maxAttempts`). */
+  reliability?: NotificationTriggerReliability
   admin?: {
     policy?: TriggerAdminPolicy
     /** Fields a `managed` override may replace. Default: all overridable fields. */

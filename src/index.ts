@@ -7,6 +7,14 @@ export {
 export { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
 export type {
   ChannelProviderResult,
+  NotificationProvider,
+  ProviderCapabilities,
+  ProviderInboundMessage,
+  ProviderSendInput,
+  ProviderSendResult,
+  ProviderStatusUpdate,
+  ProviderWebhookRequest,
+  ProviderWebhookResult,
   CollectionDataSource,
   ComputedDataSource,
   DataCollectionAllowlist,
@@ -33,6 +41,9 @@ export type {
   NotificationClassification,
   NotificationDispatchResult,
   NotificationDispatchStatus,
+  NotificationLifecycleEvent,
+  NotificationLifecycleHook,
+  NotificationLifecycleStage,
   NotificationEvent,
   CollectionEventConfig,
   CollectionEventOperation,
@@ -63,6 +74,7 @@ export type {
   AdminTriggerRecord,
   EffectiveTrigger,
   NotificationDeliveryDefinition,
+  NotificationDeliveryFallback,
   NotificationTrigger,
   NotificationTriggerInput,
   TriggerAdminPolicy,
@@ -78,6 +90,9 @@ export type {
   FieldCondition,
   NotificationCondition,
   NotificationDuration,
+  NotificationDedupe,
+  NotificationRetryPolicy,
+  NotificationTriggerReliability,
   NotificationSchedule,
   NotificationScheduleOptions,
   ContextRecipient,
@@ -151,7 +166,7 @@ export {
   triggerRegistryEndpoint,
   triggerTestEndpoint,
 } from './admin-triggers/endpoints'
-export { evaluateTriggerPlan, recipientScopeOf } from './deliveries/evaluate'
+export { evaluateTriggerPlan, recipientScopeOf, renderDedupeKey } from './deliveries/evaluate'
 export type { RecipientScope, TriggerPlan, TriggerPlanItem } from './deliveries/evaluate'
 export type { AdminTriggerCache } from './admin-triggers/store'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
@@ -217,6 +232,7 @@ export {
   resolveEffectiveTriggers,
   snapshotTrigger,
   collectTriggerWarnings,
+  findOverlappingTriggers,
   validateTrigger,
   collectConditionRefs,
   CONDITION_OPERATORS,
@@ -243,10 +259,64 @@ export {
   validateRecipientDefinitions,
 } from './recipients'
 export type { ResolveRecipientsArgs, ResolveRecipientsResult } from './recipients'
-export { buildDeliveryKey, planDeliveries } from './deliveries/plan'
+export { buildDeliveryKey, findDedupeMatch, planDeliveries } from './deliveries/plan'
 export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
 export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
 export { dispatchToChannel } from './channels/dispatch'
+export {
+  classifySendFailure,
+  kindForStatus,
+  ProviderError,
+  ProviderTimeoutError,
+} from './providers/errors'
+export type { DeliveryOutcome, SendFailureKind } from './providers/errors'
+export {
+  builtinProvider,
+  inAppProvider,
+  payloadEmailProvider,
+  resolveProvider,
+} from './providers/builtin'
+export { callProvider } from './deliveries/providerCall'
+export type { ProviderCallResult } from './deliveries/providerCall'
+export { resolveRetryPolicy, retryDelayMs } from './deliveries/retry'
+export { createFallbackDelivery, DEFAULT_FALLBACK_ON } from './deliveries/fallback'
+export type { FallbackReason, FallbackSource } from './deliveries/fallback'
+export type { ResolvedRetryPolicy } from './deliveries/retry'
+export { ATTEMPT_OUTCOMES } from './collections/NotificationLogs'
+export {
+  NotificationPreferencesCollection,
+  NotificationSuppressionsCollection,
+  SUPPRESSION_REASONS,
+} from './collections/NotificationConsent'
+export { findSuppression, normalizeDestination, recordSuppression } from './policy/suppressions'
+export type { SuppressionReason } from './policy/suppressions'
+export {
+  deliveryCategory,
+  evaluateDeliveryPolicy,
+  isMandatory,
+  pickPreference,
+} from './policy/deliveryPolicy'
+export { signUnsubscribeToken, verifyUnsubscribeToken } from './policy/unsubscribe'
+export type { UnsubscribeClaims } from './policy/unsubscribe'
+export { buildUnsubscribeUrl, recordOptOut, unsubscribeEndpoints } from './endpoints/unsubscribe'
+export { parseMetaWebhook, parseTwilioWebhook } from './webhooks/providers'
+export {
+  metaSignature,
+  twilioSignature,
+  verifyMetaSignature,
+  verifyTwilioSignature,
+} from './webhooks/signatures'
+export { applyStatusUpdate, applyWebhookResult } from './webhooks/apply'
+export type { WebhookApplyResult } from './webhooks/apply'
+export { toWebhookRequest, webhookEndpoints } from './webhooks/endpoints'
+export { emitLifecycle, maskRecipientKey } from './observability'
+export {
+  maintenanceTasks,
+  NOTIFICATION_RECONCILE_TASK,
+  NOTIFICATION_RETENTION_TASK,
+  pruneNotifications,
+  reconcileDeliveries,
+} from './jobs/maintenance'
 export {
   applyQuietHours,
   computeSchedule,

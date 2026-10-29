@@ -8,6 +8,8 @@ export type NotificationLogsCollectionOverrides = {
 
 type BuildNotificationLogsCollectionArgs = {
   userCollectionSlug?: string
+  /** Delivery collection the `delivery` relationship points to. */
+  deliveriesSlug?: string
   slug?: string
   overrides?: NotificationLogsCollectionOverrides
 }
@@ -41,12 +43,40 @@ export const buildProviderResponseField = (): GroupField => ({
   ],
 })
 
-const baseFields = (userCollectionSlug: string): Field[] => [
+export const ATTEMPT_OUTCOMES = [
+  'sent',
+  'stored',
+  'retryable',
+  'permanent',
+  'unknown',
+  'policy',
+  'duplicate',
+  'cancelled',
+  'skipped',
+] as const
+
+const baseFields = (userCollectionSlug: string, deliveriesSlug: string): Field[] => [
   {
     name: 'user',
     type: 'relationship',
     relationTo: userCollectionSlug,
     index: true,
+  },
+  {
+    name: 'delivery',
+    type: 'relationship',
+    relationTo: deliveriesSlug,
+    index: true,
+  },
+  {
+    name: 'outcome',
+    type: 'select',
+    options: [...ATTEMPT_OUTCOMES],
+    index: true,
+  },
+  {
+    name: 'durationMs',
+    type: 'number',
   },
   {
     name: 'event',
@@ -122,6 +152,7 @@ const baseFields = (userCollectionSlug: string): Field[] => [
 
 export const NotificationLogsCollection = ({
   userCollectionSlug = 'users',
+  deliveriesSlug = 'notification-deliveries',
   slug = 'notification-logs',
   overrides,
 }: BuildNotificationLogsCollectionArgs = {}): CollectionConfig => ({
@@ -144,6 +175,6 @@ export const NotificationLogsCollection = ({
     defaultColumns: ['event', 'channel', 'status', 'user', 'attempt', 'createdAt'],
     ...overrides?.admin,
   },
-  fields: overrides?.fields || baseFields(userCollectionSlug),
+  fields: overrides?.fields || baseFields(userCollectionSlug, deliveriesSlug),
   timestamps: true,
 })

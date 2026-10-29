@@ -2,7 +2,9 @@ import type { NormalizedNotificationsPluginOptions, NotificationTrigger } from '
 import { DEFAULT_RECIPIENTS, recipientAlias } from '../recipients/resolve'
 import { validateRecipientDefinitions } from '../recipients/validate'
 import { collectFieldPaths } from '../events/registry'
+import { validateReliability } from '../deliveries/retry'
 import { parseDuration } from '../deliveries/schedule'
+import { compile as compileTemplate } from '../templates/engine'
 import { validateCondition, type ConditionValidationContext } from './conditions'
 
 export type TriggerValidationResult = {
@@ -29,6 +31,7 @@ export const validateTrigger = (
     | 'conditions'
     | 'dataResolvers'
     | 'collectionEvents'
+    | 'reliability'
   >,
   owner = `trigger "${trigger.slug}"`,
 ): TriggerValidationResult => {
@@ -66,6 +69,8 @@ export const validateTrigger = (
 
   const conditionContext = conditionContextFor(trigger, options, owner)
   errors.push(...validateSchedule(trigger, conditionContext))
+  errors.push(...validateDedupe(trigger, conditionContext.owner))
+  errors.push(...validateReliability(trigger.reliability, options.reliability.maxAttempts, owner))
   const collect = (result: { errors: string[]; warnings: string[] }) => {
     errors.push(...result.errors)
     warnings.push(...result.warnings)
@@ -101,6 +106,35 @@ export const validateTrigger = (
       )
     }
 
+    if (delivery.fallback !== undefined) {
+      const fallback = delivery.fallback
+      if (!fallback || typeof fallback.channel !== 'string') {
+        errors.push(`${label}.fallback: channel is required`)
+      } else {
+        if (!options.channels.includes(fallback.channel)) {
+          errors.push(
+            `${label}.fallback: channel "${fallback.channel}" is not enabled in plugin channels`,
+          )
+        }
+        if (fallback.channel === delivery.channel) {
+          errors.push(`${label}.fallback: must use a different channel than the delivery`)
+        }
+        const invalid = (fallback.on ?? []).filter(
+          (reason) => !['permanent', 'no-destination', 'policy'].includes(reason),
+        )
+        if (invalid.length) {
+          errors.push(`${label}.fallback: on must list permanent, no-destination and/or policy`)
+        }
+        if (
+          fallback.channel === 'inapp' &&
+          target !== 'all' &&
+          aliases.get(target)?.type === 'static'
+        ) {
+          errors.push(`${label}.fallback: static recipient "${target}" has no in-app destination`)
+        }
+      }
+    }
+
     const key = `${delivery.channel}::${delivery.template}::${target}`
     if (seen.has(key)) errors.push(`${label}: duplicate delivery (${delivery.channel} → ${target})`)
     seen.add(key)
@@ -114,6 +148,60 @@ export const validateTrigger = (
   })
 
   return { errors, warnings }
+}
+
+const validateDedupe = (trigger: NotificationTrigger, owner: string): string[] => {
+  const dedupe = trigger.dedupe
+  if (dedupe === undefined) return []
+  if (!dedupe || typeof dedupe.key !== 'string' || !dedupe.key.trim()) {
+    return [`${owner} dedupe: key is required, e.g. order.paid:{{ order.id }}`]
+  }
+  const errors: string[] = []
+  try {
+    compileTemplate(dedupe.key)
+  } catch (error) {
+    errors.push(
+      `${owner} dedupe: key is not a valid template (${error instanceof Error ? error.message : String(error)})`,
+    )
+  }
+  if (
+    dedupe.windowSeconds !== undefined &&
+    (!Number.isInteger(dedupe.windowSeconds) || dedupe.windowSeconds < 1)
+  ) {
+    errors.push(`${owner} dedupe: windowSeconds must be a positive integer`)
+  }
+  return errors
+}
+
+/** What starts a trigger: `event order.paid` or `collection orders:update`. */
+const sourceKey = (trigger: NotificationTrigger) =>
+  trigger.source.type === 'event'
+    ? `event ${trigger.source.event}`
+    : `collection ${trigger.source.collection}:${trigger.source.operation}`
+
+/**
+ * Warnings for triggers that start from the same source and deliver the same
+ * channel to the same recipients without both having a dedupe key.
+ */
+export const findOverlappingTriggers = (triggers: NotificationTrigger[]): string[] => {
+  const warnings: string[] = []
+  for (let i = 0; i < triggers.length; i++) {
+    for (let j = i + 1; j < triggers.length; j++) {
+      const [a, b] = [triggers[i], triggers[j]]
+      if (sourceKey(a) !== sourceKey(b) || (a.dedupe && b.dedupe)) continue
+      const sameRecipients =
+        JSON.stringify(a.recipients ?? [{ type: 'eventUser' }]) ===
+        JSON.stringify(b.recipients ?? [{ type: 'eventUser' }])
+      const channels = new Set(a.deliveries.map((delivery) => delivery.channel))
+      const shared = b.deliveries.find((delivery) => channels.has(delivery.channel))
+      if (sameRecipients && shared) {
+        warnings.push(
+          `triggers "${a.slug}" and "${b.slug}" both send ${shared.channel} to the same recipients on ${sourceKey(a)}; add a dedupe key if they describe the same action`,
+        )
+      }
+    }
+  }
+  return warnings
 }
 
 const SCHEDULE_TYPES = new Set(['immediate', 'delay', 'at', 'relative'])
@@ -187,7 +275,10 @@ export const conditionContextFor = (
 }
 
 /** Startup warnings for all v2 code triggers (compiled legacy rules are skipped). */
-export const collectTriggerWarnings = (options: NormalizedNotificationsPluginOptions): string[] =>
-  options.triggers
-    .slice(options.rules.length)
-    .flatMap((trigger) => validateTrigger(trigger, options).warnings)
+export const collectTriggerWarnings = (options: NormalizedNotificationsPluginOptions): string[] => {
+  const triggers = options.triggers.slice(options.rules.length)
+  return [
+    ...triggers.flatMap((trigger) => validateTrigger(trigger, options).warnings),
+    ...findOverlappingTriggers(triggers),
+  ]
+}

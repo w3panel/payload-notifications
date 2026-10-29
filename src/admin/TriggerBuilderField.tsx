@@ -4,9 +4,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDocumentInfo, useField, useForm } from '@payloadcms/ui'
 import type {
   NotificationCondition,
+  NotificationDedupe,
   NotificationDataSource,
   NotificationDeliveryDefinition,
   NotificationRecipientDefinition,
+  NotificationTriggerReliability,
   TriggerSource,
 } from '../types'
 import { ConditionEditor } from './ConditionEditor'
@@ -134,7 +136,10 @@ type InnerProps = {
     recipients: [NotificationRecipientDefinition[] | undefined, (value: unknown) => void]
     deliveries: [NotificationDeliveryDefinition[] | undefined, (value: unknown) => void]
     schedule: [BuilderSchedule | undefined, (value: unknown) => void]
+    dedupe?: [NotificationDedupe | undefined, (value: unknown) => void]
+    reliability?: [NotificationTriggerReliability | undefined, (value: unknown) => void]
     classification: [string | undefined, (value: unknown) => void]
+    category?: [string | undefined, (value: unknown) => void]
     overrides: [string | undefined, (value: unknown) => void]
   }
 }
@@ -158,6 +163,9 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
   const [deliveries, setDeliveries] = fields.deliveries
   const [schedule, setSchedule] = fields.schedule
   const [classification, setClassification] = fields.classification
+  const [category, setCategory] = fields.category ?? [undefined, () => undefined]
+  const [dedupe, setDedupe] = fields.dedupe ?? [undefined, () => undefined]
+  const [reliability, setReliability] = fields.reliability ?? [undefined, () => undefined]
   const [overrides] = fields.overrides
 
   const collectionSource = source?.type === 'collection'
@@ -594,6 +602,53 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
                     </select>
                   </Labeled>
                 </div>
+                <div style={row}>
+                  <Labeled label="If it can't be sent, fall back to">
+                    <select
+                      value={item.fallback?.channel ?? ''}
+                      onChange={(event) => {
+                        const channel = event.target
+                          .value as NotificationDeliveryDefinition['channel']
+                        update({
+                          ...item,
+                          fallback: channel ? { ...item.fallback, channel } : undefined,
+                        })
+                      }}
+                    >
+                      <option value="">No fallback</option>
+                      {registry.channels
+                        .filter((channel) => channel !== item.channel)
+                        .map((channel) => (
+                          <option key={channel} value={channel}>
+                            {channel}
+                          </option>
+                        ))}
+                    </select>
+                  </Labeled>
+                  {item.fallback ? (
+                    <Labeled label="Fallback template">
+                      <select
+                        value={item.fallback.template ?? ''}
+                        onChange={(event) =>
+                          update({
+                            ...item,
+                            fallback: {
+                              ...item.fallback!,
+                              template: event.target.value || undefined,
+                            },
+                          })
+                        }
+                      >
+                        <option value="">Same as delivery</option>
+                        {templatesForChannel(registry, item.fallback.channel).map((template) => (
+                          <option key={`${template.source}:${template.slug}`} value={template.slug}>
+                            {template.slug}
+                          </option>
+                        ))}
+                      </select>
+                    </Labeled>
+                  ) : null}
+                </div>
                 <details>
                   <summary style={{ fontSize: 13 }}>
                     Only send when… {item.when ? '(set)' : ''}
@@ -684,6 +739,53 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
                 </label>
               </div>
             ) : null}
+            <div style={row}>
+              <Labeled label="Dedupe key (skip duplicates across triggers)">
+                <input
+                  value={dedupe?.key ?? ''}
+                  placeholder="order.paid:{{ order.id }}"
+                  onChange={(event) =>
+                    setDedupe(event.target.value ? { ...dedupe, key: event.target.value } : null)
+                  }
+                />
+              </Labeled>
+              {dedupe?.key ? (
+                <Labeled label="Within seconds (empty = any age)">
+                  <input
+                    type="number"
+                    value={dedupe.windowSeconds ?? ''}
+                    onChange={(event) =>
+                      setDedupe({
+                        ...dedupe,
+                        windowSeconds: event.target.value ? Number(event.target.value) : undefined,
+                      })
+                    }
+                  />
+                </Labeled>
+              ) : null}
+            </div>
+            <Labeled label="Send attempts (retries for temporary failures)">
+              <input
+                type="number"
+                min={1}
+                value={reliability?.attempts ?? ''}
+                placeholder="default"
+                onChange={(event) =>
+                  setReliability(
+                    event.target.value
+                      ? { ...reliability, attempts: Number(event.target.value) }
+                      : null,
+                  )
+                }
+              />
+            </Labeled>
+            <Labeled label="Preference category (users can opt out of it)">
+              <input
+                value={category ?? ''}
+                placeholder="e.g. order-updates"
+                onChange={(event) => setCategory(event.target.value || null)}
+              />
+            </Labeled>
             <Labeled label="Classification">
               <select
                 value={classification ?? ''}
@@ -806,7 +908,10 @@ export const TriggerBuilderField: React.FC<TriggerBuilderFieldProps> = (props) =
   const recipients = useField<NotificationRecipientDefinition[] | undefined>({ path: 'recipients' })
   const deliveries = useField<NotificationDeliveryDefinition[] | undefined>({ path: 'deliveries' })
   const schedule = useField<BuilderSchedule | undefined>({ path: 'schedule' })
+  const dedupe = useField<NotificationDedupe | undefined>({ path: 'dedupe' })
+  const reliability = useField<NotificationTriggerReliability | undefined>({ path: 'reliability' })
   const classification = useField<string | undefined>({ path: 'classification' })
+  const category = useField<string | undefined>({ path: 'category' })
   const overrides = useField<string | undefined>({ path: 'overrides' })
 
   const [registry, setRegistry] = useState<BuilderRegistry>(EMPTY_REGISTRY)
@@ -851,7 +956,10 @@ export const TriggerBuilderField: React.FC<TriggerBuilderFieldProps> = (props) =
           recipients: [recipients.value, recipients.setValue],
           deliveries: [deliveries.value, deliveries.setValue],
           schedule: [schedule.value, schedule.setValue],
+          dedupe: [dedupe.value, dedupe.setValue],
+          reliability: [reliability.value, reliability.setValue],
           classification: [classification.value, classification.setValue],
+          category: [category.value, category.setValue],
           overrides: [overrides.value, overrides.setValue],
         }}
       />

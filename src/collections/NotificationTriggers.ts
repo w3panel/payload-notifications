@@ -47,6 +47,8 @@ const definitionFields: Field[] = [
   { name: 'recipients', type: 'json', validate: jsonOf('array', 'recipients') },
   { name: 'deliveries', type: 'json', validate: jsonOf('array', 'deliveries') },
   { name: 'schedule', type: 'json', validate: jsonOf('object', 'schedule') },
+  { name: 'dedupe', type: 'json', validate: jsonOf('object', 'dedupe') },
+  { name: 'reliability', type: 'json', validate: jsonOf('object', 'reliability') },
 ]
 
 const baseFields = (collectionSlug: string, userCollectionSlug: string): Field[] => [
@@ -115,6 +117,13 @@ const baseFields = (collectionSlug: string, userCollectionSlug: string): Field[]
     name: 'classification',
     type: 'select',
     options: ['transactional', 'marketing'],
+  },
+  {
+    name: 'category',
+    type: 'text',
+    admin: {
+      description: 'Preference category users can opt out of (defaults to the classification)',
+    },
   },
   {
     name: 'builder',

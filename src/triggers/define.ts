@@ -78,6 +78,13 @@ export const checkTriggerShape = (trigger: NotificationTrigger): string[] => {
     errors.push(`${label}: condition must be a function`)
   }
 
+  if (
+    trigger.category !== undefined &&
+    (typeof trigger.category !== 'string' || !trigger.category.trim())
+  ) {
+    errors.push(`${label}: category must be a non-empty string`)
+  }
+
   const policy = trigger.admin?.policy
   if (policy !== undefined && !VALID_POLICIES.has(policy)) {
     errors.push(`${label}: admin.policy must be independent, managed or enforced`)
