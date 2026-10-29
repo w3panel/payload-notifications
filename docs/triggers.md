@@ -37,8 +37,9 @@ notificationsPlugin({ triggers: [orderPaid] })
 ```
 
 - **Sources:** `source` can be `{ type: 'event', event }`, which also accepts `order.*` or `*`, or
-  `{ type: 'collection', collection, operation }`. Collection events are emitted from Phase 3
-  onward.
+  `{ type: 'collection', collection, operation }` for collections listed in `collectionEvents`.
+- **Conditions and scheduling:** `conditions`, `deliveries[].when` and `schedule` are covered in
+  [automation.md](./automation.md).
 - **Legacy shape:** `defineTrigger` still accepts `{ event, channels, template }` and returns it
   unchanged for `rules`.
 - **Checked at startup:**
