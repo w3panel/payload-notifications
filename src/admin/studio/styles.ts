@@ -52,6 +52,7 @@ export const STUDIO_CSS = `
 .pn-suggestions{position:absolute;z-index:10;left:0;right:0;max-height:180px;overflow:auto;margin:2px 0 0;padding:0;list-style:none;background:var(--theme-elevation-0,#fff);border:1px solid var(--pn-border);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.12)}
 .pn-suggestions li{padding:3px 6px;cursor:pointer;font-family:ui-monospace,Menlo,monospace;font-size:12px}
 .pn-suggestions li[aria-selected=true]{background:#e0e7ff}
+.pn-email-meta{display:grid;gap:2px;font-size:13px}
 .pn-preview-frame{border:1px solid var(--pn-border);border-radius:6px;background:#fff;display:block;margin:0 auto;max-width:100%}
 .pn-tabs{display:flex;gap:4px;flex-wrap:wrap}
 .pn-checks{margin:0;padding-left:16px;font-size:12px}

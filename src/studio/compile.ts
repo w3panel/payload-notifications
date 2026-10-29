@@ -52,7 +52,7 @@ const SOCIAL_LABELS: Record<SocialNetwork, string> = {
   website: 'Website',
 }
 
-type Style = {
+export type Style = {
   width: number
   font: string
   headingFont: string
@@ -67,7 +67,7 @@ type Style = {
   buttonRadius: number
 }
 
-const resolveStyle = (settings: EmailDesignSettings = {}, theme: EmailTheme = {}): Style => {
+export const resolveStyle = (settings: EmailDesignSettings = {}, theme: EmailTheme = {}): Style => {
   const colors = theme.colors ?? {}
   const font = settings.fontFamily || theme.fontFamily || DEFAULT_FONT
   return {
