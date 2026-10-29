@@ -1,4 +1,5 @@
 import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions } from '../types'
+import { normalizeComputedRegistry, normalizeResolverRegistry } from '../data/resolvers'
 import { isValidEventName } from '../events/names'
 import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
@@ -205,6 +206,8 @@ export const normalizePluginOptions = (
     events: normalizeEventRegistry(options.events),
     eventsStrict: options.eventsStrict === true,
     data: normalizeDataOptions(options.data),
+    dataResolvers: normalizeResolverRegistry(options.dataResolvers),
+    computed: normalizeComputedRegistry(options.computed),
   }
 }
 

@@ -1,5 +1,12 @@
 import type { NotificationChannel } from './channels'
-import type { DataCollectionAllowlist, NotificationsDataOptions } from './data-sources'
+import type {
+  DataCollectionAllowlist,
+  NotificationComputedDefinition,
+  NotificationComputedRegistry,
+  NotificationDataResolverDefinition,
+  NotificationDataResolverRegistry,
+  NotificationsDataOptions,
+} from './data-sources'
 import type { NotificationObservabilityHook } from './deliveries'
 import type { NotificationEventRegistry } from './events'
 import type {
@@ -60,6 +67,10 @@ export type NotificationsPluginOptions = {
   eventsStrict?: boolean
   /** Collections/fields data sources may read, and paths to redact. */
   data?: NotificationsDataOptions
+  /** Developer-registered data resolvers that data sources can call by name. */
+  dataResolvers?: NotificationDataResolverRegistry
+  /** Developer-registered pure functions over the resolved context. */
+  computed?: NotificationComputedRegistry
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -107,4 +118,6 @@ export type NormalizedNotificationsPluginOptions = {
     collections: DataCollectionAllowlist
     redact: string[]
   }
+  dataResolvers: Record<string, NotificationDataResolverDefinition>
+  computed: Record<string, NotificationComputedDefinition>
 }

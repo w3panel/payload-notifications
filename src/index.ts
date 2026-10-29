@@ -16,6 +16,14 @@ export type {
   EventDataSource,
   NotificationDataConfig,
   NotificationDataContext,
+  NotificationComputedDefinition,
+  NotificationComputedHandler,
+  NotificationComputedRegistry,
+  NotificationDataResolverDefinition,
+  NotificationDataResolverHandler,
+  NotificationDataResolverRegistry,
+  NotificationResolverArgs,
+  RegisteredDataFunction,
   NotificationDataSource,
   NotificationsDataOptions,
   ResolverDataSource,
@@ -140,3 +148,12 @@ export type { DataSourceValidationContext } from './data/sources'
 export { buildDataContext } from './data/buildContext'
 export type { BuildDataContextArgs } from './data/buildContext'
 export { getPath, pickPaths, toRelationId, toSelect } from './data/paths'
+export {
+  DEFAULT_RESOLVER_TIMEOUT_MS,
+  listDataFunctions,
+  ResolverError,
+  runComputed,
+  runDataResolver,
+} from './data/resolvers'
+export type { ResolverErrorKind } from './data/resolvers'
+export { dataSourcesListEndpoint } from './endpoints/dataSources'

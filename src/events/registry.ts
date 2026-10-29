@@ -3,26 +3,12 @@ import type {
   NotificationEvent,
   NotificationEventDefinition,
   NotificationEventPayload,
-  NotificationEventSchema,
   RegisteredNotificationEvent,
-  StandardSchemaV1Like,
 } from '../types'
+import { checkSchema } from '../data/schema'
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-const isStandardSchema = (schema: NotificationEventSchema): schema is StandardSchemaV1Like => {
-  return isObject(schema) && isObject((schema as Record<string, unknown>)['~standard'])
-}
-
-const formatIssuePath = (
-  path: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }> | undefined,
-): string => {
-  if (!path?.length) return ''
-  return path
-    .map((segment) => (typeof segment === 'object' ? String(segment.key) : String(segment)))
-    .join('.')
 }
 
 /**
@@ -37,35 +23,18 @@ export const validateEventPayload = async (
   const schema = definition?.schema
   if (!schema) return payload
 
-  if (isStandardSchema(schema)) {
-    const result = await schema['~standard'].validate(payload)
-    if (result.issues) {
-      const details = result.issues
-        .map((issue) => {
-          const path = formatIssuePath(issue.path)
-          return path ? `${path}: ${issue.message}` : issue.message
-        })
-        .join('; ')
-      throw new Error(`payload-notifications: invalid payload for event "${eventName}": ${details}`)
-    }
-    if (!isObject(result.value)) {
-      throw new Error(
-        `payload-notifications: schema for event "${eventName}" must produce an object payload`,
-      )
-    }
-    return result.value
+  const result = await checkSchema(schema, payload)
+  if (!result.ok) {
+    throw new Error(
+      `payload-notifications: invalid payload for event "${eventName}": ${result.message}`,
+    )
   }
-
-  try {
-    const value = await schema(payload)
-    if (!isObject(value)) {
-      throw new Error('validator must return an object payload')
-    }
-    return value
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`payload-notifications: invalid payload for event "${eventName}": ${message}`)
+  if (!isObject(result.value)) {
+    throw new Error(
+      `payload-notifications: schema for event "${eventName}" must produce an object payload`,
+    )
   }
+  return result.value
 }
 
 const generateEventId = (): string => {

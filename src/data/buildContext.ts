@@ -1,12 +1,15 @@
 import type { Payload } from 'payload'
 import type {
   CollectionDataSource,
+  NotificationComputedDefinition,
+  NotificationDataResolverDefinition,
   DataContextResult,
   NotificationDataContext,
   NotificationDataSource,
   NotificationEvent,
 } from '../types'
 import { getPath, isObject, pickPaths, toRelationId, toSelect } from './paths'
+import { ResolverError, runComputed, runDataResolver } from './resolvers'
 import { DEFAULT_MAX_ITEMS, orderDataSources } from './sources'
 
 export type BuildDataContextArgs = {
@@ -25,6 +28,10 @@ export type BuildDataContextArgs = {
   overrideAccess?: boolean
   /** Label used in messages, e.g. `trigger "order-paid"`. */
   owner?: string
+  /** Registered resolvers (normalized `options.dataResolvers`). */
+  dataResolvers?: Record<string, NotificationDataResolverDefinition>
+  /** Registered computed functions (normalized `options.computed`). */
+  computed?: Record<string, NotificationComputedDefinition>
 }
 
 class MissingSourceError extends Error {
@@ -124,6 +131,8 @@ export const buildDataContext = async ({
   userId,
   overrideAccess = true,
   owner = 'data sources',
+  dataResolvers = {},
+  computed = {},
 }: BuildDataContextArgs): Promise<DataContextResult> => {
   const context: NotificationDataContext = {
     event: event.name,
@@ -163,16 +172,53 @@ export const buildDataContext = async ({
         case 'collection':
           value = await loadCollectionSource(source, scope, payload, overrideAccess)
           break
-        case 'resolver':
-        case 'computed':
-          throw new Error(`${source.type} sources are not supported yet`)
+        case 'resolver': {
+          const definition = dataResolvers[source.name]
+          if (!definition) {
+            throw new ResolverError(source.name, 'error', 'is not registered in dataResolvers')
+          }
+          value = await runDataResolver({
+            name: source.name,
+            definition,
+            payload,
+            event,
+            context,
+            input: source.input,
+          })
+          break
+        }
+        case 'computed': {
+          const definition = computed[source.name]
+          if (!definition) {
+            throw new ResolverError(source.name, 'error', 'is not registered in computed')
+          }
+          value = await runComputed({ name: source.name, definition, context })
+          break
+        }
       }
     } catch (error) {
-      if (!(error instanceof MissingSourceError)) throw error
-      if (isRequired(source)) {
-        return { ok: false, reason: 'data-missing', source: source.alias, message: error.message }
+      if (error instanceof ResolverError) {
+        payload.logger?.warn?.(
+          { err: error, resolver: error.resolver, kind: error.kind, source: source.alias },
+          `${owner}: ${error.message}`,
+        )
+        if (isRequired(source)) {
+          return {
+            ok: false,
+            reason: 'resolver-failed',
+            source: source.alias,
+            message: error.message,
+          }
+        }
+        value = null
+      } else if (error instanceof MissingSourceError) {
+        if (isRequired(source)) {
+          return { ok: false, reason: 'data-missing', source: source.alias, message: error.message }
+        }
+        value = null
+      } else {
+        throw error
       }
-      value = null
     }
 
     const isEmpty = value === null || value === undefined

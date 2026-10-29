@@ -1,3 +1,6 @@
+import type { Payload } from 'payload'
+import type { NotificationEvent, NotificationEventSchema } from './events'
+
 /**
  * Where a lookup reads its key from: a dot path rooted at `event` (e.g.
  * `event.payload.orderId`), `doc` / `previous` (collection events), or another
@@ -128,3 +131,62 @@ export type DataContextResult =
       source: string
       message: string
     }
+
+export type NotificationResolverArgs = {
+  payload: Payload
+  event: NotificationEvent
+  /** Context resolved so far (earlier sources are available by alias). */
+  context: NotificationDataContext
+  /** Static input from the data source definition, validated against `input`. */
+  input: Record<string, unknown>
+  /** Aborted when the resolver times out. */
+  signal: AbortSignal
+}
+
+export type NotificationDataResolverHandler = (
+  args: NotificationResolverArgs,
+) => unknown | Promise<unknown>
+
+export type NotificationDataResolverDefinition = {
+  handler: NotificationDataResolverHandler
+  /** Shown in admin pickers. Defaults to the registry key. */
+  label?: string
+  description?: string
+  /** Validates the source's `input` before the call. */
+  input?: NotificationEventSchema
+  /** Validates the resolver's return value before it enters the context. */
+  output?: NotificationEventSchema
+  /** Default 5000 ms, max 60000 ms. */
+  timeoutMs?: number
+  /** Output field paths offered to template authors (e.g. `name`, `supportEmail`). */
+  fields?: string[]
+}
+
+export type NotificationDataResolverRegistry = Record<
+  string,
+  NotificationDataResolverHandler | NotificationDataResolverDefinition
+>
+
+export type NotificationComputedHandler = (
+  context: NotificationDataContext,
+) => unknown | Promise<unknown>
+
+export type NotificationComputedDefinition = {
+  handler: NotificationComputedHandler
+  label?: string
+  description?: string
+  fields?: string[]
+}
+
+export type NotificationComputedRegistry = Record<
+  string,
+  NotificationComputedHandler | NotificationComputedDefinition
+>
+
+/** Serializable description of a resolver / computed function for admin pickers. */
+export type RegisteredDataFunction = {
+  name: string
+  label: string
+  description?: string
+  fields: string[]
+}

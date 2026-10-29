@@ -26,6 +26,7 @@ import {
 } from './collections/NotificationTemplates'
 import { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
 import { PLUGIN_CUSTOM_KEY, type PluginCustomConfig } from './config/runtime'
+import { dataSourcesListEndpoint } from './endpoints/dataSources'
 import { eventsListEndpoint } from './endpoints/events'
 import { validateDataAllowlist } from './data/sources'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
@@ -246,7 +247,11 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         ...config.custom,
         [PLUGIN_CUSTOM_KEY]: custom,
       },
-      endpoints: [...(config.endpoints || []), eventsListEndpoint(() => runtime.options)],
+      endpoints: [
+        ...(config.endpoints || []),
+        eventsListEndpoint(() => runtime.options),
+        dataSourcesListEndpoint(() => runtime.options),
+      ],
       collections: withCollections,
       jobs: {
         ...config.jobs,
