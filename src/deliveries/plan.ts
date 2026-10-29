@@ -145,7 +145,6 @@ const planTrigger = async ({
 }) => {
   const { trigger } = entry
   const snapshot = snapshotTrigger(entry)
-  const owner = `trigger "${trigger.slug}"`
   const first = trigger.deliveries[0]
   const logTriggerSkip = async (status: 'skipped' | 'failed', error: string) => {
     await writeNotificationLog({
