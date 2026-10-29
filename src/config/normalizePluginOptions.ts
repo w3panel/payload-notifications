@@ -1,4 +1,8 @@
-import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions } from '../types'
+import type {
+  NotificationAccessCheck,
+  NotificationsPluginOptions,
+  NormalizedNotificationsPluginOptions,
+} from '../types'
 import { normalizeComputedRegistry, normalizeResolverRegistry } from '../data/resolvers'
 import { createSensitiveFieldMatcher, isSensitivePath } from '../data/sensitive'
 import { validateDataSources } from '../data/sources'
@@ -68,6 +72,36 @@ const normalizeEventRegistry = (
   }
 
   return { ...events }
+}
+
+const isLoggedIn: NotificationAccessCheck = ({ req }) => Boolean(req.user)
+
+const normalizeAccess = (
+  access: NotificationsPluginOptions['access'],
+): NormalizedNotificationsPluginOptions['access'] => {
+  for (const [key, check] of Object.entries(access ?? {})) {
+    if (check !== undefined && typeof check !== 'function') {
+      throw new Error(`payload-notifications: access.${key} must be a function`)
+    }
+  }
+  const isAdmin = access?.isAdmin ?? isLoggedIn
+  return {
+    manageTriggers: access?.manageTriggers ?? isAdmin,
+    publishTriggers: access?.publishTriggers ?? isAdmin,
+    testSend: access?.testSend ?? isAdmin,
+  }
+}
+
+const normalizeAdminTriggers = (
+  adminTriggers: NotificationsPluginOptions['adminTriggers'],
+): NormalizedNotificationsPluginOptions['adminTriggers'] => {
+  const cacheTtlMs = adminTriggers?.cacheTtlMs ?? 30_000
+  if (!Number.isInteger(cacheTtlMs) || cacheTtlMs < 0) {
+    throw new Error(
+      'payload-notifications: adminTriggers.cacheTtlMs must be a non-negative integer',
+    )
+  }
+  return { cancelQueuedOnDisable: adminTriggers?.cancelQueuedOnDisable === true, cacheTtlMs }
 }
 
 const normalizeMaxEventDepth = (value: number | undefined): number => {
@@ -188,11 +222,22 @@ export const normalizePluginOptions = (
 
   const deliveriesSlug = options.collections?.deliveries || 'notification-deliveries'
   const eventsSlug = options.collections?.events || 'notification-events'
+  const triggersSlug = options.collections?.triggers || 'notification-triggers'
+  const triggerVersionsSlug =
+    options.collections?.triggerVersions || 'notification-trigger-versions'
 
-  const allSlugs = [notificationsSlug, logsSlug, templatesSlug, deliveriesSlug, eventsSlug]
+  const allSlugs = [
+    notificationsSlug,
+    logsSlug,
+    templatesSlug,
+    deliveriesSlug,
+    eventsSlug,
+    triggersSlug,
+    triggerVersionsSlug,
+  ]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
-      'payload-notifications: notifications, logs, templates, deliveries, and events collections must use different slugs',
+      'payload-notifications: notifications, logs, templates, deliveries, events, triggers, and trigger versions collections must use different slugs',
     )
   }
 
@@ -292,6 +337,8 @@ export const normalizePluginOptions = (
       templates: templatesSlug,
       deliveries: deliveriesSlug,
       events: eventsSlug,
+      triggers: triggersSlug,
+      triggerVersions: triggerVersionsSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
@@ -329,6 +376,8 @@ export const normalizePluginOptions = (
     collectionEvents: normalizeCollectionEvents(options.collectionEvents),
     maxEventDepth: normalizeMaxEventDepth(options.maxEventDepth),
     eventsInbox: options.eventsInbox === true,
+    access: normalizeAccess(options.access),
+    adminTriggers: normalizeAdminTriggers(options.adminTriggers),
     ...(options.tenancy ? { tenancy: normalizeTenancy(options.tenancy) } : {}),
     ...(options.quietHours ? { quietHours: normalizeQuietHours(options.quietHours) } : {}),
   }

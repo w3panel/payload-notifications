@@ -1,5 +1,5 @@
 import type { Config, Payload } from 'payload'
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Endpoint } from 'payload'
 import type {
   AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
@@ -29,6 +29,8 @@ import {
   NotificationEventsCollection,
   type NotificationEventsCollectionOverrides,
 } from './collections/NotificationEvents'
+import { NotificationTriggersCollection } from './collections/NotificationTriggers'
+import { NotificationTriggerVersionsCollection } from './collections/NotificationTriggerVersions'
 import {
   NotificationTemplatesCollection,
   type NotificationTemplatesCollectionOverrides,
@@ -338,6 +340,8 @@ export const registerCollections = (
     events?: NotificationEventsCollectionOverrides
   },
   getOptions?: () => NormalizedNotificationsPluginOptions,
+  /** Endpoints for the notification-triggers collection (lifecycle, test runner). */
+  adminTriggerEndpoints?: (getOptions: () => NormalizedNotificationsPluginOptions) => Endpoint[],
 ): CollectionConfig[] => {
   const next = [...collections]
 
@@ -367,6 +371,28 @@ export const registerCollections = (
         slug: options.collections.templates,
         overrides: overrides?.templates,
         getOptions: getOptions || (() => options),
+      }),
+    )
+  }
+
+  if (!hasCollectionSlug(next, options.collections.triggers)) {
+    const resolveOptions = getOptions || (() => options)
+    next.push(
+      NotificationTriggersCollection({
+        slug: options.collections.triggers,
+        userCollectionSlug: options.userCollectionSlug,
+        getOptions: resolveOptions,
+        endpoints: adminTriggerEndpoints?.(resolveOptions) ?? [],
+      }),
+    )
+  }
+
+  if (!hasCollectionSlug(next, options.collections.triggerVersions)) {
+    next.push(
+      NotificationTriggerVersionsCollection({
+        slug: options.collections.triggerVersions,
+        triggersSlug: options.collections.triggers,
+        userCollectionSlug: options.userCollectionSlug,
       }),
     )
   }

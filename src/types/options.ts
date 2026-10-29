@@ -1,3 +1,4 @@
+import type { PayloadRequest } from 'payload'
 import type { NotificationChannel } from './channels'
 import type {
   DataCollectionAllowlist,
@@ -38,6 +39,9 @@ export type NotificationsJobsOptions = {
   queue?: string
 }
 
+/** Access check used for admin trigger management, publishing and test sends. */
+export type NotificationAccessCheck = (args: { req: PayloadRequest }) => boolean | Promise<boolean>
+
 export type NotificationsPluginOptions = {
   enabled?: boolean
   channels?: NotificationChannel[]
@@ -47,6 +51,10 @@ export type NotificationsPluginOptions = {
     logs?: string
     templates?: string
     deliveries?: string
+    /** Admin-created triggers. */
+    triggers?: string
+    /** Published admin trigger snapshots. */
+    triggerVersions?: string
     /** Event inbox slug (only with `eventsInbox: true`). */
     events?: string
   }
@@ -122,6 +130,24 @@ export type NotificationsPluginOptions = {
     timezone?: string
     classifications?: Array<'transactional' | 'marketing'>
   }
+  /**
+   * Who may manage admin triggers, publish them and run test sends. Each
+   * defaults to `isAdmin`, which defaults to "any logged-in user"; pass a role
+   * check for real deployments.
+   */
+  access?: {
+    isAdmin?: NotificationAccessCheck
+    manageTriggers?: NotificationAccessCheck
+    publishTriggers?: NotificationAccessCheck
+    testSend?: NotificationAccessCheck
+  }
+  /** Admin-created triggers (`notification-triggers`). */
+  adminTriggers?: {
+    /** Cancel queued deliveries of a trigger when it is disabled or archived. Default false. */
+    cancelQueuedOnDisable?: boolean
+    /** How long published admin triggers are cached per instance. Default 30000 ms. */
+    cacheTtlMs?: number
+  }
   /** Store every emitted event in `notification-events` for audit and replay. Default false. */
   eventsInbox?: boolean
   /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
@@ -143,6 +169,8 @@ export type NormalizedNotificationsPluginOptions = {
     templates: string
     deliveries: string
     events: string
+    triggers: string
+    triggerVersions: string
   }
   jobs: {
     queue: string
@@ -204,6 +232,15 @@ export type NormalizedNotificationsPluginOptions = {
   collectionEvents: Record<string, NormalizedCollectionEventConfig>
   maxEventDepth: number
   eventsInbox: boolean
+  access: {
+    manageTriggers: NotificationAccessCheck
+    publishTriggers: NotificationAccessCheck
+    testSend: NotificationAccessCheck
+  }
+  adminTriggers: {
+    cancelQueuedOnDisable: boolean
+    cacheTtlMs: number
+  }
   tenancy?: { field: string; userField: string }
   quietHours?: {
     start: string
