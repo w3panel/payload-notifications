@@ -8,7 +8,7 @@ import type {
   NotificationDataResolverRegistry,
   NotificationsDataOptions,
 } from './data-sources'
-import type { NotificationObservabilityHook } from './deliveries'
+import type { NotificationLifecycleHook, NotificationObservabilityHook } from './deliveries'
 import type {
   CollectionEventConfig,
   NormalizedCollectionEventConfig,
@@ -118,6 +118,10 @@ export type NotificationsPluginOptions = {
   }
   observability?: {
     onDispatch?: NotificationObservabilityHook
+    /** Every lifecycle stage: matched, planned, skipped, sent, retrying, failed, unknown, cancelled, delivered. */
+    onEvent?: NotificationLifecycleHook
+    /** Structured `payload.logger` output per lifecycle stage (personal data masked). Default false. */
+    log?: boolean
   }
   rules?: NotificationRule[]
   /** Registered application events (label, schema, default classification, sample payload). */
@@ -273,6 +277,8 @@ export type NormalizedNotificationsPluginOptions = {
   }
   observability: {
     onDispatch?: NotificationObservabilityHook
+    onEvent?: NotificationLifecycleHook
+    log: boolean
   }
   rules: NotificationRule[]
   events: NotificationEventRegistry

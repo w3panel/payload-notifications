@@ -468,6 +468,8 @@ export const normalizePluginOptions = (
     },
     observability: {
       onDispatch: options.observability?.onDispatch,
+      onEvent: options.observability?.onEvent,
+      log: options.observability?.log === true,
     },
     rules,
     events: normalizeEventRegistry(options.events),

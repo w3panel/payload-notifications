@@ -3,6 +3,7 @@ import type {
   AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationDispatchResult,
+  NotificationLifecycleStage,
   NotificationSendInput,
   NotificationTemplateContext,
   NotificationTemplateDefinition,
@@ -13,6 +14,7 @@ import { deliveryCategory, evaluateDeliveryPolicy, isMandatory } from '../policy
 import { buildUnsubscribeUrl } from '../endpoints/unsubscribe'
 import type { DeliveryOutcome } from '../providers/errors'
 import { resolveProvider } from '../providers/builtin'
+import { emitLifecycle } from '../observability'
 import { createObservabilityEvent } from '../reliability'
 import { callProvider } from './providerCall'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
@@ -65,6 +67,22 @@ const updateDelivery = (
     data: data as never,
     overrideAccess: true,
   })
+
+/** Lifecycle stage for a send result. */
+const stageFor = (status: NotificationDispatchResult['status']): NotificationLifecycleStage => {
+  switch (status) {
+    case 'sent':
+    case 'stored':
+      return 'sent'
+    case 'queued':
+      return 'retrying'
+    case 'failed':
+    case 'unknown':
+    case 'cancelled':
+    case 'skipped':
+      return status
+  }
+}
 
 /**
  * Processes one `notification-deliveries` record: re-checks the recipient and
@@ -128,12 +146,39 @@ export const sendDelivery = async ({
   const report = async (
     result: NotificationDispatchResult,
     classification?: 'retriable' | 'terminal',
+    durationMs?: number,
   ) => {
+    const stage = stageFor(result.status)
+    const triggerSource =
+      delivery.triggerOrigin === 'admin' || delivery.triggerOrigin === 'code'
+        ? delivery.triggerOrigin
+        : undefined
     if (options.observability.onDispatch) {
       await options.observability.onDispatch(
-        createObservabilityEvent({ input: sendInput, result, fingerprint, classification }),
+        createObservabilityEvent({
+          input: sendInput,
+          result,
+          fingerprint,
+          classification,
+          extra: { trigger: delivery.trigger, triggerSource, stage, durationMs },
+        }),
       )
     }
+    await emitLifecycle(payload, options, {
+      stage,
+      event: delivery.event,
+      eventId: delivery.eventId ?? undefined,
+      trigger: delivery.trigger,
+      triggerSource,
+      deliveryId,
+      channel: delivery.channel,
+      recipient: delivery.recipientKey,
+      reason: result.reason,
+      provider: result.provider,
+      providerMessageId: result.providerMessageId,
+      attempt,
+      durationMs,
+    })
     return result
   }
 
@@ -307,13 +352,17 @@ export const sendDelivery = async ({
         : {}),
       ...versionPatch,
     })
-    return report({
-      channel: delivery.channel,
-      status,
-      provider: provider.name,
-      providerMessageId: call.result.providerMessageId,
-      response: call.result.response,
-    })
+    return report(
+      {
+        channel: delivery.channel,
+        status,
+        provider: provider.name,
+        providerMessageId: call.result.providerMessageId,
+        response: call.result.response,
+      },
+      undefined,
+      call.durationMs,
+    )
   }
 
   await writeNotificationLog({
@@ -356,6 +405,7 @@ export const sendDelivery = async ({
         provider: provider.name,
       },
       'retriable',
+      call.durationMs,
     )
   }
 
@@ -384,6 +434,7 @@ export const sendDelivery = async ({
       provider: provider.name,
     },
     'terminal',
+    call.durationMs,
   )
 }
 

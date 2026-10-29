@@ -23,9 +23,51 @@ export type ObservabilityEvent = {
   fingerprint?: string
   attempt?: number
   classification?: DispatchFailureClassification
+  eventId?: string
+  trigger?: string
+  triggerSource?: 'code' | 'admin'
+  deliveryId?: string
+  stage?: NotificationLifecycleStage
+  /** Provider call duration. */
+  durationMs?: number
 }
 
 export type NotificationObservabilityHook = (event: ObservabilityEvent) => void | Promise<void>
+
+export type NotificationLifecycleStage =
+  | 'matched'
+  | 'planned'
+  | 'skipped'
+  | 'sent'
+  | 'retrying'
+  | 'failed'
+  | 'unknown'
+  | 'cancelled'
+  | 'delivered'
+
+/** One step of a notification's life, for `observability.onEvent`. */
+export type NotificationLifecycleEvent = {
+  type: 'notification.lifecycle'
+  stage: NotificationLifecycleStage
+  /** Event name. */
+  event?: string
+  eventId?: string
+  trigger?: string
+  triggerSource?: 'code' | 'admin'
+  triggerVersion?: number
+  deliveryId?: string
+  channel?: NotificationChannel
+  /** `user:<id>`, or a masked email / phone for static recipients. */
+  recipient?: string
+  reason?: string
+  provider?: string
+  providerMessageId?: string
+  attempt?: number
+  durationMs?: number
+  at: string
+}
+
+export type NotificationLifecycleHook = (event: NotificationLifecycleEvent) => void | Promise<void>
 
 export type NotificationSendInput = {
   userId: string

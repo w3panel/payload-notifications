@@ -41,6 +41,9 @@ export type {
   NotificationClassification,
   NotificationDispatchResult,
   NotificationDispatchStatus,
+  NotificationLifecycleEvent,
+  NotificationLifecycleHook,
+  NotificationLifecycleStage,
   NotificationEvent,
   CollectionEventConfig,
   CollectionEventOperation,
@@ -306,6 +309,7 @@ export {
 export { applyStatusUpdate, applyWebhookResult } from './webhooks/apply'
 export type { WebhookApplyResult } from './webhooks/apply'
 export { toWebhookRequest, webhookEndpoints } from './webhooks/endpoints'
+export { emitLifecycle, maskRecipientKey } from './observability'
 export {
   maintenanceTasks,
   NOTIFICATION_RECONCILE_TASK,

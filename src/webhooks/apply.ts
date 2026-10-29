@@ -6,6 +6,7 @@ import type {
   ProviderWebhookResult,
 } from '../types'
 import { createFallbackDelivery, type FallbackSource } from '../deliveries/fallback'
+import { emitLifecycle } from '../observability'
 import { normalizeDestination, recordSuppression } from '../policy/suppressions'
 
 type DeliveryDoc = FallbackSource & {
@@ -84,6 +85,17 @@ export const applyStatusUpdate = async (
     id: delivery.id,
     data: data as never,
     overrideAccess: true,
+  })
+  await emitLifecycle(payload, options, {
+    stage: update.status === 'read' ? 'delivered' : update.status,
+    event: delivery.event,
+    eventId: delivery.eventId ?? undefined,
+    trigger: delivery.trigger,
+    deliveryId: String(delivery.id),
+    channel: delivery.channel as NotificationChannel,
+    recipient: delivery.recipientKey,
+    reason: update.error,
+    providerMessageId: update.providerMessageId,
   })
   if (update.status === 'failed' && previousStatus !== 'failed') {
     await createFallbackDelivery({

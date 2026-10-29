@@ -55,11 +55,14 @@ export const createObservabilityEvent = ({
   result,
   fingerprint,
   classification,
+  extra,
 }: {
   input: NotificationSendInput
   result: NotificationDispatchResult
   fingerprint?: string
   classification?: 'retriable' | 'terminal'
+  /** Delivery-pipeline fields (trigger, deliveryId, stage, durationMs). */
+  extra?: Pick<ObservabilityEvent, 'trigger' | 'triggerSource' | 'stage' | 'durationMs'>
 }): ObservabilityEvent => ({
   type: 'notification.dispatch',
   channel: input.channel,
@@ -73,4 +76,7 @@ export const createObservabilityEvent = ({
   fingerprint,
   attempt: input.attempt,
   classification,
+  ...(input.eventId ? { eventId: input.eventId } : {}),
+  ...(input.deliveryId ? { deliveryId: input.deliveryId } : {}),
+  ...extra,
 })

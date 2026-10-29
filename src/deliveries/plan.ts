@@ -12,6 +12,7 @@ import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
 import { evaluateTriggerPlan } from './evaluate'
+import { emitLifecycle } from '../observability'
 import { deliveryCategory } from '../policy/deliveryPolicy'
 import { resolveRetryPolicy } from './retry'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
@@ -178,6 +179,14 @@ export const planDeliveries = async ({
   const isSensitive = createSensitiveFieldMatcher(options.data.sensitiveFields)
 
   for (const entry of matched) {
+    await emitLifecycle(payload, options, {
+      stage: 'matched',
+      event: event.name,
+      eventId,
+      trigger: entry.trigger.slug,
+      triggerSource: entry.origin,
+      triggerVersion: entry.version,
+    })
     await planTrigger({ payload, event, entry, options, isSensitive, result, req })
   }
 
@@ -218,6 +227,15 @@ const planTrigger = async ({
       error,
       failureClassification: 'terminal',
       meta: { eventId: event.eventId, trigger: snapshot },
+    })
+    await emitLifecycle(payload, options, {
+      stage: 'skipped',
+      event: event.name,
+      eventId: event.eventId,
+      trigger: trigger.slug,
+      triggerSource: snapshot.origin,
+      triggerVersion: snapshot.version,
+      reason: error,
     })
   }
 
@@ -341,6 +359,18 @@ const planTrigger = async ({
         status: duplicateOf ? 'duplicate' : 'skipped',
         reason: skipReason,
       })
+      await emitLifecycle(payload, options, {
+        stage: 'skipped',
+        event: event.name,
+        eventId: event.eventId,
+        trigger: trigger.slug,
+        triggerSource: snapshot.origin,
+        triggerVersion: snapshot.version,
+        deliveryId,
+        channel: delivery.channel,
+        recipient: recipient.key,
+        reason: skipReason,
+      })
       if (!duplicateOf) {
         await createFallbackDelivery({
           payload,
@@ -370,5 +400,16 @@ const planTrigger = async ({
       ...(sendAt && sendAt > now ? { waitUntil: sendAt } : {}),
     })
     result.deliveries.push({ ...planned, deliveryId })
+    await emitLifecycle(payload, options, {
+      stage: 'planned',
+      event: event.name,
+      eventId: event.eventId,
+      trigger: trigger.slug,
+      triggerSource: snapshot.origin,
+      triggerVersion: snapshot.version,
+      deliveryId,
+      channel: delivery.channel,
+      recipient: recipient.key,
+    })
   }
 }
