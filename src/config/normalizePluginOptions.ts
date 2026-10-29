@@ -2,6 +2,13 @@ import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions }
 import { normalizeComputedRegistry, normalizeResolverRegistry } from '../data/resolvers'
 import { createSensitiveFieldMatcher, isSensitivePath } from '../data/sensitive'
 import { validateDataSources } from '../data/sources'
+import {
+  normalizeRecipientQueries,
+  normalizeRecipientResolvers,
+  normalizeRecipientsOptions,
+} from '../recipients/options'
+import { compileCodeTriggers } from '../triggers/compile'
+import { validateTrigger } from '../triggers/validate'
 import { isValidEventName } from '../events/names'
 import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
@@ -123,10 +130,12 @@ export const normalizePluginOptions = (
     )
   }
 
-  const allSlugs = [notificationsSlug, logsSlug, templatesSlug]
+  const deliveriesSlug = options.collections?.deliveries || 'notification-deliveries'
+
+  const allSlugs = [notificationsSlug, logsSlug, templatesSlug, deliveriesSlug]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
-      'payload-notifications: notifications, logs, and templates collections must use different slugs',
+      'payload-notifications: notifications, logs, templates, and deliveries collections must use different slugs',
     )
   }
 
@@ -200,6 +209,47 @@ export const normalizePluginOptions = (
     )
   }
 
+  const templates: NormalizedNotificationsPluginOptions['templates'] = {
+    email: options.templates?.email,
+    whatsapp: options.templates?.whatsapp,
+    sms: options.templates?.sms,
+    seedOnInit: options.templates?.seedOnInit === true,
+    registry: {
+      ...getDefaultTemplateRegistry(),
+      ...options.templates?.registry,
+    },
+  }
+
+  const triggers = compileCodeTriggers(rules, options.triggers)
+  const recipients = normalizeRecipientsOptions(options.recipients)
+  const recipientResolvers = normalizeRecipientResolvers(options.recipientResolvers)
+  const recipientQueries = normalizeRecipientQueries(options.recipientQueries)
+
+  // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).
+  const triggerErrors = triggers.slice(rules.length).flatMap((trigger) => [
+    ...(trigger.data
+      ? validateDataSources(trigger.data.sources, {
+          allowlist: data.collections,
+          resolvers: Object.keys(dataResolvers),
+          computed: Object.keys(computed),
+          isSensitive,
+          owner: `trigger "${trigger.slug}"`,
+        })
+      : []),
+    ...validateTrigger(trigger, {
+      channels,
+      templates: {
+        registry: { ...getDefaultTemplateRegistry(), ...options.templates?.registry },
+      } as never,
+      recipients,
+      recipientResolvers,
+      recipientQueries,
+    }).errors,
+  ])
+  if (triggerErrors.length) {
+    throw new Error(`payload-notifications: invalid triggers\n  - ${triggerErrors.join('\n  - ')}`)
+  }
+
   return {
     enabled: options.enabled ?? true,
     channels,
@@ -208,20 +258,12 @@ export const normalizePluginOptions = (
       notifications: notificationsSlug,
       logs: logsSlug,
       templates: templatesSlug,
+      deliveries: deliveriesSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
     },
-    templates: {
-      email: options.templates?.email,
-      whatsapp: options.templates?.whatsapp,
-      sms: options.templates?.sms,
-      seedOnInit: options.templates?.seedOnInit === true,
-      registry: {
-        ...getDefaultTemplateRegistry(),
-        ...options.templates?.registry,
-      },
-    },
+    templates,
     providers: {
       email: options.providers?.email,
       whatsapp: options.providers?.whatsapp,
@@ -246,6 +288,10 @@ export const normalizePluginOptions = (
     data,
     dataResolvers,
     computed,
+    triggers,
+    recipients,
+    recipientResolvers,
+    recipientQueries,
   }
 }
 

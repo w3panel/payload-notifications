@@ -2,8 +2,9 @@ import { describe, expect, it, mock } from 'bun:test'
 import { normalizePluginOptions } from '../src/config/normalizePluginOptions'
 import { createTemplatePreviewHandler } from '../src/endpoints/templatePreview'
 import { processEvent } from '../src/jobs/processEvent'
-import { assertNotificationSendInput, sendNotification } from '../src/jobs/sendNotification'
+import { sendNotification } from '../src/jobs/sendNotification'
 import { REDACTED } from '../src/data/sensitive'
+import { createMemoryPayload } from './helpers/memoryPayload'
 import type { NotificationDataSource } from '../src/types'
 
 type Doc = Record<string, unknown>
@@ -92,10 +93,10 @@ describe('rule data sources', () => {
     ).toThrow('resolver "storeDetails" is not registered in dataResolvers')
   })
 
-  it('are forwarded with eventId to every channel send', async () => {
-    const queue = mock(async () => undefined)
-    await processEvent({
-      payload: { jobs: { queue } } as never,
+  it('are resolved once at process time and captured on each delivery', async () => {
+    const memory = createMemoryPayload(db)
+    const result = await processEvent({
+      payload: memory.payload,
       event: {
         name: 'order.paid',
         eventId: 'evt_1',
@@ -106,12 +107,23 @@ describe('rule data sources', () => {
       options: pluginOptions(),
     })
 
-    expect(queue).toHaveBeenCalledTimes(2)
-    const input = (queue.mock.calls[0] as unknown as [{ input: Doc }])[0].input
-    expect(input).toMatchObject({ eventId: 'evt_1', occurredAt: '2026-10-29T00:00:00.000Z' })
-    expect(input.dataSources).toEqual(sources)
-    // Survives the send-input round trip through the job queue
-    expect(assertNotificationSendInput(input).dataSources).toEqual(sources)
+    expect(result.deliveries.map((delivery) => delivery.channel)).toEqual(['email', 'inapp'])
+    expect(memory.queue).toHaveBeenCalledTimes(2)
+    const input = (memory.queue.mock.calls[0] as unknown as [{ input: Doc }])[0].input
+    expect(input).toMatchObject({ eventId: 'evt_1', channel: 'email' })
+    expect(input.deliveryId).toBeString()
+
+    // One order lookup for both channels; the context travels on the delivery record
+    const orderLookups = memory.findByID.mock.calls.filter(
+      (call) => (call[0] as unknown as Doc).collection === 'orders',
+    )
+    expect(orderLookups).toHaveLength(1)
+    const [delivery] = memory.docs('notification-deliveries')
+    const context = delivery.context as Doc
+    expect(context.order).toEqual({ id: 'ORD-1042', total: 2499, customer: 'user_1' })
+    expect(context.store).toEqual({ name: 'TechNewWings Store' })
+    expect(context.trigger).toMatchObject({ eventId: 'evt_1' })
+    expect(context.recipient).toMatchObject({ id: 'user_1', name: 'Alex' })
   })
 })
 

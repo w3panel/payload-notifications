@@ -6,6 +6,7 @@ import {
   resolveRulesForEvent,
 } from '../src/jobs/processEvent'
 import { normalizePluginOptions } from '../src/config/normalizePluginOptions'
+import { createMemoryPayload } from './helpers/memoryPayload'
 
 describe('processEvent', () => {
   it('returns matching rules for an event', () => {
@@ -32,12 +33,11 @@ describe('processEvent', () => {
 
   it('queues one send job per matching enabled channel', async () => {
     const queue = mock(async () => undefined)
-    const payload = {
-      jobs: {
-        queue,
-      },
-      create: mock(async () => undefined),
-    }
+    const memory = createMemoryPayload(
+      { users: [{ id: 'user_1', email: 'demo@example.com' }] },
+      { queue },
+    )
+    const payload = memory.payload
 
     const options = normalizePluginOptions({
       channels: ['email', 'inapp'],
@@ -66,12 +66,11 @@ describe('processEvent', () => {
 
   it('propagates classification and templateOverrides into send jobs', async () => {
     const queue = mock(async () => undefined)
-    const payload = {
-      jobs: {
-        queue,
-      },
-      create: mock(async () => undefined),
-    }
+    const memory = createMemoryPayload(
+      { users: [{ id: 'user_1', email: 'demo@example.com' }] },
+      { queue },
+    )
+    const payload = memory.payload
 
     const options = normalizePluginOptions({
       channels: ['email'],
@@ -103,18 +102,21 @@ describe('processEvent', () => {
     expect(queue).toHaveBeenCalledTimes(1)
     const queued = queue.mock.calls[0]?.[0]
     expect(queued?.input?.classification).toBe('marketing')
-    expect(queued?.input?.templateOverrides?.subject).toBe('Override subject')
+    // Overrides now live on the delivery record the send job processes
+    expect(queued?.input?.deliveryId).toBeString()
+    expect(memory.docs('notification-deliveries')[0].templateOverrides).toEqual({
+      subject: 'Override subject',
+    })
     expect(queued?.queue).toBe('notifications')
   })
 
   it('respects async rule conditions', async () => {
     const queue = mock(async () => undefined)
-    const payload = {
-      jobs: {
-        queue,
-      },
-      create: mock(async () => undefined),
-    }
+    const memory = createMemoryPayload(
+      { users: [{ id: 'user_1', email: 'demo@example.com' }] },
+      { queue },
+    )
+    const payload = memory.payload
 
     const options = normalizePluginOptions({
       channels: ['email'],

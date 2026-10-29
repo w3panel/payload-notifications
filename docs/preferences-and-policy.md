@@ -32,7 +32,7 @@ Emit with:
 classification: 'transactional' | 'marketing'
 ```
 
-`processEvent` forwards classification into each `notification:send` job so marketing consent is enforced on the job path.
+`processEvent` stores the classification (trigger `classification`, else the event's) on each delivery, and `notification:send` re-checks preferences and marketing consent against the current user at send time.
 
 ## Custom `policy.canSend`
 

@@ -8,7 +8,8 @@ flowchart LR
   activate --> rule[Add plugin rule]
   rule --> emit[emitNotificationEvent]
   emit --> process[notification:process-event]
-  process --> send[notification:send]
+  process --> deliveries[notification-deliveries]
+  deliveries --> send[notification:send per delivery]
   send --> channel[email / sms / whatsapp / inapp]
   channel --> logs[notification-logs]
 ```
@@ -19,10 +20,10 @@ flowchart LR
 2. **Seed** starters (`templates.seedOnInit` or `seedTemplatesFromRegistry`) ([seeding.md](./seeding.md))  
 3. **Edit** templates in admin; use **Preview** / **Send test** ([admin-templates.md](./admin-templates.md))  
 4. Set template `status` to **`active`**  
-5. **Register a rule** for your event name + channels + template slug ([rules-and-triggers.md](./rules-and-triggers.md))  
+5. **Register a trigger** (or legacy rule) for your event, recipients, channels and template slug ([triggers.md](./triggers.md))  
 6. From a domain action, **`emitNotificationEvent`** with `userId`, `classification`, `idempotencyKey`, payload  
 7. Ensure the **`notifications` jobs queue** is drained ([jobs-and-operations.md](./jobs-and-operations.md))  
-8. Verify **`notification-logs`** and (for in-app) **`notifications`**  
+8. Verify **`notification-deliveries`**, **`notification-logs`** and (for in-app) **`notifications`**  
 9. Optionally hook **`observability.onDispatch`** and preferences/policy ([preferences-and-policy.md](./preferences-and-policy.md), [observability.md](./observability.md))  
 
 ## Dynamic content expectations

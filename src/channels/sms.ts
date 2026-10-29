@@ -29,12 +29,15 @@ export const sendSMSNotification = async ({
   templateVersion?: number
   renderDurationMs?: number
 }): Promise<NotificationDispatchResult> => {
-  const user = await payload.findByID({
-    overrideAccess: true,
-    collection: options.userCollectionSlug,
-    id: input.userId,
-  })
-  const phone = user?.phone || user?.phoneNumber
+  // Delivery-based sends carry a resolved destination; legacy sends look up the user.
+  const user = input.destination
+    ? undefined
+    : await payload.findByID({
+        overrideAccess: true,
+        collection: options.userCollectionSlug,
+        id: input.userId,
+      })
+  const phone = input.destination ?? (user?.phone || user?.phoneNumber)
 
   if (!phone) {
     await writeNotificationLog({

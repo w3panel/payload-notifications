@@ -57,9 +57,9 @@ await emitNotificationEvent({
 
 Jobs:
 
-1. `notification:process-event` matches `rules`
-2. Queues `notification:send` per channel on the `notifications` queue
-3. Channel adapters deliver; results land in `notification-logs` / `notifications`
+1. `notification:process-event` matches triggers (and `rules`), resolves data and recipients, and creates `notification-deliveries` records
+2. Queues one `notification:send` job per delivery on the `notifications` queue
+3. Channel adapters deliver; outcomes land on the delivery and in `notification-logs` / `notifications`
 
 ## Ensure the queue runs
 

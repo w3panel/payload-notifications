@@ -27,13 +27,17 @@ export const sendEmailNotification = async ({
   templateVersion?: number
   renderDurationMs?: number
 }): Promise<NotificationDispatchResult> => {
-  const user = await payload.findByID({
-    overrideAccess: true,
-    collection: options.userCollectionSlug,
-    id: input.userId,
-  })
+  // Delivery-based sends carry a resolved destination; legacy sends look up the user.
+  const user = input.destination
+    ? undefined
+    : await payload.findByID({
+        overrideAccess: true,
+        collection: options.userCollectionSlug,
+        id: input.userId,
+      })
+  const to = input.destination ?? user?.email
 
-  if (!user?.email) {
+  if (!to) {
     await writeNotificationLog({
       payload,
       options,
@@ -91,7 +95,7 @@ export const sendEmailNotification = async ({
 
   try {
     await payload.sendEmail({
-      to: user.email,
+      to,
       subject: content.subject || `Notification: ${input.event}`,
       html: content.html || `<p>${content.text || content.body}</p>`,
       text: content.text || content.body,

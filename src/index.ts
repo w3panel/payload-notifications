@@ -56,6 +56,30 @@ export type {
   NotificationTemplateResolver,
   NotificationTemplateSet,
   NotificationTriggerDefinition,
+  AdminTriggerRecord,
+  EffectiveTrigger,
+  NotificationDeliveryDefinition,
+  NotificationTrigger,
+  NotificationTriggerInput,
+  TriggerAdminPolicy,
+  TriggerCollectionSource,
+  TriggerEventSource,
+  TriggerOrigin,
+  TriggerOverridableField,
+  TriggerSource,
+  ContextRecipient,
+  EventUserRecipient,
+  NotificationRecipientDefinition,
+  NotificationRecipientQueryDefinition,
+  NotificationRecipientResolverDefinition,
+  NotificationRecipientsOptions,
+  QueryRecipient,
+  RecipientDestinations,
+  RecipientResolverResult,
+  ResolvedRecipient,
+  ResolverRecipient,
+  RoleRecipient,
+  StaticRecipient,
   NotificationTriggerInfo,
   NotificationsJobsOptions,
   PreferenceFieldMapping,
@@ -78,6 +102,11 @@ export {
 } from './collections/NotificationLogs'
 export type { NotificationLogsCollectionOverrides } from './collections/NotificationLogs'
 export { NotificationTemplatesCollection } from './collections/NotificationTemplates'
+export {
+  DELIVERY_STATUSES,
+  NotificationDeliveriesCollection,
+} from './collections/NotificationDeliveries'
+export type { NotificationDeliveriesCollectionOverrides } from './collections/NotificationDeliveries'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
 export {
   NOTIFICATION_PROCESS_EVENT_TASK,
@@ -126,7 +155,43 @@ export {
   renderTemplate as renderEngineTemplate,
 } from './templates/engine'
 export type { CompiledTemplate, CompileOptions, TemplateNode } from './templates/engine'
-export { defineTrigger } from './triggers'
+export {
+  checkTriggerShape,
+  defineTrigger,
+  isValidEventPattern,
+  ruleSlug,
+  ruleToTrigger,
+} from './triggers'
+export {
+  compileCodeTriggers,
+  eventMatchesPattern,
+  matchTriggers,
+  OVERRIDABLE_FIELDS,
+  resolveEffectiveTriggers,
+  snapshotTrigger,
+  collectTriggerWarnings,
+  validateTrigger,
+} from './triggers'
+export type {
+  EffectiveTriggersResult,
+  TriggerMatchInput,
+  TriggerSnapshot,
+  TriggerValidationResult,
+} from './triggers'
+export {
+  DEFAULT_RECIPIENTS,
+  maskDestination,
+  normalizeEmail,
+  normalizePhone,
+  recipientAlias,
+  resolveRecipients,
+  validateRecipientDefinitions,
+} from './recipients'
+export type { ResolveRecipientsArgs, ResolveRecipientsResult } from './recipients'
+export { buildDeliveryKey, planDeliveries } from './deliveries/plan'
+export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
+export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
+export { dispatchToChannel } from './channels/dispatch'
 export {
   collectFieldPaths,
   listRegisteredEvents,

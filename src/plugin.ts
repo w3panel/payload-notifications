@@ -1,6 +1,7 @@
 import type { Config, Payload } from 'payload'
 import type { CollectionConfig } from 'payload'
 import type {
+  AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationQueueTask,
   NotificationsPluginOptions,
@@ -21,6 +22,10 @@ import {
   type NotificationLogsCollectionOverrides,
 } from './collections/NotificationLogs'
 import {
+  NotificationDeliveriesCollection,
+  type NotificationDeliveriesCollectionOverrides,
+} from './collections/NotificationDeliveries'
+import {
   NotificationTemplatesCollection,
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
@@ -38,8 +43,10 @@ import {
   sendNotificationOutputSchema,
 } from './jobs/taskSchemas'
 import { writeNotificationLog } from './jobs/writeLog'
+import { markDeliveryFailed } from './deliveries/send'
 import { buildDeliveryFingerprint, createObservabilityEvent } from './reliability'
 import { seedTemplatesFromRegistry } from './templates/seed'
+import { collectTriggerWarnings } from './triggers/validate'
 
 const hasCollectionSlug = (collections: CollectionConfig[] = [], slug: string): boolean => {
   return collections.some((collection) => collection.slug === slug)
@@ -64,6 +71,8 @@ const getExistingTaskSlugs = (config: Config): string[] => {
 type RuntimeRef = {
   payload: Payload | null
   options: NormalizedNotificationsPluginOptions
+  /** Published admin-created triggers, loaded from `notification-triggers` (Phase 4). */
+  adminTriggers: AdminTriggerRecord[]
 }
 
 const createSendOnFail =
@@ -80,6 +89,15 @@ const createSendOnFail =
         typeof job.error === 'object' && job.error && 'message' in job.error
           ? String((job.error as { message?: unknown }).message || 'Notification send failed')
           : 'Notification send failed after retries'
+
+      if (sendInput.deliveryId) {
+        await markDeliveryFailed({
+          payload,
+          options,
+          deliveryId: sendInput.deliveryId,
+          reason,
+        })
+      }
 
       await writeNotificationLog({
         payload,
@@ -124,7 +142,12 @@ const createLiveTaskHandler = (
 
     if (taskSlug === NOTIFICATION_PROCESS_EVENT_TASK) {
       const event = assertNotificationEvent(input)
-      await processEvent({ payload, event, options: runtime.options })
+      await processEvent({
+        payload,
+        event,
+        options: runtime.options,
+        adminTriggers: runtime.adminTriggers,
+      })
       return { output: {} } as TaskHandlerResult<any>
     }
 
@@ -161,6 +184,9 @@ const buildSendTask = (runtime: RuntimeRef): TaskConfig<any> => ({
     backoff: { type: 'exponential', delay: 5000 },
   },
   concurrency: ({ input, queue }) => {
+    if (typeof input?.deliveryId === 'string' && input.deliveryId) {
+      return `${queue}::delivery::${input.deliveryId}`
+    }
     const userId = typeof input?.userId === 'string' ? input.userId : 'unknown'
     const channel = typeof input?.channel === 'string' ? input.channel : 'unknown'
     const event = typeof input?.event === 'string' ? input.event : 'unknown'
@@ -207,7 +233,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
   const normalizedOptions = normalizePluginOptions(options)
   validateNormalizedOptions(normalizedOptions)
 
-  const runtime: RuntimeRef = { payload: null, options: normalizedOptions }
+  const runtime: RuntimeRef = { payload: null, options: normalizedOptions, adminTriggers: [] }
 
   return (config: Config): Config => {
     if (normalizedOptions.enabled === false) {
@@ -259,6 +285,9 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       },
       onInit: async (payload: Payload) => {
         runtime.payload = payload
+        for (const warning of collectTriggerWarnings(runtime.options)) {
+          payload.logger?.warn?.(`payload-notifications: ${warning}`)
+        }
         if (runtime.options.templates.seedOnInit) {
           try {
             await seedTemplatesFromRegistry({ payload, options: runtime.options })
@@ -285,6 +314,7 @@ export const registerCollections = (
     notifications?: NotificationsCollectionOverrides
     logs?: NotificationLogsCollectionOverrides
     templates?: NotificationTemplatesCollectionOverrides
+    deliveries?: NotificationDeliveriesCollectionOverrides
   },
   getOptions?: () => NormalizedNotificationsPluginOptions,
 ): CollectionConfig[] => {
@@ -320,6 +350,15 @@ export const registerCollections = (
     )
   }
 
+  if (!hasCollectionSlug(next, options.collections.deliveries)) {
+    next.push(
+      NotificationDeliveriesCollection({
+        slug: options.collections.deliveries,
+        overrides: overrides?.deliveries,
+      }),
+    )
+  }
+
   return next
 }
 
@@ -336,6 +375,7 @@ export const registerNotificationTasks = (
   const standaloneRuntime: RuntimeRef = {
     payload: null,
     options: normalizePluginOptions(),
+    adminTriggers: [],
   }
   return registerTaskDefinitions(config, tasks, standaloneRuntime)
 }

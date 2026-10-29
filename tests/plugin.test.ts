@@ -6,6 +6,7 @@ import {
   registerNotificationTasks,
 } from '../src/plugin'
 import { normalizePluginOptions } from '../src/config/normalizePluginOptions'
+import { createMemoryPayload } from './helpers/memoryPayload'
 
 describe('payload-notifications', () => {
   it('exports notificationsPlugin function', () => {
@@ -22,8 +23,13 @@ describe('payload-notifications', () => {
     const collections = registerCollections([], options)
     const secondPass = registerCollections(collections, options)
 
-    expect(collections).toHaveLength(3)
-    expect(secondPass).toHaveLength(3)
+    expect(collections.map((collection) => collection.slug)).toEqual([
+      'notifications',
+      'notification-logs',
+      'notification-templates',
+      'notification-deliveries',
+    ])
+    expect(secondPass).toHaveLength(4)
   })
 
   it('respects custom collection slugs', () => {
@@ -75,7 +81,7 @@ describe('payload-notifications', () => {
     const plugin = notificationsPlugin()
     const config = plugin({ collections: [] })
 
-    expect(config.collections).toHaveLength(3)
+    expect(config.collections).toHaveLength(4)
     const tasks = config.jobs && 'tasks' in config.jobs ? (config.jobs.tasks as any[]) : []
     expect(tasks).toHaveLength(2)
 
@@ -94,19 +100,15 @@ describe('payload-notifications', () => {
 
   it('creates runnable task handlers for process-event and send', async () => {
     const queue = mock(async () => undefined)
-    const create = mock(async () => undefined)
-    const findByID = mock(async () => ({ id: 'user_1', email: 'demo@example.com' }))
     const sendEmail = mock(async () => undefined)
 
-    const payload = {
-      jobs: { queue },
-      create,
-      findByID,
-      sendEmail,
-    }
+    const { payload } = createMemoryPayload(
+      { users: [{ id: 'user_1', email: 'demo@example.com' }] },
+      { queue, sendEmail },
+    )
 
     const handlers = createTaskHandlers(
-      payload as never,
+      payload,
       normalizePluginOptions({
         rules: [
           {
@@ -140,16 +142,12 @@ describe('payload-notifications', () => {
 
   it('registers live task handlers that work after onInit', async () => {
     const queue = mock(async () => undefined)
-    const create = mock(async () => undefined)
-    const findByID = mock(async () => ({ id: 'user_1', email: 'demo@example.com' }))
     const sendEmail = mock(async () => undefined)
 
-    const mockPayload = {
-      jobs: { queue },
-      create,
-      findByID,
-      sendEmail,
-    }
+    const { payload: mockPayload } = createMemoryPayload(
+      { users: [{ id: 'user_1', email: 'demo@example.com' }] },
+      { queue, sendEmail },
+    )
 
     const plugin = notificationsPlugin({
       rules: [
@@ -171,7 +169,7 @@ describe('payload-notifications', () => {
     expect(sendTask).toBeTruthy()
 
     // Simulate Payload calling onInit
-    await config.onInit?.(mockPayload as never)
+    await config.onInit?.(mockPayload)
 
     // Task handlers should now work without the deferred error
     await processEventTask.handler({

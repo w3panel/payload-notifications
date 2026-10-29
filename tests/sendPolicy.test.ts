@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { sendNotification } from '../src/jobs/sendNotification'
 import { normalizePluginOptions } from '../src/config/normalizePluginOptions'
+import { createMemoryPayload } from './helpers/memoryPayload'
 
 describe('sendNotification preference and policy controls', () => {
   it('logs and skips when the user opted out of a channel', async () => {
@@ -64,11 +65,18 @@ describe('sendNotification preference and policy controls', () => {
 
   it('enforces marketing consent for classification queued through processEvent', async () => {
     const { processEvent } = await import('../src/jobs/processEvent')
-    const queue = mock(async () => undefined)
-    const create = mock(async () => undefined)
+    const memory = createMemoryPayload({
+      users: [
+        {
+          id: 'user_1',
+          email: 'demo@example.com',
+          notificationPreferences: { marketing: false },
+        },
+      ],
+    })
 
     await processEvent({
-      payload: { jobs: { queue }, create } as never,
+      payload: memory.payload,
       event: {
         name: 'campaign.launch',
         userId: 'user_1',
@@ -86,22 +94,20 @@ describe('sendNotification preference and policy controls', () => {
       }),
     })
 
-    expect(queue.mock.calls[0]?.[0]?.input?.classification).toBe('marketing')
+    const queued = (
+      memory.queue.mock.calls[0] as unknown as [{ input: Record<string, unknown> }]
+    )[0]
+    expect(queued.input.classification).toBe('marketing')
 
     const result = await sendNotification({
-      payload: {
-        create,
-        findByID: mock(async () => ({
-          id: 'user_1',
-          notificationPreferences: { marketing: false },
-        })),
-      } as never,
-      input: queue.mock.calls[0]?.[0]?.input,
+      payload: memory.payload,
+      input: queued.input as never,
       options: normalizePluginOptions(),
     })
 
     expect(result?.status).toBe('skipped')
     expect(result?.reason).toContain('not consented')
+    expect(memory.docs('notification-deliveries')[0].status).toBe('skipped')
   })
 
   it('logs and skips when custom policy denies delivery', async () => {

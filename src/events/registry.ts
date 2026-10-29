@@ -37,7 +37,7 @@ export const validateEventPayload = async (
   return result.value
 }
 
-const generateEventId = (): string => {
+export const generateEventId = (): string => {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return `evt_${globalThis.crypto.randomUUID()}`
   }

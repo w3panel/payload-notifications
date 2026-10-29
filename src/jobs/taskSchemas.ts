@@ -35,9 +35,13 @@ export const processEventInputSchema: Field[] = [
 
 export const sendNotificationInputSchema: Field[] = [
   {
+    name: 'deliveryId',
+    type: 'text',
+  },
+  {
+    // Empty for deliveries to static recipients.
     name: 'userId',
     type: 'text',
-    required: true,
   },
   {
     name: 'channel',
