@@ -157,7 +157,15 @@ export {
   ruleSlug,
   ruleToTrigger,
 } from './triggers'
-export { compileCodeTriggers } from './triggers/compile'
+export {
+  compileCodeTriggers,
+  eventMatchesPattern,
+  matchTriggers,
+  OVERRIDABLE_FIELDS,
+  resolveEffectiveTriggers,
+  snapshotTrigger,
+} from './triggers'
+export type { EffectiveTriggersResult, TriggerMatchInput, TriggerSnapshot } from './triggers'
 export {
   collectFieldPaths,
   listRegisteredEvents,
