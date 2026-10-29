@@ -59,12 +59,19 @@
 | `tenancy` | — | `{ field, userField? }`: tenant-scoped lookups and role/query recipients |
 | `quietHours` | — | `{ start, end, timezone?, classifications? }`: hold sends during local hours (marketing by default) |
 | `eventsInbox` | `false` | Store emitted events in `notification-events` for audit and replay |
-| `access.isAdmin` | any logged-in user | Default for the three checks below — see [admin-triggers.md](./admin-triggers.md) |
+| `access.isAdmin` | any logged-in user | Default for every check below except `rawHtml` — see [operations-admin.md](./operations-admin.md#permissions) |
 | `access.manageTriggers` | `isAdmin` | Create / edit / validate / customize admin triggers |
 | `access.publishTriggers` | `isAdmin` | Publish, enable, disable, archive, roll back |
 | `access.testSend` | `isAdmin` | Trigger test sends and template test-send (to the caller only) |
 | `access.publishTemplates` | `isAdmin` | Publish / roll back templates, sync WhatsApp approval, edit the theme |
 | `access.rawHtml` | nobody | Add or change raw HTML blocks in visual designs |
+| `access.manageTemplates` | `isAdmin` | Edit templates / partials; preview, compile and variables endpoints |
+| `access.viewDeliveries` | `isAdmin` | Deliveries, attempt logs, events, overview and settings — see [operations-admin.md](./operations-admin.md) |
+| `access.retryDeliveries` | `isAdmin` | Retry and cancel deliveries |
+| `access.managePreferences` | `isAdmin` | Other users' preferences and suppressions |
+| `admin.dashboard` | `true` | Notifications overview and Providers & settings on the Payload dashboard |
+| `admin.group` | `Notifications` | Nav group for the plugin's collections and theme (`false` = none) |
+| `admin.navLinks` | `true` | Nav links to the dashboard tabs |
 | `adminTriggers.cancelQueuedOnDisable` | `false` | Cancel queued deliveries when a trigger is disabled / archived |
 | `adminTriggers.cacheTtlMs` | `30000` | Per-instance cache for published admin triggers |
 | `reliability.attempts` / `backoff` / `jitter` | `3` / exponential 5s→1h / `true` | Default retry policy — see [reliability.md](./reliability.md) |

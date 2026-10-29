@@ -1,14 +1,17 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { denyUnless } from '../admin-ops/access'
 import { listRegisteredEvents } from '../events/registry'
 
 export const createEventsListHandler = (getOptions: () => NormalizedNotificationsPluginOptions) => {
   return async (req: PayloadRequest) => {
-    if (!req.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    return Response.json({ events: listRegisteredEvents(getOptions()) })
+    const options = getOptions()
+    const denied = await denyUnless(req, [
+      options.access.manageTriggers,
+      options.access.manageTemplates,
+    ])
+    if (denied) return denied
+    return Response.json({ events: listRegisteredEvents(options) })
   }
 }
 

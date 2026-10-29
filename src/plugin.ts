@@ -32,6 +32,11 @@ import {
   NotificationPreferencesCollection,
   NotificationSuppressionsCollection,
 } from './collections/NotificationConsent'
+import { accessWithTenant } from './admin-ops/access'
+import { deliveryEndpoints } from './admin-ops/deliveries'
+import { groupGlobal, groupPluginCollections, withAdminComponents } from './admin-ops/adminConfig'
+import { settingsEndpoints } from './admin-ops/settings'
+import { statsEndpoint } from './admin-ops/stats'
 import { NotificationTemplatePartialsCollection } from './collections/NotificationTemplatePartials'
 import { NotificationThemeGlobal } from './collections/NotificationTheme'
 import { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
@@ -319,10 +324,17 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         dataSourcesListEndpoint(() => runtime.options),
         ...adminTriggerRootEndpoints(() => runtime.options),
         ...unsubscribeEndpoints(() => runtime.options),
+        statsEndpoint(() => runtime.options),
+        ...settingsEndpoints(() => runtime.options),
         ...webhookEndpoints(() => runtime.options),
       ],
+      admin: withAdminComponents(config, normalizedOptions),
       collections: injectCollectionEventHooks(
-        withCollections,
+        groupPluginCollections(
+          withCollections,
+          new Set(collections.map((collection) => collection.slug)),
+          normalizedOptions,
+        ),
         () => runtime.options,
         ({ event, req }) =>
           emitNotificationEvent({
@@ -338,10 +350,13 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         ? config.globals
         : [
             ...(config.globals ?? []),
-            NotificationThemeGlobal({
-              slug: normalizedOptions.globals.theme,
-              getOptions: () => runtime.options,
-            }),
+            groupGlobal(
+              NotificationThemeGlobal({
+                slug: normalizedOptions.globals.theme,
+                getOptions: () => runtime.options,
+              }),
+              normalizedOptions,
+            ),
           ],
       jobs: {
         ...config.jobs,
@@ -391,6 +406,39 @@ export const registerCollections = (
   adminTriggerEndpoints?: (getOptions: () => NormalizedNotificationsPluginOptions) => Endpoint[],
 ): CollectionConfig[] => {
   const next = [...collections]
+  const optionsGetter = getOptions || (() => options)
+  // Plugin access defaults; access functions passed in overrides win.
+  const withAccess = <T extends { access?: Partial<CollectionConfig['access']> }>(
+    given: T | undefined,
+    defaults: Partial<CollectionConfig['access']>,
+  ): T => ({ ...given, access: { ...defaults, ...given?.access } }) as T
+  const scoped = {
+    logs: withAccess(overrides?.logs, {
+      read: accessWithTenant(
+        optionsGetter,
+        'viewDeliveries',
+        options.tenancy ? 'delivery.tenant' : undefined,
+      ),
+    }),
+    deliveries: withAccess(overrides?.deliveries, {
+      read: accessWithTenant(
+        optionsGetter,
+        'viewDeliveries',
+        options.tenancy ? 'tenant' : undefined,
+      ),
+    }),
+    events: withAccess(overrides?.events, {
+      read: accessWithTenant(
+        optionsGetter,
+        'viewDeliveries',
+        options.tenancy ? 'tenant' : undefined,
+      ),
+    }),
+    templates: withAccess(overrides?.templates, {
+      create: accessWithTenant(optionsGetter, 'manageTemplates'),
+      update: accessWithTenant(optionsGetter, 'manageTemplates'),
+    }),
+  }
 
   if (!hasCollectionSlug(next, options.collections.notifications)) {
     next.push(
@@ -408,7 +456,7 @@ export const registerCollections = (
         userCollectionSlug: options.userCollectionSlug,
         deliveriesSlug: options.collections.deliveries,
         slug: options.collections.logs,
-        overrides: overrides?.logs,
+        overrides: scoped.logs,
       }),
     )
   }
@@ -417,7 +465,7 @@ export const registerCollections = (
     next.push(
       NotificationTemplatesCollection({
         slug: options.collections.templates,
-        overrides: overrides?.templates,
+        overrides: scoped.templates,
         getOptions: getOptions || (() => options),
       }),
     )
@@ -490,7 +538,7 @@ export const registerCollections = (
     next.push(
       NotificationEventsCollection({
         slug: options.collections.events,
-        overrides: overrides?.events,
+        overrides: scoped.events,
       }),
     )
   }
@@ -499,7 +547,8 @@ export const registerCollections = (
     next.push(
       NotificationDeliveriesCollection({
         slug: options.collections.deliveries,
-        overrides: overrides?.deliveries,
+        overrides: scoped.deliveries,
+        endpoints: deliveryEndpoints(optionsGetter),
       }),
     )
   }

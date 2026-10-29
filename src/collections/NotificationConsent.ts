@@ -19,7 +19,7 @@ export const NotificationPreferencesCollection = ({
 }): CollectionConfig => {
   const ownOrAdmin: Access = async ({ req }) => {
     if (!req.user) return false
-    if (await getOptions().access.manageTriggers({ req })) return true
+    if (await getOptions().access.managePreferences({ req })) return true
     return { user: { equals: req.user.id } } as Where
   }
   return {
@@ -77,7 +77,7 @@ export const NotificationSuppressionsCollection = ({
   getOptions: () => NormalizedNotificationsPluginOptions
 }): CollectionConfig => {
   const admin: Access = ({ req }) =>
-    Boolean(req.user) && getOptions().access.manageTriggers({ req })
+    Boolean(req.user) && getOptions().access.managePreferences({ req })
   return {
     slug,
     versions: false,

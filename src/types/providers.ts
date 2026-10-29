@@ -138,4 +138,6 @@ export type NotificationProvider = {
   parseWebhook?: (request: ProviderWebhookRequest) => Promise<ProviderWebhookResult>
   /** Looks up a message's current status (used by reconciliation). */
   getStatus?: (providerMessageId: string) => Promise<ProviderStatusUpdate | undefined>
+  /** Checks credentials / reachability for the admin's "Test connection". Must not send messages. */
+  testConnection?: () => Promise<{ ok: boolean; message: string }>
 }

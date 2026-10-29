@@ -180,7 +180,11 @@ const normalizeAccess = (
     manageTriggers: access?.manageTriggers ?? isAdmin,
     publishTriggers: access?.publishTriggers ?? isAdmin,
     testSend: access?.testSend ?? isAdmin,
+    manageTemplates: access?.manageTemplates ?? isAdmin,
     publishTemplates: access?.publishTemplates ?? isAdmin,
+    viewDeliveries: access?.viewDeliveries ?? isAdmin,
+    retryDeliveries: access?.retryDeliveries ?? isAdmin,
+    managePreferences: access?.managePreferences ?? isAdmin,
     rawHtml: access?.rawHtml ?? (() => false),
   }
 }
@@ -468,6 +472,11 @@ export const normalizePluginOptions = (
     },
     globals: {
       theme: options.globals?.theme || 'notification-theme',
+    },
+    admin: {
+      dashboard: options.admin?.dashboard !== false,
+      group: options.admin?.group === false ? false : options.admin?.group || 'Notifications',
+      navLinks: options.admin?.dashboard !== false && options.admin?.navLinks !== false,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,

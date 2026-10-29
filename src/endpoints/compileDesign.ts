@@ -1,5 +1,6 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { denyUnless } from '../admin-ops/access'
 import { compileDesign } from '../studio/compile'
 import { parseDesign } from '../studio/model'
 import { loadDesignResources } from '../studio/resources'
@@ -16,7 +17,8 @@ export const compileDesignEndpoint = (
   path: '/compile-design',
   method: 'post',
   handler: async (req: PayloadRequest) => {
-    if (!req.user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    const denied = await denyUnless(req, getOptions().access.manageTemplates)
+    if (denied) return denied
     let body: Record<string, unknown>
     try {
       body = ((await req.json?.()) ?? {}) as Record<string, unknown>

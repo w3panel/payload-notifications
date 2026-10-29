@@ -90,4 +90,20 @@ export const STUDIO_CSS = `
 .pn-diff-added{background:#dcfce7;color:#166534}
 .pn-diff-removed{background:#fee2e2;color:#991b1b}
 .pn-diff-gap{color:#a1a1aa;font-style:italic}
+.pn-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.pn-tile{padding:10px 12px;border:1px solid var(--pn-border);border-radius:8px}
+.pn-tile-value{font-size:22px;font-weight:600}
+.pn-tile-bad{border-color:#fca5a5;background:color-mix(in srgb,#fee2e2 50%,transparent)}
+.pn-tile-warn{border-color:#fcd34d}
+.pn-chart{display:flex;align-items:flex-end;gap:4px;height:140px;padding:4px 0}
+.pn-chart-col{flex:1;display:flex;flex-direction:column;align-items:stretch;height:100%;justify-content:flex-end;min-width:6px}
+.pn-chart-bar{display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden;min-height:2px}
+.pn-chart-label{font-size:10px;color:var(--pn-muted);text-align:center;white-space:nowrap;overflow:hidden}
+.pn-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px}
+.pn-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle}
+.pn-overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.pn-list-plain{margin:0;padding-left:16px;font-size:13px}
+.pn-dashboard{margin-bottom:24px}
+.pn-settings th{width:240px;font-weight:500;color:var(--pn-muted);vertical-align:top}
+.pn-error{color:#b91c1c}
 `

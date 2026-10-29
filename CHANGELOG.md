@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Operations admin (Phase 8)
+- Deliveries inspector: attempts, provider responses, fallbacks and redacted context; retry (same record and idempotency key; `unknown` needs confirmation) and cancel (`planned` / `queued`), via `GET /:id/inspect`, `POST /:id/retry` and `POST /:id/cancel`
+- Notifications overview on the Payload dashboard (`GET /api/payload-notifications/stats`): events, match rate, deliveries over time, skip reasons, recent failures, provider latency and failure rate, queue depth
+- Providers & settings tab (`GET /api/payload-notifications/settings`, `POST …/providers/:channel/test`): provider status without secrets, connection tests, read-only settings; optional `testConnection()` on custom providers
+- Permissions `manageTemplates`, `viewDeliveries`, `retryDeliveries`, `managePreferences`; tenant scoping of deliveries, attempt logs, events and stats (deliveries gain a `tenant` field)
+- `admin.dashboard`, `admin.group`, `admin.navLinks`; collections grouped under Notifications in nav order
+
+### Changed
+- Templates and partials need `manageTemplates` to change (default `isAdmin`); deliveries, logs and events need `viewDeliveries`; preferences admin uses `managePreferences` instead of `manageTriggers`
+- The preview, compile-design, variables, events and data-source endpoints check permissions, not only sign-in
+
 ### Added — Visual Template Studio (Phase 7)
 - Visual email designer in the template studio: a versioned block document in `email.design` with sections, columns, headings, text, images, buttons, dividers, spacers, lists, social links, footers, loops, conditions, saved sections and raw HTML. It compiles on save to table-based, inline-styled, Outlook-safe HTML plus plain text (ADR: `docs/adr/0001-visual-email-editor.md`)
 - Drag and drop, keyboard editing, undo/redo, copy/paste; a formatting toolbar; `{{` variable autocomplete with unknown variables highlighted

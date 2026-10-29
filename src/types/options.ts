@@ -76,6 +76,15 @@ export type NotificationsPluginOptions = {
     /** Brand theme for visual email designs. Default `notification-theme`. */
     theme?: string
   }
+  /** Payload admin integration. */
+  admin?: {
+    /** Show the notifications overview on the Payload dashboard. Default true. */
+    dashboard?: boolean
+    /** Admin nav group for the plugin's collections and theme. `false` leaves them ungrouped. Default `Notifications`. */
+    group?: string | false
+    /** Nav links to the dashboard's Overview and Providers & settings. Default true (with the dashboard). */
+    navLinks?: boolean
+  }
   jobs?: NotificationsJobsOptions
   templates?: {
     email?: string
@@ -211,8 +220,16 @@ export type NotificationsPluginOptions = {
     manageTriggers?: NotificationAccessCheck
     publishTriggers?: NotificationAccessCheck
     testSend?: NotificationAccessCheck
+    /** Create and edit templates and partials; preview and inspect their data. */
+    manageTemplates?: NotificationAccessCheck
     /** Publish / roll back notification templates. */
     publishTemplates?: NotificationAccessCheck
+    /** View deliveries, attempt logs, events and the notifications overview. */
+    viewDeliveries?: NotificationAccessCheck
+    /** Retry failed deliveries and cancel scheduled ones. */
+    retryDeliveries?: NotificationAccessCheck
+    /** Manage other users' preferences and suppressed destinations. */
+    managePreferences?: NotificationAccessCheck
     /**
      * Add or change raw HTML blocks in the visual email designer. Raw HTML is
      * sent as-is, so this defaults to nobody; grant it to trusted roles only.
@@ -289,6 +306,11 @@ export type NormalizedNotificationsPluginOptions = {
   /** Global slugs. */
   globals: {
     theme: string
+  }
+  admin: {
+    dashboard: boolean
+    group: string | false
+    navLinks: boolean
   }
   jobs: {
     queue: string
@@ -388,7 +410,11 @@ export type NormalizedNotificationsPluginOptions = {
     manageTriggers: NotificationAccessCheck
     publishTriggers: NotificationAccessCheck
     testSend: NotificationAccessCheck
+    manageTemplates: NotificationAccessCheck
     publishTemplates: NotificationAccessCheck
+    viewDeliveries: NotificationAccessCheck
+    retryDeliveries: NotificationAccessCheck
+    managePreferences: NotificationAccessCheck
     rawHtml: NotificationAccessCheck
   }
   adminTriggers: {

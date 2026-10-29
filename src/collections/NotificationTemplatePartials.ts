@@ -80,7 +80,9 @@ export const NotificationTemplatePartialsCollection = ({
   getOptions?: () => NormalizedNotificationsPluginOptions
 } = {}): CollectionConfig => {
   const read: Access = ({ req }) => Boolean(req.user)
-  const write: Access = ({ req }) => Boolean(req.user)
+  const write: Access = async ({ req }) =>
+    Boolean(req.user) &&
+    (getOptions ? Boolean(await getOptions().access.manageTemplates({ req })) : true)
   const mediaSlug = (() => {
     try {
       return getOptions?.().templates.mediaCollection
@@ -97,7 +99,6 @@ export const NotificationTemplatePartialsCollection = ({
     admin: {
       useAsTitle: 'name',
       defaultColumns: ['name', 'kind', 'version', 'updatedAt'],
-      group: 'Notifications',
       description:
         'Reusable headers, footers and sections for visual emails. Templates use the latest version unless they pin one; changes apply when a template is saved or published.',
     },
