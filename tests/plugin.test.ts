@@ -31,10 +31,11 @@ describe('payload-notifications', () => {
       'notification-suppressions',
       'notification-triggers',
       'notification-template-versions',
+      'notification-template-partials',
       'notification-trigger-versions',
       'notification-deliveries',
     ])
-    expect(secondPass).toHaveLength(8)
+    expect(secondPass).toHaveLength(9)
   })
 
   it('respects custom collection slugs', () => {
@@ -86,7 +87,7 @@ describe('payload-notifications', () => {
     const plugin = notificationsPlugin()
     const config = plugin({ collections: [], jobs: { enableConcurrencyControl: true } as never })
 
-    expect(config.collections).toHaveLength(8)
+    expect(config.collections).toHaveLength(9)
     const tasks = config.jobs && 'tasks' in config.jobs ? (config.jobs.tasks as any[]) : []
     expect(tasks.map((task) => task.slug)).toEqual([
       'notification:process-event',

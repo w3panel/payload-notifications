@@ -67,8 +67,14 @@ export type NotificationsPluginOptions = {
     suppressions?: string
     /** Published template snapshots. */
     templateVersions?: string
+    /** Reusable sections for visual email designs. */
+    partials?: string
     /** Event inbox slug (only with `eventsInbox: true`). */
     events?: string
+  }
+  globals?: {
+    /** Brand theme for visual email designs. Default `notification-theme`. */
+    theme?: string
   }
   jobs?: NotificationsJobsOptions
   templates?: {
@@ -271,6 +277,11 @@ export type NormalizedNotificationsPluginOptions = {
     preferences: string
     suppressions: string
     templateVersions: string
+    partials: string
+  }
+  /** Global slugs. */
+  globals: {
+    theme: string
   }
   jobs: {
     queue: string

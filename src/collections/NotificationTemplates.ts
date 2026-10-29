@@ -18,6 +18,7 @@ import { whatsappStatusEndpoint } from '../templates/whatsappStatus'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 import { versionedCollectionDefaults } from '../compat'
 import { parseDesign } from '../studio/model'
+import { loadDesignResources } from '../studio/resources'
 import { compileVisualEmail } from '../studio/save'
 
 export type NotificationTemplatesCollectionOverrides = {
@@ -204,7 +205,10 @@ const variablesField: Field = {
   ],
 }
 
-const templateStudioField = (collectionSlug: string): Field => ({
+/** Slugs the studio needs besides the templates collection. */
+type StudioSlugs = { partialsSlug?: string; mediaSlug?: string }
+
+const templateStudioField = (collectionSlug: string, slugs: StudioSlugs = {}): Field => ({
   name: 'templateStudio',
   type: 'ui',
   admin: {
@@ -214,11 +218,12 @@ const templateStudioField = (collectionSlug: string): Field => ({
     custom: {
       collectionSlug,
       apiRoute: '/api',
+      ...slugs,
     },
   },
 })
 
-const baseFields = (collectionSlug: string): Field[] => [
+const baseFields = (collectionSlug: string, slugs: StudioSlugs = {}): Field[] => [
   {
     name: 'name',
     type: 'text',
@@ -321,7 +326,7 @@ const baseFields = (collectionSlug: string): Field[] => [
   whatsappGroup,
   inappGroup,
   variablesField,
-  templateStudioField(collectionSlug),
+  templateStudioField(collectionSlug, slugs),
 ]
 
 /** `req.context` flag set by the publish endpoint (it manages versions itself). */
@@ -405,6 +410,15 @@ const snapshotOnActivate =
     return doc
   }
 
+const studioSlugs = (getOptions?: () => NormalizedNotificationsPluginOptions): StudioSlugs => {
+  try {
+    const options = getOptions?.()
+    return options ? { partialsSlug: options.collections.partials } : {}
+  } catch {
+    return {}
+  }
+}
+
 export const NotificationTemplatesCollection = ({
   slug = 'notification-templates',
   overrides,
@@ -454,11 +468,11 @@ export const NotificationTemplatesCollection = ({
     hooks: {
       beforeValidate: [uniqueSlugPerLocale(slug)],
       // Design edits are content edits for version tracking (email.design is in `email`).
-      beforeChange: [trackTemplateVersions, compileVisualEmail(getOptions)],
+      beforeChange: [trackTemplateVersions, compileVisualEmail(getOptions, loadDesignResources)],
       afterChange: [snapshotOnActivate(getOptions)],
     },
     endpoints,
-    fields: overrides?.fields || baseFields(slug),
+    fields: overrides?.fields || baseFields(slug, studioSlugs(getOptions)),
     timestamps: true,
   }
 }

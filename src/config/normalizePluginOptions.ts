@@ -322,6 +322,7 @@ export const normalizePluginOptions = (
   const suppressionsSlug = options.collections?.suppressions || 'notification-suppressions'
   const templateVersionsSlug =
     options.collections?.templateVersions || 'notification-template-versions'
+  const partialsSlug = options.collections?.partials || 'notification-template-partials'
 
   const allSlugs = [
     notificationsSlug,
@@ -334,6 +335,7 @@ export const normalizePluginOptions = (
     preferencesSlug,
     suppressionsSlug,
     templateVersionsSlug,
+    partialsSlug,
   ]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
@@ -460,6 +462,10 @@ export const normalizePluginOptions = (
       preferences: preferencesSlug,
       suppressions: suppressionsSlug,
       templateVersions: templateVersionsSlug,
+      partials: partialsSlug,
+    },
+    globals: {
+      theme: options.globals?.theme || 'notification-theme',
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,

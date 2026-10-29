@@ -234,7 +234,7 @@ describe('compileVisualEmail hook', () => {
     }))({
       data,
       originalDoc,
-      req: {} as never,
+      req: { user: { id: 'u1' } } as never,
       collection: { slug: 'notification-templates' } as never,
       context: {},
       operation: 'update',

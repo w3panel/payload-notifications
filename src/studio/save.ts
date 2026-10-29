@@ -47,8 +47,14 @@ export const compileVisualEmail =
     loadResources: DesignResourceLoader = noResources,
   ): CollectionBeforeChangeHook =>
   async ({ data, originalDoc, req, collection }) => {
-    if (!data || !isObject(data.email)) return data
-    const email = data.email
+    if (!data) return data
+    // Updates that do not send `email` (e.g. status changes) recompile the stored design.
+    const email = isObject(data.email)
+      ? data.email
+      : isObject(originalDoc?.email)
+        ? originalDoc.email
+        : undefined
+    if (!email) return data
     const editor =
       email.editor ?? (isObject(originalDoc?.email) ? originalDoc.email.editor : undefined)
     if (editor !== 'visual' || email.design === undefined || email.design === null) return data
@@ -64,7 +70,12 @@ export const compileVisualEmail =
     }
 
     const previousDesign = isObject(originalDoc?.email) ? originalDoc.email.design : undefined
-    if (changesRawHtml(parsed.design, previousDesign) && !(await options.access.rawHtml({ req }))) {
+    // Server-side calls without a user (publish, rollback, seeding) are trusted.
+    if (
+      req.user &&
+      changesRawHtml(parsed.design, previousDesign) &&
+      !(await options.access.rawHtml({ req }))
+    ) {
       throw new ValidationError({
         collection: collection?.slug,
         errors: [

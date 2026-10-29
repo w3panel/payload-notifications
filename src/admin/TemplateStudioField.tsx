@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useField, useForm } from '@payloadcms/ui'
 import type { EmailDesign } from '../studio/model'
 import { STUDIO_CSS } from './studio/styles'
+import { useDesignerLists } from './studio/useDesignerLists'
 import { useTemplateVariables } from './studio/useTemplateVariables'
 import { VisualEmailEditor } from './studio/VisualEmailEditor'
 import {
@@ -217,7 +218,16 @@ const StudioInner: React.FC<StudioInnerProps> = ({
 
 type TemplateStudioFieldProps = {
   path?: string
-  field?: { admin?: { custom?: { collectionSlug?: string; apiRoute?: string } } }
+  field?: {
+    admin?: {
+      custom?: {
+        collectionSlug?: string
+        apiRoute?: string
+        partialsSlug?: string
+        mediaSlug?: string
+      }
+    }
+  }
 }
 
 /**
@@ -239,6 +249,11 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
   const slug = useField<string>({ path: 'slug' })
   const [trigger, setTrigger] = useState('')
   const visual = editor.value === 'visual'
+  const lists = useDesignerLists({
+    apiRoute,
+    partialsSlug: visual ? custom?.partialsSlug : undefined,
+    mediaSlug: visual ? custom?.mediaSlug : undefined,
+  })
   const variables = useTemplateVariables({
     apiRoute,
     collectionSlug,
@@ -273,6 +288,8 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
             onChange={(next) => design.setValue(next)}
             variables={variables.paths}
             roots={variables.roots}
+            partials={lists.partials}
+            media={lists.media}
           />
         </>
       ) : null}
