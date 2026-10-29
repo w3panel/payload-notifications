@@ -167,6 +167,16 @@ export {
 } from './triggers'
 export type { EffectiveTriggersResult, TriggerMatchInput, TriggerSnapshot } from './triggers'
 export {
+  DEFAULT_RECIPIENTS,
+  maskDestination,
+  normalizeEmail,
+  normalizePhone,
+  recipientAlias,
+  resolveRecipients,
+  validateRecipientDefinitions,
+} from './recipients'
+export type { ResolveRecipientsArgs, ResolveRecipientsResult } from './recipients'
+export {
   collectFieldPaths,
   listRegisteredEvents,
   prepareNotificationEvent,
