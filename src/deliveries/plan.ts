@@ -13,6 +13,7 @@ import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
 import { evaluateTriggerPlan } from './evaluate'
 import { resolveRetryPolicy } from './retry'
+import { createFallbackDelivery, type FallbackSource } from './fallback'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
 
@@ -286,6 +287,8 @@ const planTrigger = async ({
       classification,
       idempotencyKey,
       dedupeKey: plan.dedupeKey,
+      fallback: delivery.fallback,
+      recipientDestinations: recipient.destinations,
       ...retryFields(resolveRetryPolicy(options, trigger.reliability, delivery.channel)),
       skipReason,
       scheduledFor: sendAt?.toISOString(),
@@ -336,6 +339,15 @@ const planTrigger = async ({
         status: duplicateOf ? 'duplicate' : 'skipped',
         reason: skipReason,
       })
+      if (!duplicateOf) {
+        await createFallbackDelivery({
+          payload,
+          options,
+          primary: { ...(record as unknown as FallbackSource), id: deliveryId },
+          reason: 'no-destination',
+          detail: skipReason ?? 'no destination',
+        })
+      }
       continue
     }
 

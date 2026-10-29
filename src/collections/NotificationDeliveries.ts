@@ -32,6 +32,8 @@ const serverOnly: { read: FieldAccess; update: FieldAccess; create: FieldAccess 
   create: () => false,
 }
 
+const SELF = '__self__'
+
 const baseFields: Field[] = [
   { name: 'event', type: 'text', required: true, index: true },
   { name: 'eventId', type: 'text', index: true },
@@ -87,6 +89,14 @@ const baseFields: Field[] = [
   { name: 'lastError', type: 'textarea' },
   { name: 'skipReason', type: 'text' },
   { name: 'test', type: 'checkbox', defaultValue: false, index: true },
+  { name: 'fallback', type: 'json' },
+  { name: 'fallbackOf', type: 'relationship', relationTo: SELF, index: true },
+  {
+    name: 'recipientDestinations',
+    type: 'json',
+    access: serverOnly,
+    admin: { hidden: true },
+  },
   {
     name: 'context',
     type: 'json',
@@ -128,6 +138,10 @@ export const NotificationDeliveriesCollection = ({
     defaultColumns: ['event', 'trigger', 'channel', 'status', 'destinationMasked', 'createdAt'],
     ...overrides?.admin,
   },
-  fields: overrides?.fields || baseFields,
+  fields:
+    overrides?.fields ||
+    (baseFields.map((field) =>
+      'relationTo' in field && field.relationTo === SELF ? { ...field, relationTo: slug } : field,
+    ) as Field[]),
   timestamps: true,
 })

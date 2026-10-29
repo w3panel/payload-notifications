@@ -106,6 +106,35 @@ export const validateTrigger = (
       )
     }
 
+    if (delivery.fallback !== undefined) {
+      const fallback = delivery.fallback
+      if (!fallback || typeof fallback.channel !== 'string') {
+        errors.push(`${label}.fallback: channel is required`)
+      } else {
+        if (!options.channels.includes(fallback.channel)) {
+          errors.push(
+            `${label}.fallback: channel "${fallback.channel}" is not enabled in plugin channels`,
+          )
+        }
+        if (fallback.channel === delivery.channel) {
+          errors.push(`${label}.fallback: must use a different channel than the delivery`)
+        }
+        const invalid = (fallback.on ?? []).filter(
+          (reason) => !['permanent', 'no-destination', 'policy'].includes(reason),
+        )
+        if (invalid.length) {
+          errors.push(`${label}.fallback: on must list permanent, no-destination and/or policy`)
+        }
+        if (
+          fallback.channel === 'inapp' &&
+          target !== 'all' &&
+          aliases.get(target)?.type === 'static'
+        ) {
+          errors.push(`${label}.fallback: static recipient "${target}" has no in-app destination`)
+        }
+      }
+    }
+
     const key = `${delivery.channel}::${delivery.template}::${target}`
     if (seen.has(key)) errors.push(`${label}: duplicate delivery (${delivery.channel} → ${target})`)
     seen.add(key)

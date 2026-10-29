@@ -71,6 +71,7 @@ export type {
   AdminTriggerRecord,
   EffectiveTrigger,
   NotificationDeliveryDefinition,
+  NotificationDeliveryFallback,
   NotificationTrigger,
   NotificationTriggerInput,
   TriggerAdminPolicy,
@@ -275,6 +276,8 @@ export {
 export { callProvider } from './deliveries/providerCall'
 export type { ProviderCallResult } from './deliveries/providerCall'
 export { resolveRetryPolicy, retryDelayMs } from './deliveries/retry'
+export { createFallbackDelivery, DEFAULT_FALLBACK_ON } from './deliveries/fallback'
+export type { FallbackReason, FallbackSource } from './deliveries/fallback'
 export type { ResolvedRetryPolicy } from './deliveries/retry'
 export { ATTEMPT_OUTCOMES } from './collections/NotificationLogs'
 export {

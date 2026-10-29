@@ -14,6 +14,7 @@ import type { DeliveryOutcome } from '../providers/errors'
 import { resolveProvider } from '../providers/builtin'
 import { createObservabilityEvent } from '../reliability'
 import { callProvider } from './providerCall'
+import { createFallbackDelivery, type FallbackSource } from './fallback'
 import { recheckDelivery } from './recheck'
 import { retryDelayMs, type ResolvedRetryPolicy } from './retry'
 import { mergeTemplateDefinition, renderDefinition } from '../templates/renderDefinition'
@@ -48,7 +49,7 @@ type DeliveryDoc = {
   recheckConditions?: boolean | null
   maxAttempts?: number | null
   retryPolicy?: Pick<ResolvedRetryPolicy, 'backoff' | 'jitter'> | null
-}
+} & FallbackSource
 
 const updateDelivery = (
   payload: Payload,
@@ -156,6 +157,15 @@ export const sendDelivery = async ({
         ? { lastError: reason }
         : { skipReason: reason }),
     })
+    if (outcome === 'policy' || outcome === 'permanent') {
+      await createFallbackDelivery({
+        payload,
+        options,
+        primary: delivery,
+        reason: outcome,
+        detail: reason,
+      })
+    }
     return report({ channel: delivery.channel, status, reason }, 'terminal')
   }
 
@@ -328,6 +338,16 @@ export const sendDelivery = async ({
     nextAttemptAt: null,
     ...versionPatch,
   })
+  // Permanent failures and exhausted retries may fall back; unknown outcomes never do.
+  if (status === 'failed') {
+    await createFallbackDelivery({
+      payload,
+      options,
+      primary: delivery,
+      reason: 'permanent',
+      detail: call.message,
+    })
+  }
   return report(
     {
       channel: delivery.channel,

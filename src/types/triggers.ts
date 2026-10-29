@@ -164,6 +164,19 @@ export type NotificationDeliveryDefinition = {
   templateOverrides?: Partial<NotificationTemplateDefinition>
   /** Per-recipient condition; the context also has `recipient.*`. */
   when?: NotificationCondition
+  /** Another channel to try when this delivery cannot be sent. */
+  fallback?: NotificationDeliveryFallback
+}
+
+export type NotificationDeliveryFallback = {
+  channel: NotificationChannel
+  /** Defaults to the delivery's template. */
+  template?: string
+  /**
+   * When to fall back. Default: all. Never for `unknown` outcomes (the first
+   * message may have been sent).
+   */
+  on?: Array<'permanent' | 'no-destination' | 'policy'>
 }
 
 export type NotificationTrigger = {
