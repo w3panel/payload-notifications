@@ -5,17 +5,23 @@
 | Slug | Queue (default) | Retries | Role |
 |------|-----------------|---------|------|
 | `notification:process-event` | `notifications` | 0 | Match triggers → data → recipients → create deliveries → queue sends |
-| `notification:send` | `notifications` | 2 + exponential backoff (5s base) | Load delivery → policy → resolve → render → channel → record outcome |
+| `notification:send` | `notifications` | 2 + exponential backoff (5s base, unexpected errors only) | Load delivery → policy → render → provider → attempt log → outcome / retry / fallback |
+| `notification:reconcile` | `notifications` | 0 | Stale `sending` → `unknown`; resolve `unknown` via provider status |
+| `notification:retention` | `notifications` | 0 | Prune old logs, deliveries and inbox events |
 
 Override queue name with `jobs.queue`.
 
 ## Failure model
 
-- **Retriable** provider errors (timeout, rate limit, unavailable, temporary): handler **throws** → Payload retries the same job; the delivery stays `sending`  
-- **Terminal** (missing user, policy deny, skip): soft success with `status: 'skipped' | 'failed'`, a log row, and the same status on the delivery  
-- **Exhausted retries**: `onFail` marks the delivery `failed` and writes a log row  
-- **Re-runs**: processing an event again reuses existing deliveries (unique `idempotencyKey`); a final delivery is never sent twice  
-- Do **not** force `state: 'succeeded'` in a host override when a send should retry  
+Trigger-based deliveries (see [reliability.md](./reliability.md)):
+
+- **Retryable** (429, 502, 503, refused connections): the delivery goes back to `queued` and a new send job is queued with a back-off (`reliability`), up to its attempt limit  
+- **Permanent** (4xx, missing user, policy): `failed` / `skipped`, plus the fallback channel if configured  
+- **Unknown** (timeouts, dropped connections): `unknown`, never re-sent automatically; `notification:reconcile` and provider webhooks resolve it  
+- **Re-runs**: processing an event again reuses existing deliveries (unique `idempotencyKey`); final or interrupted (`sending`) deliveries are never sent again  
+- Unexpected errors (e.g. the database is down) before the provider call still throw, and Payload retries the job safely
+
+Direct `queueNotificationSend` calls: retriable provider errors throw so Payload retries the same job; terminal outcomes return `skipped` / `failed` with a log row.
 
 ## Running the queue
 
