@@ -85,7 +85,7 @@ triggers: [
 ]
 ```
 
-Keep the rule's event and template; move `condition` to `condition` (or JSON `conditions`), and `data` to `data.sources`. Remove the rule once the trigger is live, or both will send.
+Keep the rule's event, template, `condition` and `data` (triggers accept the same `condition` function and `data` shape, plus JSON `conditions`). Remove the rule once the trigger is live, or both will send.
 
 ### Direct sends → events
 
