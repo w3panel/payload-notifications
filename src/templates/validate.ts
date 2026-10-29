@@ -98,6 +98,12 @@ export const templateVariablesEndpoint = (
       event: url.searchParams.get('event') ?? undefined,
       trigger,
     })
-    return Response.json({ variables: available.paths })
+    return Response.json({
+      variables: available.paths,
+      // Roots with their known fields (null = any field), for highlighting unknown variables.
+      roots: Object.fromEntries(
+        [...available.roots].map(([root, fields]) => [root, fields?.length ? fields : null]),
+      ),
+    })
   },
 })

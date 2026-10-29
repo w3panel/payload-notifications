@@ -41,7 +41,8 @@ type CanvasProps = {
   design: EmailDesign
   selectedId: string | null
   dispatch: (action: EditorAction) => void
-  isKnown?: (expression: string) => boolean
+  /** Expressions per block ID that the selected event does not provide (highlighted). */
+  unknown?: Record<string, string[]>
   /** Problems per block ID (shown as a badge). */
   problems?: Record<string, string[]>
 }
@@ -91,7 +92,7 @@ const BlockList: React.FC<CanvasProps & { blocks: EmailBlock[]; slot: Slot }> = 
   )
 }
 
-const Inline: React.FC<{ text: string; isKnown?: CanvasProps['isKnown'] }> = ({
+const Inline: React.FC<{ text: string; isKnown?: (expression: string) => boolean }> = ({
   text,
   isKnown,
 }) => (
@@ -100,7 +101,11 @@ const Inline: React.FC<{ text: string; isKnown?: CanvasProps['isKnown'] }> = ({
 )
 
 const BlockBody: React.FC<CanvasProps & { block: EmailBlock }> = (props) => {
-  const { block, isKnown } = props
+  const { block } = props
+  const unknown = props.unknown?.[block.id]
+  const isKnown = unknown?.length
+    ? (expression: string) => !unknown.includes(expression)
+    : undefined
   const child = (blocks: EmailBlock[], list: number) => (
     <BlockList {...props} blocks={blocks} slot={{ parentId: block.id, list }} />
   )

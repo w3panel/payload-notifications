@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useReducer, useRef } from 'react'
+import React, { useEffect, useMemo, useReducer, useRef } from 'react'
 import {
   editorReducer,
   findBlock,
@@ -8,6 +8,7 @@ import {
   shortcutAction,
 } from '../../studio/editorState'
 import { BLOCK_TYPES, type EmailBlockType, type EmailDesign } from '../../studio/model'
+import { designVariableIssues, type VariableRoots } from '../../studio/variables'
 import { BlockCanvas, BLOCK_LABELS, DRAG_NEW } from './BlockCanvas'
 import {
   BlockProperties,
@@ -19,9 +20,11 @@ import {
 export type VisualEmailEditorProps = {
   design: EmailDesign | null | undefined
   onChange: (design: EmailDesign) => void
+  /** Variable paths for the picker and `{{` autocomplete. */
   variables?: string[]
-  isKnown?: (expression: string) => boolean
-  /** Problems per block ID. */
+  /** What the selected event provides; unknown variables are highlighted. Omit to skip checks. */
+  roots?: VariableRoots
+  /** Other problems per block ID (e.g. accessibility checks). */
   problems?: Record<string, string[]>
   canRawHtml?: boolean
   media?: MediaOption[]
@@ -44,8 +47,8 @@ export const VisualEmailEditor: React.FC<VisualEmailEditorProps> = ({
   design,
   onChange,
   variables,
-  isKnown,
-  problems,
+  roots,
+  problems: extraProblems,
   canRawHtml,
   media,
   partials,
@@ -61,6 +64,17 @@ export const VisualEmailEditor: React.FC<VisualEmailEditorProps> = ({
     onChange(state.design)
     // Only design changes are reported (onChange may be a new function each render).
   }, [state.design])
+
+  const { unknown, problems } = useMemo(() => {
+    const issues = roots ? designVariableIssues(state.design, roots) : {}
+    const unknownByBlock: Record<string, string[]> = {}
+    const merged: Record<string, string[]> = { ...extraProblems }
+    for (const [id, list] of Object.entries(issues)) {
+      unknownByBlock[id] = list.flatMap((issue) => (issue.expression ? [issue.expression] : []))
+      merged[id] = [...(merged[id] ?? []), ...list.map((issue) => issue.message)]
+    }
+    return { unknown: unknownByBlock, problems: merged }
+  }, [state.design, roots, extraProblems])
 
   const selected = state.selectedId ? findBlock(state.design.blocks, state.selectedId) : undefined
   const palette = BLOCK_TYPES.filter((type) => type !== 'html' || canRawHtml)
@@ -135,7 +149,7 @@ export const VisualEmailEditor: React.FC<VisualEmailEditorProps> = ({
           design={state.design}
           selectedId={state.selectedId}
           dispatch={dispatch}
-          isKnown={isKnown}
+          unknown={unknown}
           problems={problems}
         />
         {selected ? (

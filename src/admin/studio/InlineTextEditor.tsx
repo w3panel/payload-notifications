@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
+import { applySuggestion, autocompleteQuery, suggestVariables } from '../../studio/variables'
 
 type InlineTextEditorProps = {
   value: string
@@ -39,6 +40,28 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
   autoFocus,
 }) => {
   const ref = useRef<HTMLTextAreaElement | null>(null)
+  const [suggest, setSuggest] = useState<{ start: number; items: string[]; active: number } | null>(
+    null,
+  )
+
+  /** Opens `{{` autocomplete when the caret is inside an unfinished variable. */
+  const refreshSuggestions = (text: string, caret: number) => {
+    const query = variables.length ? autocompleteQuery(text, caret) : null
+    const items = query ? suggestVariables(variables, query.query) : []
+    setSuggest(query && items.length ? { start: query.start, items, active: 0 } : null)
+  }
+
+  const accept = (path: string) => {
+    const input = ref.current
+    if (!suggest || !input) return
+    const next = applySuggestion(value, input.selectionStart ?? value.length, suggest.start, path)
+    onChange(next.value)
+    setSuggest(null)
+    requestAnimationFrame(() => {
+      input.focus()
+      input.setSelectionRange(next.caret, next.caret)
+    })
+  }
 
   const apply = (before: string, after: string, placeholder?: string) => {
     const input = ref.current
@@ -53,6 +76,28 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (suggest) {
+      const count = suggest.items.length
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        event.stopPropagation()
+        const step = event.key === 'ArrowDown' ? 1 : -1
+        setSuggest({ ...suggest, active: (suggest.active + step + count) % count })
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        event.stopPropagation()
+        accept(suggest.items[suggest.active])
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        setSuggest(null)
+        return
+      }
+    }
     const mod = event.metaKey || event.ctrlKey
     if (mod && event.key.toLowerCase() === 'b') {
       event.preventDefault()
@@ -102,16 +147,44 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
           </select>
         ) : null}
       </div>
-      <textarea
-        ref={ref}
-        value={value}
-        rows={multiline ? 4 : 1}
-        autoFocus={autoFocus}
-        onKeyDown={onKeyDown}
-        onChange={(event) =>
-          onChange(multiline ? event.target.value : event.target.value.replace(/\n/g, ' '))
-        }
-      />
+      <div className="pn-autocomplete">
+        <textarea
+          ref={ref}
+          value={value}
+          rows={multiline ? 4 : 1}
+          autoFocus={autoFocus}
+          onKeyDown={onKeyDown}
+          aria-autocomplete="list"
+          aria-expanded={Boolean(suggest)}
+          onBlur={() => setSuggest(null)}
+          onClick={(event) =>
+            refreshSuggestions(value, event.currentTarget.selectionStart ?? value.length)
+          }
+          onChange={(event) => {
+            const text = multiline ? event.target.value : event.target.value.replace(/\n/g, ' ')
+            onChange(text)
+            refreshSuggestions(text, event.target.selectionStart ?? text.length)
+          }}
+        />
+        {suggest ? (
+          <ul className="pn-suggestions" role="listbox" aria-label="Variables">
+            {suggest.items.map((path, index) => (
+              <li
+                key={path}
+                role="option"
+                aria-selected={index === suggest.active}
+                // Keep focus in the textarea while picking.
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  accept(path)
+                }}
+              >
+                {path}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   )
 }

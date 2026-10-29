@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useField, useForm } from '@payloadcms/ui'
 import type { EmailDesign } from '../studio/model'
 import { STUDIO_CSS } from './studio/styles'
+import { useTemplateVariables } from './studio/useTemplateVariables'
 import { VisualEmailEditor } from './studio/VisualEmailEditor'
 import {
   buildTemplateApiPath,
@@ -235,13 +236,45 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
 
   const editor = useField<string>({ path: 'email.editor' })
   const design = useField<EmailDesign | null>({ path: 'email.design' })
+  const slug = useField<string>({ path: 'slug' })
+  const [trigger, setTrigger] = useState('')
+  const visual = editor.value === 'visual'
+  const variables = useTemplateVariables({
+    apiRoute,
+    collectionSlug,
+    event: slug.value || undefined,
+    trigger: trigger.trim() || undefined,
+  })
 
   return (
     <div className="pn-studio">
       <style>{STUDIO_CSS}</style>
       <div style={{ fontWeight: 600 }}>Template studio</div>
-      {editor.value === 'visual' ? (
-        <VisualEmailEditor design={design.value} onChange={(next) => design.setValue(next)} />
+      {visual ? (
+        <>
+          <div className="pn-toolbar">
+            <span className="pn-hint">
+              Variables for event <code>{slug.value || '(set a slug)'}</code>
+              {variables.paths.length ? ` · ${variables.paths.length} available` : ''}
+              {variables.error ? ` · ${variables.error}` : ''}
+            </span>
+            <label className="pn-check">
+              Trigger
+              <input
+                value={trigger}
+                placeholder="optional trigger slug"
+                onChange={(event) => setTrigger(event.target.value)}
+                style={{ width: 180 }}
+              />
+            </label>
+          </div>
+          <VisualEmailEditor
+            design={design.value}
+            onChange={(next) => design.setValue(next)}
+            variables={variables.paths}
+            roots={variables.roots}
+          />
+        </>
       ) : null}
       <StudioInner collectionSlug={collectionSlug} apiRoute={apiRoute} getDoc={getDoc} />
     </div>
