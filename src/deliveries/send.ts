@@ -311,7 +311,7 @@ export const sendDelivery = async ({
         : {}),
       payload,
       options,
-      meta: { deliveryId, eventPayload: delivery.context?.payload },
+      meta: { deliveryId, event: delivery.event, eventPayload: delivery.context?.payload },
     },
     options.providers.timeoutMs,
   )

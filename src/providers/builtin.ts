@@ -38,7 +38,10 @@ export const inAppProvider = (): NotificationProvider => ({
       overrideAccess: true,
       collection: options.collections.notifications as never,
       data: {
-        title: content.title || content.subject || 'Notification',
+        title:
+          content.title ||
+          content.subject ||
+          (typeof meta?.event === 'string' ? `Notification: ${meta.event}` : 'Notification'),
         message: content.body,
         recipient: to,
         meta: { data: meta?.eventPayload },
