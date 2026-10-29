@@ -3,10 +3,11 @@ import type {
   NormalizedNotificationsPluginOptions,
   NotificationChannel,
   NotificationTemplateDefinition,
-  NotificationTemplateRecord,
   NotificationTemplateResolution,
 } from '../types'
 import { getDefaultTemplateRegistry } from './context'
+import { buildDefinitionFromTemplateDoc } from './fromDoc'
+import { loadTemplateSnapshot, localeCandidates, normalizeLocale } from './versions'
 
 const normalizeDefinition = (
   template: string | NotificationTemplateDefinition,
@@ -18,23 +19,38 @@ const normalizeDefinition = (
   return template
 }
 
+type TemplateDoc = Record<string, unknown> & {
+  id: string | number
+  slug: string
+  locale?: string | null
+  version?: number
+}
+
 /**
- * Attempts to resolve a template from the notification-templates collection.
- * Returns null if no match is found or if payload is not available.
+ * Resolves from the notification-templates collection: active documents for
+ * the slug, tried in locale order (`hi-IN` → `hi` → default → no locale); a
+ * variant without content for the channel falls through to the next. Content
+ * comes from the published snapshot (`version` pins one); documents published
+ * before snapshots existed render from the document itself.
  */
 const resolveFromDatabase = async ({
   payload,
   templateKey,
   channel,
   options,
+  locale,
+  version,
 }: {
   payload?: Payload | null
   templateKey: string
   channel: NotificationChannel
   options: NormalizedNotificationsPluginOptions
+  locale?: string | null
+  version?: number
 }): Promise<NotificationTemplateResolution | null> => {
   if (!payload || typeof payload.find !== 'function') return null
 
+  let docs: TemplateDoc[]
   try {
     const result = await payload.find({
       overrideAccess: true,
@@ -43,38 +59,31 @@ const resolveFromDatabase = async ({
         and: [{ slug: { equals: templateKey } }, { status: { equals: 'active' } }],
       },
       sort: '-version',
-      limit: 1,
+      limit: 50,
     })
+    docs = (result.docs ?? []) as unknown as TemplateDoc[]
+  } catch {
+    // DB lookup failed (collection may not exist yet); fall back to code registry
+    return null
+  }
 
-    if (!result.docs?.length) return null
+  // A pinned version belongs to one locale variant: look only there.
+  const candidates =
+    version !== undefined && typeof locale === 'string'
+      ? [normalizeLocale(locale)]
+      : localeCandidates(locale, options.templates.defaultLocale)
+  for (const candidate of candidates) {
+    const doc = docs.find((entry) => normalizeLocale(entry.locale) === candidate)
+    if (!doc) continue
 
-    const doc = result.docs[0] as unknown as NotificationTemplateRecord
-    const channelContent = doc[channel as keyof NotificationTemplateRecord]
-
-    if (!channelContent || typeof channelContent !== 'object') return null
-
-    const content = channelContent as Record<string, string>
-    let definition: NotificationTemplateDefinition
-
-    if (channel === 'email') {
-      const textBody = content.textBody || ''
-      const htmlBody = content.htmlBody || ''
-      definition = {
-        subject: content.subject,
-        body: textBody || htmlBody || '',
-        textBody: textBody || undefined,
-        htmlBody: htmlBody || undefined,
-      }
-    } else if (channel === 'inapp') {
-      definition = {
-        title: content.title,
-        body: content.body || '',
-      }
-    } else {
-      definition = {
-        body: content.body || content.textBody || content.htmlBody || '',
-      }
-    }
+    const pinned = version ?? doc.version
+    const snapshot =
+      typeof pinned === 'number'
+        ? await loadTemplateSnapshot(payload, options, doc.id, pinned).catch(() => undefined)
+        : undefined
+    const source = (snapshot?.content ?? doc) as Record<string, unknown>
+    const definition = buildDefinitionFromTemplateDoc(source as never, channel)
+    if (!definition.body && !definition.htmlBody) continue
 
     return {
       event: templateKey,
@@ -82,12 +91,11 @@ const resolveFromDatabase = async ({
       templateKey,
       definition,
       templateSlug: doc.slug,
-      templateVersion: doc.version,
+      templateVersion: snapshot?.version ?? doc.version,
+      templateLocale: candidate,
     }
-  } catch {
-    // DB lookup failed (collection may not exist yet); fall back to code registry
-    return null
   }
+  return null
 }
 
 /**
@@ -98,11 +106,13 @@ const resolveFromRegistry = ({
   channel,
   templateKey,
   options,
+  locale,
 }: {
   event: string
   channel: NotificationChannel
   templateKey?: string
   options: NormalizedNotificationsPluginOptions
+  locale?: string | null
 }): NotificationTemplateResolution => {
   const registry = {
     ...getDefaultTemplateRegistry(),
@@ -110,6 +120,19 @@ const resolveFromRegistry = ({
   }
 
   const resolvedKey = templateKey || event
+  for (const candidate of localeCandidates(locale, options.templates.defaultLocale)) {
+    if (!candidate) break
+    const localized = options.templates.localized[candidate]?.[resolvedKey]?.[channel]
+    if (localized) {
+      return {
+        event,
+        channel,
+        templateKey: resolvedKey,
+        definition: normalizeDefinition(localized),
+        templateLocale: candidate,
+      }
+    }
+  }
   const eventTemplates = registry[resolvedKey]
 
   if (!eventTemplates) {
@@ -127,6 +150,7 @@ const resolveFromRegistry = ({
     channel,
     templateKey: resolvedKey,
     definition: normalizeDefinition(channelTemplate),
+    templateLocale: '',
   }
 }
 
@@ -143,12 +167,18 @@ export const resolveTemplate = async ({
   templateKey,
   options,
   payload,
+  locale,
+  version,
 }: {
   event: string
   channel: NotificationChannel
   templateKey?: string
   options: NormalizedNotificationsPluginOptions
   payload?: Payload | null
+  /** Recipient locale; falls back to `templates.defaultLocale`, then templates without a locale. */
+  locale?: string | null
+  /** Pinned published version (from the delivery). */
+  version?: number
 }): Promise<NotificationTemplateResolution> => {
   const resolvedKey = templateKey || event
 
@@ -158,12 +188,14 @@ export const resolveTemplate = async ({
     templateKey: resolvedKey,
     channel,
     options,
+    locale,
+    version,
   })
 
   if (dbResult) return dbResult
 
   // Fall back to code registry
-  return resolveFromRegistry({ event, channel, templateKey, options })
+  return resolveFromRegistry({ event, channel, templateKey, options, locale })
 }
 
 /**

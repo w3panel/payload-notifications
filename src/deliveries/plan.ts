@@ -3,6 +3,7 @@ import type {
   AdminTriggerRecord,
   EffectiveTrigger,
   NormalizedNotificationsPluginOptions,
+  NotificationChannel,
   NotificationEvent,
   ResolvedRecipient,
 } from '../types'
@@ -12,6 +13,7 @@ import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
 import { evaluateTriggerPlan } from './evaluate'
+import { resolveTemplate } from '../templates/resolve'
 import { emitLifecycle } from '../observability'
 import { deliveryCategory } from '../policy/deliveryPolicy'
 import { resolveRetryPolicy } from './retry'
@@ -251,6 +253,31 @@ const planTrigger = async ({
   const { classification } = plan
   const now = new Date()
 
+  // Pin each template (and locale) at planning time so queued and scheduled
+  // deliveries render the version that was live when the event happened.
+  const pins = new Map<string, Promise<{ version?: number; locale?: string } | undefined>>()
+  const pinTemplate = (template: string, channel: NotificationChannel, locale?: string) => {
+    const key = `${template}|${channel}|${locale ?? ''}`
+    let pin = pins.get(key)
+    if (!pin) {
+      pin = resolveTemplate({
+        event: event.name,
+        channel,
+        templateKey: template,
+        options,
+        payload,
+        locale,
+      })
+        .then((resolved) => ({
+          version: resolved.templateVersion,
+          locale: resolved.templateLocale,
+        }))
+        .catch(() => undefined)
+      pins.set(key, pin)
+    }
+    return pin
+  }
+
   for (const { delivery, recipient, recipientScope, destination, sendAt } of plan.items) {
     const idempotencyKey = buildDeliveryKey({
       event,
@@ -287,6 +314,7 @@ const planTrigger = async ({
       : destination
         ? undefined
         : `No ${delivery.channel} destination for recipient`
+    const pinned = await pinTemplate(delivery.template, delivery.channel, recipient.locale)
     const record = {
       event: event.name,
       eventId: event.eventId,
@@ -296,6 +324,8 @@ const planTrigger = async ({
       triggerPolicy: snapshot.policy,
       channel: delivery.channel,
       templateSlug: delivery.template,
+      templateVersion: pinned?.version,
+      templateLocale: pinned?.locale,
       status: skipReason ? 'skipped' : 'queued',
       attempts: 0,
       recipientKey: recipient.key,

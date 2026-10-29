@@ -32,6 +32,7 @@ import {
   NotificationPreferencesCollection,
   NotificationSuppressionsCollection,
 } from './collections/NotificationConsent'
+import { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
 import { NotificationTriggersCollection } from './collections/NotificationTriggers'
 import { NotificationTriggerVersionsCollection } from './collections/NotificationTriggerVersions'
 import {
@@ -428,6 +429,16 @@ export const registerCollections = (
         userCollectionSlug: options.userCollectionSlug,
         getOptions: resolveOptions,
         endpoints: adminTriggerEndpoints?.(resolveOptions) ?? [],
+      }),
+    )
+  }
+
+  if (!hasCollectionSlug(next, options.collections.templateVersions)) {
+    next.push(
+      NotificationTemplateVersionsCollection({
+        slug: options.collections.templateVersions,
+        templatesSlug: options.collections.templates,
+        userCollectionSlug: options.userCollectionSlug,
       }),
     )
   }

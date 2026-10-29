@@ -65,6 +65,8 @@ export type NotificationsPluginOptions = {
     preferences?: string
     /** Suppressed destinations (bounces, STOP replies). */
     suppressions?: string
+    /** Published template snapshots. */
+    templateVersions?: string
     /** Event inbox slug (only with `eventsInbox: true`). */
     events?: string
   }
@@ -79,6 +81,10 @@ export type NotificationsPluginOptions = {
      * Default false (idempotent skip-existing when enabled).
      */
     seedOnInit?: boolean
+    /** Locale used when a recipient has none (e.g. `en`). Templates without a locale are the last fallback. */
+    defaultLocale?: string
+    /** Code registry variants per locale, e.g. `{ hi: { 'order.paid': { sms: '…' } } }`. */
+    localized?: Record<string, NotificationTemplateRegistry>
   }
   providers?: {
     email?: EmailProviderConfig
@@ -177,6 +183,8 @@ export type NotificationsPluginOptions = {
     manageTriggers?: NotificationAccessCheck
     publishTriggers?: NotificationAccessCheck
     testSend?: NotificationAccessCheck
+    /** Publish / roll back notification templates. */
+    publishTemplates?: NotificationAccessCheck
   }
   /** Admin-created triggers (`notification-triggers`). */
   adminTriggers?: {
@@ -242,6 +250,7 @@ export type NormalizedNotificationsPluginOptions = {
     triggerVersions: string
     preferences: string
     suppressions: string
+    templateVersions: string
   }
   jobs: {
     queue: string
@@ -252,6 +261,8 @@ export type NormalizedNotificationsPluginOptions = {
     sms?: string
     registry: NotificationTemplateRegistry
     seedOnInit: boolean
+    defaultLocale?: string
+    localized: Record<string, NotificationTemplateRegistry>
   }
   providers: {
     email?: EmailProviderConfig
@@ -333,6 +344,7 @@ export type NormalizedNotificationsPluginOptions = {
     manageTriggers: NotificationAccessCheck
     publishTriggers: NotificationAccessCheck
     testSend: NotificationAccessCheck
+    publishTemplates: NotificationAccessCheck
   }
   adminTriggers: {
     cancelQueuedOnDisable: boolean

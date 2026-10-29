@@ -179,6 +179,7 @@ const normalizeAccess = (
     manageTriggers: access?.manageTriggers ?? isAdmin,
     publishTriggers: access?.publishTriggers ?? isAdmin,
     testSend: access?.testSend ?? isAdmin,
+    publishTemplates: access?.publishTemplates ?? isAdmin,
   }
 }
 
@@ -317,6 +318,8 @@ export const normalizePluginOptions = (
     options.collections?.triggerVersions || 'notification-trigger-versions'
   const preferencesSlug = options.collections?.preferences || 'notification-preferences'
   const suppressionsSlug = options.collections?.suppressions || 'notification-suppressions'
+  const templateVersionsSlug =
+    options.collections?.templateVersions || 'notification-template-versions'
 
   const allSlugs = [
     notificationsSlug,
@@ -328,6 +331,7 @@ export const normalizePluginOptions = (
     triggerVersionsSlug,
     preferencesSlug,
     suppressionsSlug,
+    templateVersionsSlug,
   ]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
@@ -418,6 +422,13 @@ export const normalizePluginOptions = (
     whatsapp: options.templates?.whatsapp,
     sms: options.templates?.sms,
     seedOnInit: options.templates?.seedOnInit === true,
+    defaultLocale: options.templates?.defaultLocale || undefined,
+    localized: Object.fromEntries(
+      Object.entries(options.templates?.localized ?? {}).map(([locale, registry]) => [
+        locale.replace('_', '-').toLowerCase(),
+        registry,
+      ]),
+    ),
     registry: {
       ...getDefaultTemplateRegistry(),
       ...options.templates?.registry,
@@ -443,6 +454,7 @@ export const normalizePluginOptions = (
       triggerVersions: triggerVersionsSlug,
       preferences: preferencesSlug,
       suppressions: suppressionsSlug,
+      templateVersions: templateVersionsSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,

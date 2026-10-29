@@ -1,8 +1,19 @@
-import type { Access, CollectionConfig, Endpoint, Field } from 'payload'
+import {
+  ValidationError,
+  type Access,
+  type CollectionAfterChangeHook,
+  type CollectionBeforeChangeHook,
+  type CollectionBeforeValidateHook,
+  type CollectionConfig,
+  type Endpoint,
+  type Field,
+} from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
 import { templatePreviewEndpoint } from '../endpoints/templatePreview'
 import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
 import { EVENT_NAME_PATTERN } from '../events/names'
+import { templateLifecycleEndpoints } from '../templates/lifecycle'
+import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -160,11 +171,19 @@ const baseFields = (collectionSlug: string): Field[] => [
     name: 'slug',
     type: 'text',
     required: true,
-    unique: true,
     index: true,
     validate: validateTemplateSlug,
     admin: {
-      description: 'Event key this template renders for, e.g. order.paid.',
+      description: 'Event key this template renders for, e.g. order.paid. Unique per locale.',
+    },
+  },
+  {
+    name: 'locale',
+    type: 'text',
+    index: true,
+    admin: {
+      description:
+        'Language variant, e.g. hi or hi-IN. Leave empty for the default template used when no variant matches.',
     },
   },
   {
@@ -199,7 +218,16 @@ const baseFields = (collectionSlug: string): Field[] => [
     type: 'number',
     defaultValue: 1,
     index: true,
-    admin: { readOnly: true },
+    admin: { readOnly: true, description: 'Published version' },
+  },
+  {
+    name: 'hasUnpublishedChanges',
+    type: 'checkbox',
+    defaultValue: false,
+    admin: {
+      readOnly: true,
+      description: 'Edits to an active template go live when you publish them',
+    },
   },
   emailGroup,
   smsGroup,
@@ -209,29 +237,86 @@ const baseFields = (collectionSlug: string): Field[] => [
   templateStudioField(collectionSlug),
 ]
 
+/** `req.context` flag set by the publish endpoint (it manages versions itself). */
+export const TEMPLATE_PUBLISHING_CONTEXT = 'payloadNotificationsPublishingTemplate'
+
 /**
- * Auto-increment version when status transitions to 'active'.
+ * Versioning on save:
+ * - becoming `active` bumps `version` (the after-change hook snapshots it)
+ * - editing the content of an active template flags `hasUnpublishedChanges`;
+ *   sends keep using the published snapshot until the template is published
  */
-const autoIncrementVersion = ({
-  data,
-  originalDoc,
-}: {
-  data?: Record<string, unknown>
-  originalDoc?: Record<string, unknown>
-}) => {
-  if (!data) return data
+const trackTemplateVersions: CollectionBeforeChangeHook = ({ data, originalDoc, context }) => {
+  if (!data || context?.[TEMPLATE_PUBLISHING_CONTEXT]) return data
 
   const nextData = { ...data }
   const wasActive = originalDoc?.status === 'active'
-  const isNowActive = nextData.status === 'active'
+  const isNowActive = (nextData.status ?? originalDoc?.status) === 'active'
 
   if (isNowActive && !wasActive) {
     const currentVersion = typeof originalDoc?.version === 'number' ? originalDoc.version : 0
     nextData.version = currentVersion + 1
+    nextData.hasUnpublishedChanges = false
+  } else if (
+    wasActive &&
+    isNowActive &&
+    !sameContent(contentOf(originalDoc ?? {}), contentOf({ ...originalDoc, ...nextData }))
+  ) {
+    nextData.hasUnpublishedChanges = true
   }
 
   return nextData
 }
+
+/** Slugs are unique per locale (`order.paid` may have an `hi` and a default variant). */
+const uniqueSlugPerLocale =
+  (collectionSlug: string): CollectionBeforeValidateHook =>
+  async ({ data, originalDoc, req }) => {
+    const slug = data?.slug ?? originalDoc?.slug
+    if (!slug || typeof req.payload?.find !== 'function') return data
+    const locale = normalizeLocale(data?.locale ?? originalDoc?.locale)
+    const existing = await req.payload.find({
+      collection: collectionSlug as never,
+      where: { slug: { equals: slug } },
+      limit: 100,
+      depth: 0,
+      overrideAccess: true,
+      pagination: false,
+      req,
+    })
+    const clash = (existing.docs as Array<{ id: string | number; locale?: string }>).find(
+      (doc) => doc.id !== originalDoc?.id && normalizeLocale(doc.locale) === locale,
+    )
+    if (clash) {
+      throw new ValidationError({
+        collection: collectionSlug,
+        errors: [
+          {
+            path: 'slug',
+            message: `A template with slug "${slug}"${locale ? ` and locale "${locale}"` : ' and no locale'} already exists`,
+          },
+        ],
+      })
+    }
+    return data
+  }
+
+/** Snapshots a template when it becomes active (create or status change). */
+const snapshotOnActivate =
+  (getOptions?: () => NormalizedNotificationsPluginOptions): CollectionAfterChangeHook =>
+  async ({ doc, previousDoc, operation, req }) => {
+    if (!getOptions || doc.status !== 'active') return doc
+    if (operation === 'update' && previousDoc?.status === 'active') return doc
+    await snapshotTemplate({
+      payload: req.payload,
+      options: getOptions(),
+      doc,
+      version: doc.version,
+      user: req.user as { id: string | number } | null,
+      req,
+    })
+    return doc
+  }
 
 export const NotificationTemplatesCollection = ({
   slug = 'notification-templates',
@@ -245,6 +330,7 @@ export const NotificationTemplatesCollection = ({
   const endpoints: Endpoint[] = [
     templatePreviewEndpoint('/preview', getOptions || defaultOptionsGetter),
     templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
+    ...templateLifecycleEndpoints(getOptions || defaultOptionsGetter),
     ...(overrides?.endpoints || []),
   ]
 
@@ -265,11 +351,21 @@ export const NotificationTemplatesCollection = ({
     },
     admin: {
       useAsTitle: 'name',
-      defaultColumns: ['name', 'slug', 'category', 'status', 'version', 'updatedAt'],
+      defaultColumns: [
+        'name',
+        'slug',
+        'locale',
+        'status',
+        'version',
+        'hasUnpublishedChanges',
+        'updatedAt',
+      ],
       ...overrides?.admin,
     },
     hooks: {
-      beforeChange: [autoIncrementVersion],
+      beforeValidate: [uniqueSlugPerLocale(slug)],
+      beforeChange: [trackTemplateVersions],
+      afterChange: [snapshotOnActivate(getOptions)],
     },
     endpoints,
     fields: overrides?.fields || baseFields(slug),

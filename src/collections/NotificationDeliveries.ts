@@ -50,6 +50,7 @@ const baseFields: Field[] = [
   },
   { name: 'templateSlug', type: 'text', index: true },
   { name: 'templateVersion', type: 'number' },
+  { name: 'templateLocale', type: 'text' },
   {
     name: 'status',
     type: 'select',

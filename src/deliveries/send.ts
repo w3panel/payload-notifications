@@ -51,6 +51,8 @@ type DeliveryDoc = {
   recipientAlias?: string | null
   recheckConditions?: boolean | null
   category?: string | null
+  templateVersion?: number | null
+  templateLocale?: string | null
   maxAttempts?: number | null
   retryPolicy?: Pick<ResolvedRetryPolicy, 'backoff' | 'jitter'> | null
 } & FallbackSource
@@ -248,12 +250,16 @@ export const sendDelivery = async ({
     return stop('skipped', policy.reason || 'Notification blocked by policy', 'policy')
   }
 
+  const recipientLocale = (delivery.context as { recipient?: { locale?: string } } | null)
+    ?.recipient?.locale
   const resolved = await resolveTemplate({
     event: delivery.event,
     channel: delivery.channel,
     templateKey: delivery.templateSlug,
     options,
     payload,
+    locale: delivery.templateLocale ?? recipientLocale,
+    version: delivery.templateVersion ?? undefined,
   })
   const definition = mergeTemplateDefinition(resolved.definition, sendInput.templateOverrides)
   let context: NotificationTemplateContext = delivery.context ?? {

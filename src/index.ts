@@ -210,6 +210,22 @@ export { buildDefinitionFromTemplateDoc } from './templates/fromDoc'
 export { previewTemplateDoc } from './templates/preview'
 export { resolveTemplate, resolveTemplateSync } from './templates/resolve'
 export { seedTemplatesFromRegistry } from './templates/seed'
+export {
+  contentOf,
+  loadTemplateSnapshot,
+  localeCandidates,
+  normalizeLocale,
+  snapshotTemplate,
+  TEMPLATE_CONTENT_FIELDS,
+} from './templates/versions'
+export type { TemplateContent, TemplateSnapshot } from './templates/versions'
+export {
+  publishTemplate,
+  rollbackTemplate,
+  templateLifecycleEndpoints,
+} from './templates/lifecycle'
+export type { TemplatePublishResult } from './templates/lifecycle'
+export { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
 export type { SeedTemplatesResult } from './templates/seed'
 export {
   compile as compileTemplate,

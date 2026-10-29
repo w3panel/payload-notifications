@@ -94,6 +94,8 @@ export type NotificationTemplateResolution = {
   definition: NotificationTemplateDefinition
   templateSlug?: string
   templateVersion?: number
+  /** Locale of the template that matched ('' = no locale). */
+  templateLocale?: string
 }
 
 export type NotificationTemplateResolver = (input: {
