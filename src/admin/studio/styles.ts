@@ -57,4 +57,26 @@ export const STUDIO_CSS = `
 .pn-tabs{display:flex;gap:4px;flex-wrap:wrap}
 .pn-checks{margin:0;padding-left:16px;font-size:12px}
 .pn-checks .pn-error{color:#b91c1c}.pn-checks .pn-warning{color:#b45309}
+.pn-channel-grid{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.pn-channel-result{display:grid;gap:6px;min-width:0}
+.pn-channel{display:grid;gap:6px;justify-items:start}
+.pn-phone{width:300px;border-radius:28px;border:8px solid #18181b;background:#18181b;overflow:hidden}
+.pn-phone-bar{color:#fff;font-size:12px;text-align:center;padding:4px 0 6px}
+.pn-phone-screen{min-height:260px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.pn-phone-sms .pn-phone-screen{background:#f4f4f5}
+.pn-phone-whatsapp .pn-phone-screen{background:#efeae2}
+.pn-bubble{max-width:85%;padding:8px 10px;border-radius:14px;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.4;color:#18181b}
+.pn-bubble-sms{background:#e4e4e7;border-bottom-left-radius:4px}
+.pn-bubble-whatsapp{background:#fff;border-top-left-radius:4px;box-shadow:0 1px 1px rgba(0,0,0,.1)}
+.pn-hsm-params{margin:4px 0 0;padding:0;list-style:none}
+.pn-warning-text{color:#b45309}
+.pn-inapp-card{display:flex;gap:10px;width:340px;padding:12px;border:1px solid var(--pn-border);border-radius:10px;background:var(--theme-elevation-0,#fff);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.pn-inapp-icon{flex:0 0 36px;height:36px;border-radius:50%;background:#e0e7ff;display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden}
+.pn-inapp-icon img{width:100%;height:100%;object-fit:cover}
+.pn-inapp-body{display:grid;gap:2px;min-width:0}
+.pn-inapp-title{font-weight:600;display:flex;gap:6px;align-items:center}
+.pn-inapp-action{font-size:12px;color:#2563eb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pn-badge{font-size:10px;padding:0 6px;border-radius:8px;background:#e4e4e7;font-weight:500;text-transform:uppercase}
+.pn-badge-high,.pn-badge-urgent{background:#fee2e2;color:#b91c1c}
+.pn-badge-low{background:#f4f4f5;color:#71717a}
 `

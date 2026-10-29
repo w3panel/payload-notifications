@@ -28,6 +28,68 @@ type PreviewPanelProps = {
 
 type SampleKind = PreviewSampleChoice['kind']
 
+type PreviewResult = {
+  channel: NotificationChannel
+  rendered?: RenderedPreview
+  checks?: EmailCheck[]
+  error?: string
+}
+
+const CHANNEL_LABELS: Record<NotificationChannel, string> = {
+  email: 'Email',
+  sms: 'SMS',
+  whatsapp: 'WhatsApp',
+  inapp: 'In-app',
+  push: 'Push',
+}
+
+/** Previewable channels the template has. */
+export const templateChannels = (doc: Record<string, unknown>): NotificationChannel[] =>
+  Array.isArray(doc.channels)
+    ? CHANNEL_OPTIONS.filter((channel) => (doc.channels as unknown[]).includes(channel))
+    : []
+
+const EmailPreview: React.FC<{
+  rendered: RenderedPreview
+  checks: EmailCheck[]
+  dark: boolean
+  device: keyof typeof PREVIEW_WIDTHS
+}> = ({ rendered, checks, dark, device }) => (
+  <div style={{ display: 'grid', gap: 6 }}>
+    {checks.length ? (
+      <ul className="pn-checks" aria-label="Email checks">
+        {checks.map((check, index) => (
+          <li key={index} className={check.level === 'error' ? 'pn-error' : 'pn-warning'}>
+            {check.level === 'error' ? 'Error: ' : 'Warning: '}
+            {check.message}
+          </li>
+        ))}
+      </ul>
+    ) : null}
+    <div className="pn-email-meta">
+      <div>
+        <span className="pn-label">Subject</span> {rendered.subject || '(none)'}
+      </div>
+      {rendered.preheader ? (
+        <div>
+          <span className="pn-label">Preheader</span> {rendered.preheader}
+        </div>
+      ) : null}
+    </div>
+    {rendered.html ? (
+      <iframe
+        title="Email preview"
+        sandbox=""
+        className="pn-preview-frame"
+        srcDoc={previewSrcDoc(rendered.html, { dark })}
+        style={{ width: PREVIEW_WIDTHS[device], height: 640 }}
+      />
+    ) : (
+      <pre className="pn-code-preview">{rendered.text}</pre>
+    )}
+  </div>
+)
+
 /** Preview controls: channel, sample data, device width, dark mode, and the checks. */
 export const PreviewPanel: React.FC<PreviewPanelProps> = ({
   getDoc,
@@ -35,7 +97,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
   apiRoute,
   children,
 }) => {
-  const [channel, setChannel] = useState<NotificationChannel>('email')
+  const [channel, setChannel] = useState<NotificationChannel | 'all'>('email')
   const [kind, setKind] = useState<SampleKind>('event')
   const [contextJson, setContextJson] = useState(DEFAULT_PREVIEW_CONTEXT)
   const [collection, setCollection] = useState('')
@@ -43,8 +105,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
   const [trigger, setTrigger] = useState('')
   const [device, setDevice] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [dark, setDark] = useState(false)
-  const [rendered, setRendered] = useState<RenderedPreview | null>(null)
-  const [checks, setChecks] = useState<EmailCheck[]>([])
+  const [results, setResults] = useState<PreviewResult[]>([])
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -56,36 +117,50 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
         : { kind }
 
   const runPreview = useCallback(async () => {
-    const request = buildPreviewBody({ channel, doc: getDoc(), contextJson, sample })
-    if (!request.ok) {
-      setStatus(request.error)
+    const doc = getDoc()
+    const channels = channel === 'all' ? templateChannels(doc) : [channel]
+    if (!channels.length) {
+      setStatus('Choose the template channels first')
+      return
+    }
+    const requests = channels.map((entry) => ({
+      channel: entry,
+      request: buildPreviewBody({ channel: entry, doc, contextJson, sample }),
+    }))
+    const invalid = requests.find((entry) => !entry.request.ok)
+    if (invalid && !invalid.request.ok) {
+      setStatus(invalid.request.error)
       return
     }
     setBusy(true)
     setStatus('')
     try {
-      const res = await fetch(buildTemplateApiPath(collectionSlug, 'preview', apiRoute), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request.body),
-      })
-      const data = (await res.json()) as {
-        error?: string
-        errors?: string[]
-        rendered?: RenderedPreview
-        checks?: EmailCheck[]
-      }
-      if (!res.ok) {
-        setStatus(
-          [data.error || `Preview failed (${res.status})`, ...(data.errors ?? [])].join(' — '),
-        )
-        setRendered(null)
-        setChecks([])
-        return
-      }
-      setRendered(data.rendered ?? null)
-      setChecks(data.checks ?? [])
+      const next = await Promise.all(
+        requests.map(async ({ channel: entry, request }): Promise<PreviewResult> => {
+          const res = await fetch(buildTemplateApiPath(collectionSlug, 'preview', apiRoute), {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request.ok ? request.body : {}),
+          })
+          const data = (await res.json()) as {
+            error?: string
+            errors?: string[]
+            rendered?: RenderedPreview
+            checks?: EmailCheck[]
+          }
+          return res.ok
+            ? { channel: entry, rendered: data.rendered ?? {}, checks: data.checks ?? [] }
+            : {
+                channel: entry,
+                error: [
+                  data.error || `Preview failed (${res.status})`,
+                  ...(data.errors ?? []),
+                ].join(' — '),
+              }
+        }),
+      )
+      setResults(next)
       setStatus('Preview updated')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Preview request failed')
@@ -105,6 +180,8 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
     trigger,
   ])
 
+  const showsEmail = channel === 'email' || channel === 'all'
+
   return (
     <div className="pn-preview" style={{ display: 'grid', gap: '0.6rem' }}>
       <div className="pn-panel-title">Preview</div>
@@ -116,6 +193,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
             onChange={(event) => setChannel(event.target.value as NotificationChannel)}
             style={{ width: 'auto' }}
           >
+            <option value="all">All template channels</option>
             {CHANNEL_OPTIONS.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -139,7 +217,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
         <button type="button" disabled={busy} onClick={() => void runPreview()}>
           {busy ? 'Rendering…' : 'Preview'}
         </button>
-        {channel === 'email' ? (
+        {showsEmail ? (
           <>
             <span className="pn-tabs" role="group" aria-label="Width">
               {(Object.keys(PREVIEW_WIDTHS) as Array<keyof typeof PREVIEW_WIDTHS>).map((name) => (
@@ -217,48 +295,35 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
         </p>
       ) : null}
 
-      {checks.length ? (
-        <ul className="pn-checks" aria-label="Email checks">
-          {checks.map((check, index) => (
-            <li key={index} className={check.level === 'error' ? 'pn-error' : 'pn-warning'}>
-              {check.level === 'error' ? 'Error: ' : 'Warning: '}
-              {check.message}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {rendered ? (
-        channel === 'email' ? (
-          <div style={{ display: 'grid', gap: 6 }}>
-            <div className="pn-email-meta">
-              <div>
-                <span className="pn-label">Subject</span> {rendered.subject || '(none)'}
-              </div>
-              {rendered.preheader ? (
-                <div>
-                  <span className="pn-label">Preheader</span> {rendered.preheader}
-                </div>
-              ) : null}
-            </div>
-            {rendered.html ? (
-              <iframe
-                title="Email preview"
-                sandbox=""
-                className="pn-preview-frame"
-                srcDoc={previewSrcDoc(rendered.html, { dark })}
-                style={{ width: PREVIEW_WIDTHS[device], height: 640 }}
+      <div className="pn-channel-grid">
+        {results.map((result) => (
+          <section
+            key={result.channel}
+            className="pn-channel-result"
+            aria-label={`${result.channel} preview`}
+          >
+            {results.length > 1 ? (
+              <div className="pn-panel-title">{CHANNEL_LABELS[result.channel]}</div>
+            ) : null}
+            {result.error ? (
+              <p className="pn-problems" role="alert">
+                {result.error}
+              </p>
+            ) : result.channel === 'email' ? (
+              <EmailPreview
+                rendered={result.rendered ?? {}}
+                checks={result.checks ?? []}
+                dark={dark}
+                device={device}
               />
             ) : (
-              <pre className="pn-code-preview">{rendered.text}</pre>
+              <ChannelPreview channel={result.channel} rendered={result.rendered ?? {}} />
             )}
-          </div>
-        ) : (
-          <ChannelPreview channel={channel} rendered={rendered} />
-        )
-      ) : null}
+          </section>
+        ))}
+      </div>
 
-      {children?.({ channel, sample, contextJson })}
+      {children?.({ channel: channel === 'all' ? 'email' : channel, sample, contextJson })}
     </div>
   )
 }
