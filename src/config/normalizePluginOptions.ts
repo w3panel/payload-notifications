@@ -13,6 +13,7 @@ import {
 } from '../recipients/options'
 import { normalizeCollectionEvents } from '../events/collectionEvents'
 import { DEFAULT_MAX_EVENT_DEPTH } from '../events/depth'
+import { starterEvents, starterTemplates } from '../templates/starterPack'
 import { normalizeReliabilityOptions } from '../deliveries/retry'
 import { isValidTimeZone, parseClock } from '../deliveries/schedule'
 import { compileCodeTriggers } from '../triggers/compile'
@@ -433,6 +434,7 @@ export const normalizePluginOptions = (
     ),
     registry: {
       ...getDefaultTemplateRegistry(),
+      ...(options.templates?.starterPack ? starterTemplates(options.templates.starterPack) : {}),
       ...options.templates?.registry,
     },
   }
@@ -486,7 +488,11 @@ export const normalizePluginOptions = (
       log: options.observability?.log === true,
     },
     rules,
-    events: normalizeEventRegistry(options.events),
+    events: normalizeEventRegistry(
+      options.templates?.starterPack
+        ? { ...starterEvents(options.templates.starterPack), ...options.events }
+        : options.events,
+    ),
     eventsStrict: options.eventsStrict === true,
     data,
     dataResolvers,

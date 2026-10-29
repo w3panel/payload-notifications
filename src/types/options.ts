@@ -91,6 +91,12 @@ export type NotificationsPluginOptions = {
     emailLayout?:
       | string
       | ((args: { html: string; subject?: string; preheader?: string }) => string)
+    /**
+     * Add the starter pack: event definitions (with sample payloads) and
+     * email / SMS / WhatsApp / in-app templates. `true` for all, or a list of
+     * packs. Your own `registry` and `events` take precedence.
+     */
+    starterPack?: boolean | Array<'ecommerce' | 'auth' | 'saas'>
     /** Shortens links in SMS / WhatsApp text before sending. */
     shortenLink?: (url: string) => string | Promise<string>
     localized?: Record<string, NotificationTemplateRegistry>

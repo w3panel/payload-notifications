@@ -211,7 +211,14 @@ export { mergeTemplateDefinition, renderDefinition } from './templates/renderDef
 export { buildDefinitionFromTemplateDoc } from './templates/fromDoc'
 export { previewTemplateDoc } from './templates/preview'
 export { resolveTemplate, resolveTemplateSync } from './templates/resolve'
-export { seedTemplatesFromRegistry } from './templates/seed'
+export { contentHash, seedTemplatesFromRegistry } from './templates/seed'
+export {
+  STARTER_PACKS,
+  starterEvents,
+  starterTemplates,
+  starterTemplateSlugs,
+} from './templates/starterPack'
+export type { StarterPackName } from './templates/starterPack'
 export {
   contentOf,
   loadTemplateSnapshot,

@@ -250,6 +250,18 @@ const baseFields = (collectionSlug: string): Field[] => [
     admin: { readOnly: true, description: 'Published version' },
   },
   {
+    name: 'source',
+    type: 'select',
+    defaultValue: 'admin',
+    options: ['admin', 'seed'],
+    admin: { readOnly: true, description: 'seed = created from the code registry' },
+  },
+  {
+    name: 'seedHash',
+    type: 'text',
+    admin: { hidden: true },
+  },
+  {
     name: 'whatsappTemplateStatus',
     type: 'text',
     admin: {
