@@ -16,7 +16,12 @@ import type {
 } from './policy'
 import type { EmailProviderConfig, SMSProviderConfig, WhatsAppProviderConfig } from './providers'
 import type { NotificationTemplateRegistry } from './templates'
-import type { NotificationRule } from './triggers'
+import type {
+  NotificationRecipientQueryDefinition,
+  NotificationRecipientResolverDefinition,
+  NotificationRecipientsOptions,
+} from './recipients'
+import type { NotificationRule, NotificationTrigger, NotificationTriggerInput } from './triggers'
 
 export type NotificationsJobsOptions = {
   /** Named Payload jobs queue. Defaults to `notifications`. */
@@ -71,6 +76,17 @@ export type NotificationsPluginOptions = {
   dataResolvers?: NotificationDataResolverRegistry
   /** Developer-registered pure functions over the resolved context. */
   computed?: NotificationComputedRegistry
+  /** Code-defined triggers (v2). Legacy `rules` are compiled into triggers too. */
+  triggers?: NotificationTriggerInput[]
+  /** Recipient resolution settings (destination fields, roles, caps). */
+  recipients?: NotificationRecipientsOptions
+  /** Developer-registered recipient resolvers, selectable as `{ type: 'resolver', name }`. */
+  recipientResolvers?: Record<
+    string,
+    NotificationRecipientResolverDefinition | NotificationRecipientResolverDefinition['handler']
+  >
+  /** Developer-registered named user queries, selectable as `{ type: 'query', name }`. */
+  recipientQueries?: Record<string, NotificationRecipientQueryDefinition>
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -121,4 +137,21 @@ export type NormalizedNotificationsPluginOptions = {
   }
   dataResolvers: Record<string, NotificationDataResolverDefinition>
   computed: Record<string, NotificationComputedDefinition>
+  /** Code triggers: compiled `rules` followed by `triggers`. */
+  triggers: NotificationTrigger[]
+  recipients: {
+    destinationFields: {
+      email: string[]
+      sms: string[]
+      whatsapp: string[]
+      name: string[]
+      locale: string[]
+      timezone: string[]
+    }
+    defaultCountryCode?: string
+    roleField: string
+    maxPerEvent: number
+  }
+  recipientResolvers: Record<string, NotificationRecipientResolverDefinition>
+  recipientQueries: Record<string, NotificationRecipientQueryDefinition>
 }

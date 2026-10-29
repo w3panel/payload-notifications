@@ -56,6 +56,30 @@ export type {
   NotificationTemplateResolver,
   NotificationTemplateSet,
   NotificationTriggerDefinition,
+  AdminTriggerRecord,
+  EffectiveTrigger,
+  NotificationDeliveryDefinition,
+  NotificationTrigger,
+  NotificationTriggerInput,
+  TriggerAdminPolicy,
+  TriggerCollectionSource,
+  TriggerEventSource,
+  TriggerOrigin,
+  TriggerOverridableField,
+  TriggerSource,
+  ContextRecipient,
+  EventUserRecipient,
+  NotificationRecipientDefinition,
+  NotificationRecipientQueryDefinition,
+  NotificationRecipientResolverDefinition,
+  NotificationRecipientsOptions,
+  QueryRecipient,
+  RecipientDestinations,
+  RecipientResolverResult,
+  ResolvedRecipient,
+  ResolverRecipient,
+  RoleRecipient,
+  StaticRecipient,
   NotificationTriggerInfo,
   NotificationsJobsOptions,
   PreferenceFieldMapping,
@@ -126,7 +150,14 @@ export {
   renderTemplate as renderEngineTemplate,
 } from './templates/engine'
 export type { CompiledTemplate, CompileOptions, TemplateNode } from './templates/engine'
-export { defineTrigger } from './triggers'
+export {
+  checkTriggerShape,
+  defineTrigger,
+  isValidEventPattern,
+  ruleSlug,
+  ruleToTrigger,
+} from './triggers'
+export { compileCodeTriggers } from './triggers/compile'
 export {
   collectFieldPaths,
   listRegisteredEvents,

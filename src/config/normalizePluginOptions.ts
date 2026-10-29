@@ -2,6 +2,12 @@ import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions }
 import { normalizeComputedRegistry, normalizeResolverRegistry } from '../data/resolvers'
 import { createSensitiveFieldMatcher, isSensitivePath } from '../data/sensitive'
 import { validateDataSources } from '../data/sources'
+import {
+  normalizeRecipientQueries,
+  normalizeRecipientResolvers,
+  normalizeRecipientsOptions,
+} from '../recipients/options'
+import { compileCodeTriggers } from '../triggers/compile'
 import { isValidEventName } from '../events/names'
 import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
@@ -200,6 +206,24 @@ export const normalizePluginOptions = (
     )
   }
 
+  const triggers = compileCodeTriggers(rules, options.triggers)
+  const triggerErrors = triggers.slice(rules.length).flatMap((trigger) =>
+    trigger.data
+      ? validateDataSources(trigger.data.sources, {
+          allowlist: data.collections,
+          resolvers: Object.keys(dataResolvers),
+          computed: Object.keys(computed),
+          isSensitive,
+          owner: `trigger "${trigger.slug}"`,
+        })
+      : [],
+  )
+  if (triggerErrors.length) {
+    throw new Error(
+      `payload-notifications: invalid trigger data sources\n  - ${triggerErrors.join('\n  - ')}`,
+    )
+  }
+
   return {
     enabled: options.enabled ?? true,
     channels,
@@ -246,6 +270,10 @@ export const normalizePluginOptions = (
     data,
     dataResolvers,
     computed,
+    triggers,
+    recipients: normalizeRecipientsOptions(options.recipients),
+    recipientResolvers: normalizeRecipientResolvers(options.recipientResolvers),
+    recipientQueries: normalizeRecipientQueries(options.recipientQueries),
   }
 }
 
