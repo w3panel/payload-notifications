@@ -1,4 +1,4 @@
-import type { Access, CollectionConfig, Field, FieldAccess } from 'payload'
+import type { Access, CollectionConfig, Endpoint, Field, FieldAccess } from 'payload'
 import { versionedCollectionDefaults } from '../compat'
 
 export type NotificationDeliveriesCollectionOverrides = {
@@ -10,6 +10,18 @@ export type NotificationDeliveriesCollectionOverrides = {
 type BuildNotificationDeliveriesCollectionArgs = {
   slug?: string
   overrides?: NotificationDeliveriesCollectionOverrides
+  /** Inspect / retry / cancel endpoints. */
+  endpoints?: Endpoint[]
+}
+
+/** Admin panel with attempts, context and retry / cancel actions. */
+const inspectorField: Field = {
+  name: 'inspector',
+  type: 'ui',
+  admin: {
+    components: { Field: '@wtree/payload-notifications/admin#DeliveryInspectorField' },
+    custom: { apiRoute: '/api' },
+  },
 }
 
 export const DELIVERY_STATUSES = [
@@ -123,6 +135,7 @@ const baseFields: Field[] = [
 export const NotificationDeliveriesCollection = ({
   slug = 'notification-deliveries',
   overrides,
+  endpoints,
 }: BuildNotificationDeliveriesCollectionArgs = {}): CollectionConfig => ({
   slug,
   versions: false,
@@ -140,13 +153,28 @@ export const NotificationDeliveriesCollection = ({
   },
   admin: {
     useAsTitle: 'event',
-    defaultColumns: ['event', 'trigger', 'channel', 'status', 'destinationMasked', 'createdAt'],
+    defaultColumns: [
+      'event',
+      'trigger',
+      'channel',
+      'status',
+      'destinationMasked',
+      'triggerOrigin',
+      'createdAt',
+    ],
+    listSearchableFields: ['event', 'trigger', 'recipientKey', 'destinationMasked', 'eventId'],
+    description:
+      'One row per message. Filter by status, channel, trigger, origin, recipient or date; open a delivery to see its attempts and retry or cancel it.',
     ...overrides?.admin,
   },
+  ...(endpoints?.length ? { endpoints } : {}),
   fields:
     overrides?.fields ||
-    (baseFields.map((field) =>
-      'relationTo' in field && field.relationTo === SELF ? { ...field, relationTo: slug } : field,
-    ) as Field[]),
+    ([
+      inspectorField,
+      ...baseFields.map((field) =>
+        'relationTo' in field && field.relationTo === SELF ? { ...field, relationTo: slug } : field,
+      ),
+    ] as Field[]),
   timestamps: true,
 })

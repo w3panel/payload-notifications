@@ -33,6 +33,7 @@ import {
   NotificationSuppressionsCollection,
 } from './collections/NotificationConsent'
 import { accessWithTenant } from './admin-ops/access'
+import { deliveryEndpoints } from './admin-ops/deliveries'
 import { NotificationTemplatePartialsCollection } from './collections/NotificationTemplatePartials'
 import { NotificationThemeGlobal } from './collections/NotificationTheme'
 import { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
@@ -534,6 +535,7 @@ export const registerCollections = (
       NotificationDeliveriesCollection({
         slug: options.collections.deliveries,
         overrides: scoped.deliveries,
+        endpoints: deliveryEndpoints(optionsGetter),
       }),
     )
   }
