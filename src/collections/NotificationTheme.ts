@@ -25,6 +25,13 @@ export const NotificationThemeGlobal = ({
   getOptions?: () => NormalizedNotificationsPluginOptions
 } = {}): GlobalConfig => {
   const read: Access = ({ req }) => Boolean(req.user)
+  const mediaCollection = (() => {
+    try {
+      return getOptions?.().templates.mediaCollection
+    } catch {
+      return undefined
+    }
+  })()
   const update: Access = async ({ req }) =>
     getOptions ? Boolean(await getOptions().access.publishTemplates({ req })) : Boolean(req.user)
   return {
@@ -39,10 +46,25 @@ export const NotificationThemeGlobal = ({
       {
         type: 'row',
         fields: [
+          ...(mediaCollection
+            ? [
+                {
+                  name: 'logo',
+                  type: 'upload',
+                  relationTo: mediaCollection,
+                  admin: { width: '50%' },
+                } as Field,
+              ]
+            : []),
           {
             name: 'logoUrl',
             type: 'text',
-            admin: { width: '50%', description: 'Absolute URL of the logo' },
+            admin: {
+              width: '50%',
+              description: mediaCollection
+                ? 'Absolute logo URL, used when no logo is uploaded'
+                : 'Absolute URL of the logo',
+            },
           },
           { name: 'logoAlt', type: 'text', defaultValue: 'Logo', admin: { width: '25%' } },
           {

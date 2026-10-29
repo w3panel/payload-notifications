@@ -105,6 +105,13 @@ export type NotificationsPluginOptions = {
     starterPack?: boolean | Array<'ecommerce' | 'auth' | 'saas'>
     /** Shortens links in SMS / WhatsApp text before sending. */
     shortenLink?: (url: string) => string | Promise<string>
+    /**
+     * Upload collection for images in the visual designer and the theme logo
+     * (e.g. `media`). Its documents' `url` is used, made absolute with `mediaBaseUrl`.
+     */
+    mediaCollection?: string
+    /** Origin for relative media URLs, e.g. https://cdn.example.com. Defaults to `serverURL`. */
+    mediaBaseUrl?: string
     localized?: Record<string, NotificationTemplateRegistry>
   }
   providers?: {
@@ -297,6 +304,8 @@ export type NormalizedNotificationsPluginOptions = {
       | string
       | ((args: { html: string; subject?: string; preheader?: string }) => string)
     shortenLink?: (url: string) => string | Promise<string>
+    mediaCollection?: string
+    mediaBaseUrl?: string
     localized: Record<string, NotificationTemplateRegistry>
   }
   providers: {

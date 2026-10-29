@@ -429,6 +429,8 @@ export const normalizePluginOptions = (
     defaultLocale: options.templates?.defaultLocale || undefined,
     emailLayout: options.templates?.emailLayout,
     shortenLink: options.templates?.shortenLink,
+    mediaCollection: options.templates?.mediaCollection,
+    mediaBaseUrl: options.templates?.mediaBaseUrl,
     localized: Object.fromEntries(
       Object.entries(options.templates?.localized ?? {}).map(([locale, registry]) => [
         locale.replace('_', '-').toLowerCase(),

@@ -413,7 +413,14 @@ const snapshotOnActivate =
 const studioSlugs = (getOptions?: () => NormalizedNotificationsPluginOptions): StudioSlugs => {
   try {
     const options = getOptions?.()
-    return options ? { partialsSlug: options.collections.partials } : {}
+    return options
+      ? {
+          partialsSlug: options.collections.partials,
+          ...(options.templates.mediaCollection
+            ? { mediaSlug: options.templates.mediaCollection }
+            : {}),
+        }
+      : {}
   } catch {
     return {}
   }

@@ -27,6 +27,32 @@ export const changesRawHtml = (next: unknown, previous: unknown): boolean => {
 
 export type DesignResources = Pick<CompileDesignOptions, 'theme' | 'partials' | 'media'>
 
+const ABSOLUTE_OR_VARIABLE = /^(https?:\/\/|\{\{)/i
+
+/** Images need alt text and an absolute URL (email clients cannot resolve relative ones). */
+export const imageProblems = (design: EmailDesign, resources: DesignResources = {}): string[] => {
+  const problems: string[] = []
+  const check = (blocks: EmailBlock[], where: string) =>
+    walkBlocks(blocks, (block) => {
+      if (block.type !== 'image') return
+      const name = block.alt?.trim() ? `"${block.alt.trim()}"` : block.id
+      if (!block.alt?.trim()) problems.push(`${where}image ${name}: alt text is required`)
+      const hasMedia = block.mediaId !== undefined && block.mediaId !== ''
+      const src = hasMedia ? resources.media?.[String(block.mediaId)] : block.src
+      if (hasMedia && !src) {
+        problems.push(
+          `${where}image ${name}: media ${String(block.mediaId)} has no absolute URL (set serverURL or templates.mediaBaseUrl)`,
+        )
+      } else if (!src || !ABSOLUTE_OR_VARIABLE.test(src.trim())) {
+        problems.push(`${where}image ${name}: the image URL must be absolute (https://…)`)
+      }
+    })
+  check(design.blocks, '')
+  for (const [key, blocks] of Object.entries(resources.partials ?? {}))
+    check(blocks, `partial ${key}: `)
+  return [...new Set(problems)]
+}
+
 /** Loads what a design references (theme, partials, media). Extended by the theme and media features. */
 export type DesignResourceLoader = (args: {
   design: EmailDesign
@@ -88,6 +114,13 @@ export const compileVisualEmail =
     }
 
     const resources = await loadResources({ design: parsed.design, req, options })
+    const imageErrors = imageProblems(parsed.design, resources)
+    if (imageErrors.length) {
+      throw new ValidationError({
+        collection: collection?.slug,
+        errors: imageErrors.map((message) => ({ path: 'email.design', message })),
+      })
+    }
     const locale = data.locale ?? originalDoc?.locale
     const compiled = compileDesign(parsed.design, {
       ...resources,

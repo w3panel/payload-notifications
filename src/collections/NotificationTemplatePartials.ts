@@ -81,6 +81,13 @@ export const NotificationTemplatePartialsCollection = ({
 } = {}): CollectionConfig => {
   const read: Access = ({ req }) => Boolean(req.user)
   const write: Access = ({ req }) => Boolean(req.user)
+  const mediaSlug = (() => {
+    try {
+      return getOptions?.().templates.mediaCollection
+    } catch {
+      return undefined
+    }
+  })()
   return {
     slug,
     versions: false,
@@ -111,7 +118,11 @@ export const NotificationTemplatePartialsCollection = ({
         type: 'ui',
         admin: {
           components: { Field: '@wtree/payload-notifications/admin#PartialDesignerField' },
-          custom: { apiRoute: '/api', partialsSlug: slug },
+          custom: {
+            apiRoute: '/api',
+            partialsSlug: slug,
+            ...(mediaSlug ? { mediaSlug } : {}),
+          },
         },
       },
       {
