@@ -112,6 +112,8 @@ export type {
   NotificationsJobsOptions,
   PreferenceFieldMapping,
   RenderedNotificationContent,
+  SmsSegmentInfo,
+  WhatsAppTemplateDefinition,
   RegisteredNotificationEvent,
   RenderedTemplate,
   SMSProviderAdapter,
@@ -209,7 +211,53 @@ export { mergeTemplateDefinition, renderDefinition } from './templates/renderDef
 export { buildDefinitionFromTemplateDoc } from './templates/fromDoc'
 export { previewTemplateDoc } from './templates/preview'
 export { resolveTemplate, resolveTemplateSync } from './templates/resolve'
-export { seedTemplatesFromRegistry } from './templates/seed'
+export { contentHash, seedTemplatesFromRegistry } from './templates/seed'
+export {
+  STARTER_PACKS,
+  starterEvents,
+  starterTemplates,
+  starterTemplateSlugs,
+} from './templates/starterPack'
+export type { StarterPackName } from './templates/starterPack'
+export {
+  contentOf,
+  loadTemplateSnapshot,
+  localeCandidates,
+  normalizeLocale,
+  snapshotTemplate,
+  TEMPLATE_CONTENT_FIELDS,
+} from './templates/versions'
+export type { TemplateContent, TemplateSnapshot } from './templates/versions'
+export {
+  publishTemplate,
+  rollbackTemplate,
+  templateLifecycleEndpoints,
+} from './templates/lifecycle'
+export type { TemplatePublishResult } from './templates/lifecycle'
+export { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
+export {
+  availableVariables,
+  BASE_TEMPLATE_PATHS,
+  checkTemplateVariables,
+  definitionSources,
+  extractTemplatePaths,
+} from './templates/variables'
+export type { AvailableVariables, VariableCheck } from './templates/variables'
+export { templateVariablesEndpoint, validateTemplateDoc } from './templates/validate'
+export {
+  finalizeForChannel,
+  findUnsafeLinks,
+  preheaderHtml,
+  sanitizeLinks,
+  shortenLinksInText,
+  smsSegments,
+} from './templates/channelContent'
+export {
+  fetchWhatsAppTemplateStatus,
+  syncWhatsAppTemplateStatus,
+  whatsappStatusEndpoint,
+} from './templates/whatsappStatus'
+export type { TemplateValidationReport } from './templates/validate'
 export type { SeedTemplatesResult } from './templates/seed'
 export {
   compile as compileTemplate,

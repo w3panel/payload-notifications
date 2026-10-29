@@ -75,6 +75,11 @@ const baseFields = (userCollectionSlug: string): Field[] => [
     index: true,
   },
   {
+    name: 'icon',
+    type: 'text',
+    admin: { description: 'Icon name or URL' },
+  },
+  {
     name: 'priority',
     type: 'select',
     required: true,

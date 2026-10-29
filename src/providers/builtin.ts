@@ -44,7 +44,13 @@ export const inAppProvider = (): NotificationProvider => ({
           (typeof meta?.event === 'string' ? `Notification: ${meta.event}` : 'Notification'),
         message: content.body,
         recipient: to,
-        meta: { data: meta?.eventPayload },
+        ...(content.icon ? { icon: content.icon } : {}),
+        ...(content.priority ? { priority: content.priority } : {}),
+        ...(meta?.classification === 'marketing' ? { type: 'marketing' } : {}),
+        meta: {
+          data: meta?.eventPayload,
+          ...(content.actionUrl ? { link: content.actionUrl } : {}),
+        },
       } as never,
     })) as { id?: string | number }
     return {
@@ -60,7 +66,12 @@ const textAdapterProvider = (
   channel: 'sms' | 'whatsapp',
   maxLength: number | undefined,
   create: (options: NormalizedNotificationsPluginOptions) => {
-    send: (input: { to: string; template: string; context: never }) => Promise<{
+    send: (input: {
+      to: string
+      template: string
+      context: never
+      whatsappTemplate?: { name: string; language: string; parameters: string[] }
+    }) => Promise<{
       provider: string
       messageId?: string
       response?: Record<string, unknown>
@@ -69,12 +80,21 @@ const textAdapterProvider = (
 ): NotificationProvider => ({
   name,
   channels: [channel],
-  capabilities: { html: false, hsm: false, media: false, maxLength },
+  capabilities: { html: false, hsm: channel === 'whatsapp', media: false, maxLength },
   send: async ({ to, content, options }: ProviderSendInput): Promise<ProviderSendResult> => {
     const result = await create(options).send({
       to,
       template: content.body,
       context: {} as never,
+      ...(channel === 'whatsapp' && content.whatsappTemplate
+        ? {
+            whatsappTemplate: {
+              name: content.whatsappTemplate.name,
+              language: content.whatsappTemplate.language,
+              parameters: content.whatsappTemplate.parameters,
+            },
+          }
+        : {}),
     })
     return { status: 'sent', providerMessageId: result.messageId, response: result.response }
   },

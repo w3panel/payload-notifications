@@ -16,12 +16,18 @@
 | `collections.triggerVersions` | `'notification-trigger-versions'` | Published admin trigger snapshots |
 | `collections.preferences` | `'notification-preferences'` | User preferences (collection mode) |
 | `collections.suppressions` | `'notification-suppressions'` | Suppressed destinations |
+| `collections.templateVersions` | `'notification-template-versions'` | Published template snapshots |
 | `jobs.queue` | `'notifications'` | Payload jobs queue name |
 | `templates.registry` | package starters | Code templates keyed by slug |
 | `templates.seedOnInit` | `false` | Seed missing DB templates from registry on init |
+| `templates.starterPack` | — | `true` or `['ecommerce','auth','saas']`: 20 events + templates — see [templates.md](./templates.md#starter-pack) |
+| `templates.defaultLocale` | — | Locale used when a recipient has none |
+| `templates.localized` | `{}` | Per-locale code registry variants |
+| `templates.emailLayout` | — | Layout wrapping every HTML email (template string or function) |
+| `templates.shortenLink` | — | Shortens links in SMS / WhatsApp text |
 | `templates.email` / `whatsapp` / `sms` | — | Legacy string keys (prefer registry) |
 | `providers.email` | — | `defaultFromAddress`, `defaultFromName` |
-| `providers.whatsapp` | — | `meta` or `twilio` credentials |
+| `providers.whatsapp` | — | `meta` or `twilio` credentials (`businessAccountId` for Meta template approval sync) |
 | `providers.sms` | — | `twilio` credentials |
 | `providers.custom` | `{}` | Custom `NotificationProvider` per channel — see [reliability.md](./reliability.md#providers) |
 | `providers.timeoutMs` | `30000` | Provider call timeout (timeouts are `unknown`, not retried) |
@@ -53,6 +59,7 @@
 | `access.manageTriggers` | `isAdmin` | Create / edit / validate / customize admin triggers |
 | `access.publishTriggers` | `isAdmin` | Publish, enable, disable, archive, roll back |
 | `access.testSend` | `isAdmin` | Trigger test sends and template test-send |
+| `access.publishTemplates` | `isAdmin` | Publish / roll back templates, sync WhatsApp approval |
 | `adminTriggers.cancelQueuedOnDisable` | `false` | Cancel queued deliveries when a trigger is disabled / archived |
 | `adminTriggers.cacheTtlMs` | `30000` | Per-instance cache for published admin triggers |
 | `reliability.attempts` / `backoff` / `jitter` | `3` / exponential 5s→1h / `true` | Default retry policy — see [reliability.md](./reliability.md) |

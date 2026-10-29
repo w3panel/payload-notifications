@@ -23,6 +23,27 @@ export type NotificationTemplateDefinition = {
   htmlBody?: string
   /** Explicit email text body (preferred over `body` for email text when present). */
   textBody?: string
+  /** Email preview text shown next to the subject in inboxes. */
+  preheader?: string
+  /** In-app: link opened when the notification is clicked (template allowed). */
+  actionUrl?: string
+  /** In-app: icon name or URL. */
+  icon?: string
+  /** In-app priority. */
+  priority?: 'low' | 'normal' | 'high' | 'urgent'
+  /** WhatsApp: pre-approved template (HSM) to send instead of free text. */
+  whatsappTemplate?: WhatsAppTemplateDefinition
+}
+
+export type WhatsAppTemplateDefinition = {
+  /** Approved template name (Meta) or Content SID (Twilio). */
+  name: string
+  /** Template language code, e.g. `en_US`. Default `en`. */
+  language?: string
+  /** Body parameters in order ({{1}}, {{2}} …); each is a template string. */
+  parameters?: string[]
+  /** Approval status last synced from the provider (APPROVED, PENDING, REJECTED …). */
+  status?: string
 }
 
 export type NotificationTemplateSet = Partial<
@@ -75,6 +96,21 @@ export type RenderedNotificationContent = {
   body: string
   text: string
   html: string
+  preheader?: string
+  actionUrl?: string
+  icon?: string
+  priority?: 'low' | 'normal' | 'high' | 'urgent'
+  /** Rendered WhatsApp template (name, language, parameter values). */
+  whatsappTemplate?: { name: string; language: string; parameters: string[]; status?: string }
+  /** SMS / WhatsApp text sizing. */
+  segments?: SmsSegmentInfo
+}
+
+export type SmsSegmentInfo = {
+  encoding: 'GSM-7' | 'UCS-2'
+  /** Billable characters (GSM-7 extension characters count twice). */
+  characters: number
+  segments: number
 }
 
 export type NotificationTemplateRenderer = (
@@ -94,6 +130,8 @@ export type NotificationTemplateResolution = {
   definition: NotificationTemplateDefinition
   templateSlug?: string
   templateVersion?: number
+  /** Locale of the template that matched ('' = no locale). */
+  templateLocale?: string
 }
 
 export type NotificationTemplateResolver = (input: {

@@ -45,16 +45,40 @@ export const createMetaWhatsAppProvider = (
       const to = stripWhatsAppPrefix(input.to)
       const url = `${META_GRAPH_API_BASE}/${META_GRAPH_API_VERSION}/${phoneNumberId}/messages`
 
-      const body = JSON.stringify({
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to,
-        type: 'text',
-        text: {
-          preview_url: false,
-          body: input.template,
-        },
-      })
+      const hsm = input.whatsappTemplate
+      const body = JSON.stringify(
+        hsm
+          ? {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to,
+              type: 'template',
+              template: {
+                name: hsm.name,
+                language: { code: hsm.language },
+                ...(hsm.parameters.length
+                  ? {
+                      components: [
+                        {
+                          type: 'body',
+                          parameters: hsm.parameters.map((text) => ({ type: 'text', text })),
+                        },
+                      ],
+                    }
+                  : {}),
+              },
+            }
+          : {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to,
+              type: 'text',
+              text: {
+                preview_url: false,
+                body: input.template,
+              },
+            },
+      )
 
       const response = await fetch(url, {
         method: 'POST',

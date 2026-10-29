@@ -13,6 +13,7 @@ import {
 } from '../recipients/options'
 import { normalizeCollectionEvents } from '../events/collectionEvents'
 import { DEFAULT_MAX_EVENT_DEPTH } from '../events/depth'
+import { starterEvents, starterTemplates } from '../templates/starterPack'
 import { normalizeReliabilityOptions } from '../deliveries/retry'
 import { isValidTimeZone, parseClock } from '../deliveries/schedule'
 import { compileCodeTriggers } from '../triggers/compile'
@@ -179,6 +180,7 @@ const normalizeAccess = (
     manageTriggers: access?.manageTriggers ?? isAdmin,
     publishTriggers: access?.publishTriggers ?? isAdmin,
     testSend: access?.testSend ?? isAdmin,
+    publishTemplates: access?.publishTemplates ?? isAdmin,
   }
 }
 
@@ -317,6 +319,8 @@ export const normalizePluginOptions = (
     options.collections?.triggerVersions || 'notification-trigger-versions'
   const preferencesSlug = options.collections?.preferences || 'notification-preferences'
   const suppressionsSlug = options.collections?.suppressions || 'notification-suppressions'
+  const templateVersionsSlug =
+    options.collections?.templateVersions || 'notification-template-versions'
 
   const allSlugs = [
     notificationsSlug,
@@ -328,6 +332,7 @@ export const normalizePluginOptions = (
     triggerVersionsSlug,
     preferencesSlug,
     suppressionsSlug,
+    templateVersionsSlug,
   ]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
@@ -418,8 +423,18 @@ export const normalizePluginOptions = (
     whatsapp: options.templates?.whatsapp,
     sms: options.templates?.sms,
     seedOnInit: options.templates?.seedOnInit === true,
+    defaultLocale: options.templates?.defaultLocale || undefined,
+    emailLayout: options.templates?.emailLayout,
+    shortenLink: options.templates?.shortenLink,
+    localized: Object.fromEntries(
+      Object.entries(options.templates?.localized ?? {}).map(([locale, registry]) => [
+        locale.replace('_', '-').toLowerCase(),
+        registry,
+      ]),
+    ),
     registry: {
       ...getDefaultTemplateRegistry(),
+      ...(options.templates?.starterPack ? starterTemplates(options.templates.starterPack) : {}),
       ...options.templates?.registry,
     },
   }
@@ -443,6 +458,7 @@ export const normalizePluginOptions = (
       triggerVersions: triggerVersionsSlug,
       preferences: preferencesSlug,
       suppressions: suppressionsSlug,
+      templateVersions: templateVersionsSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
@@ -472,7 +488,11 @@ export const normalizePluginOptions = (
       log: options.observability?.log === true,
     },
     rules,
-    events: normalizeEventRegistry(options.events),
+    events: normalizeEventRegistry(
+      options.templates?.starterPack
+        ? { ...starterEvents(options.templates.starterPack), ...options.events }
+        : options.events,
+    ),
     eventsStrict: options.eventsStrict === true,
     data,
     dataResolvers,

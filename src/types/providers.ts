@@ -16,6 +16,8 @@ export type WhatsAppProviderConfig = {
   from?: string
   accessToken?: string
   phoneNumberId?: string
+  /** Meta WhatsApp Business Account ID, for template approval status sync. */
+  businessAccountId?: string
 }
 
 export type SMSProviderConfig = {
@@ -29,6 +31,8 @@ export type WhatsAppProviderSendInput = {
   to: string
   template: string
   context: NotificationTemplateContext
+  /** Send this pre-approved template instead of free text. */
+  whatsappTemplate?: { name: string; language: string; parameters: string[] }
 }
 
 export type SMSProviderSendInput = {

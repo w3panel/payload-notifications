@@ -15,6 +15,7 @@ import { buildCollectionEvent } from '../events/collectionEvents'
 import { generateEventId, listRegisteredEvents, validateEventPayload } from '../events/registry'
 import { maskDestination, resolveRecipients } from '../recipients/resolve'
 import { buildDefinitionFromTemplateDoc } from '../templates/fromDoc'
+import { finalizeForChannel } from '../templates/channelContent'
 import { mergeTemplateDefinition, renderDefinition } from '../templates/renderDefinition'
 import { resolveTemplate } from '../templates/resolve'
 import { CONDITION_OPERATORS } from '../triggers/conditions'
@@ -251,6 +252,10 @@ export const customizeCodeTriggerEndpoint = (getOptions: GetOptions): Endpoint =
 })
 
 type RenderedPreview = {
+  preheader?: string
+  actionUrl?: string
+  whatsappTemplate?: unknown
+  segments?: unknown
   subject?: string
   title?: string
   text?: string
@@ -275,15 +280,20 @@ const renderPreview = async (
       options,
       payload: req.payload,
     })
-    const rendered = renderDefinition(
-      mergeTemplateDefinition(resolved.definition, overrides),
-      context,
+    const rendered = await finalizeForChannel(
+      renderDefinition(mergeTemplateDefinition(resolved.definition, overrides), context),
+      channel,
+      options,
     )
     return {
       subject: rendered.subject,
       title: rendered.title,
       text: rendered.text,
       html: rendered.html,
+      ...(rendered.preheader ? { preheader: rendered.preheader } : {}),
+      ...(rendered.actionUrl ? { actionUrl: rendered.actionUrl } : {}),
+      ...(rendered.whatsappTemplate ? { whatsappTemplate: rendered.whatsappTemplate } : {}),
+      ...(rendered.segments ? { segments: rendered.segments } : {}),
     }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }

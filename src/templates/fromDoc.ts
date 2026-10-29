@@ -18,6 +18,7 @@ export const buildDefinitionFromTemplateDoc = (
       subject?: string
       htmlBody?: string
       textBody?: string
+      preheader?: string
     }
     const textBody = email.textBody || ''
     const htmlBody = email.htmlBody || ''
@@ -26,6 +27,7 @@ export const buildDefinitionFromTemplateDoc = (
       body: textBody || htmlBody || '',
       textBody: textBody || undefined,
       htmlBody: htmlBody || undefined,
+      ...(email.preheader ? { preheader: email.preheader } : {}),
     }
   }
 
@@ -35,15 +37,40 @@ export const buildDefinitionFromTemplateDoc = (
   }
 
   if (channel === 'whatsapp') {
-    const whatsapp = (doc.whatsapp || {}) as { body?: string }
-    return { body: whatsapp.body || '' }
+    const whatsapp = (doc.whatsapp || {}) as {
+      body?: string
+      hsmTemplateId?: string
+      hsmLanguage?: string
+      hsmParameters?: Array<{ value?: string }>
+    }
+    return {
+      body: whatsapp.body || '',
+      ...(whatsapp.hsmTemplateId
+        ? {
+            whatsappTemplate: {
+              name: whatsapp.hsmTemplateId,
+              language: whatsapp.hsmLanguage || 'en',
+              parameters: (whatsapp.hsmParameters ?? []).map((parameter) => parameter?.value ?? ''),
+            },
+          }
+        : {}),
+    }
   }
 
   if (channel === 'inapp') {
-    const inapp = (doc.inapp || {}) as { title?: string; body?: string }
+    const inapp = (doc.inapp || {}) as {
+      title?: string
+      body?: string
+      actionUrl?: string
+      icon?: string
+      priority?: 'low' | 'normal' | 'high' | 'urgent'
+    }
     return {
       title: inapp.title,
       body: inapp.body || '',
+      ...(inapp.actionUrl ? { actionUrl: inapp.actionUrl } : {}),
+      ...(inapp.icon ? { icon: inapp.icon } : {}),
+      ...(inapp.priority ? { priority: inapp.priority } : {}),
     }
   }
 

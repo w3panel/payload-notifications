@@ -17,12 +17,17 @@ const options = normalizePluginOptions({
 })
 
 const result = await seedTemplatesFromRegistry({ payload, options })
-// { created: ['order.paid', ...], skipped: ['already-there'] }
+// { created: ['order.paid', ...], skipped: ['already-there'], updated: [] }
+
+// Later, after the code registry changed:
+await seedTemplatesFromRegistry({ payload, options, updateUnedited: true })
 ```
 
 Behavior:
 
-- Idempotent: existing `slug` rows are **skipped** (never overwritten)  
+- Idempotent: existing `slug` rows are **skipped** (never overwritten)
+- Seeded documents get `source: 'seed'` and a content hash. With `updateUnedited: true`, seeded documents **nobody has edited** are republished (as a new version) with the current registry content; anything an admin changed is left alone
+- Only the default (no-locale) variant is seeded  
 - Creates `status: 'active'`, `version: 1`, `category: 'transactional'`  
 - Maps registry email/sms/whatsapp/inapp into channel groups  
 

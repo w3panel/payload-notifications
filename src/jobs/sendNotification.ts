@@ -17,6 +17,7 @@ import {
   createObservabilityEvent,
 } from '../reliability'
 import { resolveTemplate } from '../templates/resolve'
+import { finalizeForChannel } from '../templates/channelContent'
 import { mergeTemplateDefinition, renderDefinition } from '../templates/renderDefinition'
 import { NOTIFICATION_SEND_TASK, NOTIFICATIONS_JOB_QUEUE } from './constants'
 import { writeNotificationLog } from './writeLog'
@@ -306,7 +307,11 @@ export const sendNotification = async ({
   const context: NotificationTemplateContext = dataContext.context
 
   const renderStarted = Date.now()
-  const rendered = renderDefinition(definition, context)
+  const rendered = await finalizeForChannel(
+    renderDefinition(definition, context),
+    validatedInput.channel,
+    options,
+  )
   const renderDurationMs = Date.now() - renderStarted
 
   const result = await dispatchToChannel({
