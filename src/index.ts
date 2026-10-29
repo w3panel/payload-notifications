@@ -226,6 +226,16 @@ export {
 } from './templates/lifecycle'
 export type { TemplatePublishResult } from './templates/lifecycle'
 export { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
+export {
+  availableVariables,
+  BASE_TEMPLATE_PATHS,
+  checkTemplateVariables,
+  definitionSources,
+  extractTemplatePaths,
+} from './templates/variables'
+export type { AvailableVariables, VariableCheck } from './templates/variables'
+export { templateVariablesEndpoint, validateTemplateDoc } from './templates/validate'
+export type { TemplateValidationReport } from './templates/validate'
 export type { SeedTemplatesResult } from './templates/seed'
 export {
   compile as compileTemplate,

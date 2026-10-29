@@ -2,11 +2,17 @@ import type { Payload } from 'payload'
 import type {
   NormalizedNotificationsPluginOptions,
   NotificationChannel,
+  NotificationTemplateDefinition,
   NotificationTrigger,
 } from '../types'
 import { createSensitiveFieldMatcher } from '../data/sensitive'
 import { validateDataSources } from '../data/sources'
 import { buildDefinitionFromTemplateDoc } from '../templates/fromDoc'
+import {
+  availableVariables,
+  checkTemplateVariables,
+  definitionSources,
+} from '../templates/variables'
 import { checkTriggerShape } from '../triggers/define'
 import { eventMatchesPattern } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
@@ -27,6 +33,11 @@ type TemplateDoc = Record<string, unknown> & {
   channels?: string[]
   variables?: Array<{ name?: string; required?: boolean }>
 }
+
+const normalizeRegistryDefinition = (
+  entry: string | NotificationTemplateDefinition | undefined,
+): Partial<NotificationTemplateDefinition> =>
+  typeof entry === 'string' ? { body: entry } : (entry ?? {})
 
 /** Roots every trigger context provides. */
 const CONTEXT_ROOTS = new Set(['event', 'userId', 'payload', 'trigger', 'recipient'])
@@ -166,6 +177,22 @@ export const validateAdminTrigger = async ({
       )
       return
     }
+
+    const definition = active
+      ? buildDefinitionFromTemplateDoc(active as never, delivery.channel)
+      : normalizeRegistryDefinition(
+          options.templates.registry[delivery.template]?.[delivery.channel],
+        )
+    const variables = checkTemplateVariables(
+      definitionSources(definition),
+      availableVariables(options, { trigger }),
+    )
+    warnings.push(
+      ...variables.unknown.map(
+        (path) =>
+          `${label}: template "${delivery.template}" uses "${path}", which this trigger does not provide`,
+      ),
+    )
 
     for (const variable of active?.variables ?? []) {
       if (!variable?.required || !variable.name) continue

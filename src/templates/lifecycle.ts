@@ -12,7 +12,7 @@ type TemplateDoc = Record<string, unknown> & {
 }
 
 export type TemplatePublishResult =
-  | { ok: true; version: number; doc: Record<string, unknown> }
+  | { ok: true; version: number; doc: Record<string, unknown>; warnings?: string[] }
   | { ok: false; status: number; error: string; details?: unknown }
 
 /**
@@ -33,7 +33,9 @@ export const publishTemplate = async ({
   user?: { id: string | number } | null
   /** Content to publish instead of the document's (rollback). */
   content?: Record<string, unknown>
-  validate?: (doc: Record<string, unknown>) => Promise<{ errors: string[] } | undefined>
+  validate?: (
+    doc: Record<string, unknown>,
+  ) => Promise<{ errors: string[]; warnings?: string[] } | undefined>
 }): Promise<TemplatePublishResult> => {
   const collection = options.collections.templates as never
   const doc = (await payload.findByID({
@@ -67,7 +69,7 @@ export const publishTemplate = async ({
     } as never,
   })) as TemplateDoc
   await snapshotTemplate({ payload, options, doc: updated, version, user })
-  return { ok: true, version, doc: updated }
+  return { ok: true, version, doc: updated, warnings: report?.warnings ?? [] }
 }
 
 /** Copies version `version`'s content back and publishes it as a new version. */
@@ -102,7 +104,7 @@ export const templateLifecycleEndpoints = (
     payload: Payload,
     options: NormalizedNotificationsPluginOptions,
     doc: Record<string, unknown>,
-  ) => Promise<{ errors: string[] } | undefined>,
+  ) => Promise<{ errors: string[]; warnings?: string[] } | undefined>,
 ): Endpoint[] => {
   const guard = async (req: PayloadRequest) => {
     const options = getOptions()
@@ -116,7 +118,12 @@ export const templateLifecycleEndpoints = (
   const idOf = (req: PayloadRequest) => req.routeParams?.id as string | number | undefined
   const reply = (result: TemplatePublishResult) =>
     result.ok
-      ? Response.json({ ok: true, version: result.version, doc: result.doc })
+      ? Response.json({
+          ok: true,
+          version: result.version,
+          doc: result.doc,
+          warnings: result.warnings,
+        })
       : Response.json(
           { ok: false, error: result.error, details: result.details },
           { status: result.status },

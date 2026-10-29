@@ -13,6 +13,7 @@ import { templatePreviewEndpoint } from '../endpoints/templatePreview'
 import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
 import { EVENT_NAME_PATTERN } from '../events/names'
 import { templateLifecycleEndpoints } from '../templates/lifecycle'
+import { templateVariablesEndpoint, validateTemplateDoc } from '../templates/validate'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 
 export type NotificationTemplatesCollectionOverrides = {
@@ -330,7 +331,8 @@ export const NotificationTemplatesCollection = ({
   const endpoints: Endpoint[] = [
     templatePreviewEndpoint('/preview', getOptions || defaultOptionsGetter),
     templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
-    ...templateLifecycleEndpoints(getOptions || defaultOptionsGetter),
+    ...templateLifecycleEndpoints(getOptions || defaultOptionsGetter, validateTemplateDoc),
+    templateVariablesEndpoint(getOptions || defaultOptionsGetter),
     ...(overrides?.endpoints || []),
   ]
 

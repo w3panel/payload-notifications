@@ -5,6 +5,11 @@ import { collectFieldPaths } from '../events/registry'
 import { validateReliability } from '../deliveries/retry'
 import { parseDuration } from '../deliveries/schedule'
 import { compile as compileTemplate } from '../templates/engine'
+import {
+  availableVariables,
+  checkTemplateVariables,
+  definitionSources,
+} from '../templates/variables'
 import { validateCondition, type ConditionValidationContext } from './conditions'
 
 export type TriggerValidationResult = {
@@ -32,6 +37,7 @@ export const validateTrigger = (
     | 'dataResolvers'
     | 'collectionEvents'
     | 'reliability'
+    | 'computed'
   >,
   owner = `trigger "${trigger.slug}"`,
 ): TriggerValidationResult => {
@@ -140,6 +146,24 @@ export const validateTrigger = (
     seen.add(key)
 
     const registered = options.templates.registry[delivery.template]
+    const entry = registered?.[delivery.channel]
+    if (entry) {
+      const definition = typeof entry === 'string' ? { body: entry } : entry
+      try {
+        const check = checkTemplateVariables(
+          definitionSources(definition),
+          availableVariables(options, { trigger }),
+        )
+        warnings.push(
+          ...check.unknown.map(
+            (path) =>
+              `${label}: template "${delivery.template}" uses "${path}", which this trigger does not provide`,
+          ),
+        )
+      } catch {
+        // Compile errors surface when the template renders.
+      }
+    }
     if (registered && !registered[delivery.channel]) {
       warnings.push(
         `${label}: template "${delivery.template}" has no ${delivery.channel} variant in the code registry; an active notification-templates document must provide it`,
