@@ -17,6 +17,7 @@ import { templateVariablesEndpoint, validateTemplateDoc } from '../templates/val
 import { whatsappStatusEndpoint } from '../templates/whatsappStatus'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 import { versionedCollectionDefaults } from '../compat'
+import { parseDesign } from '../studio/model'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -49,6 +50,13 @@ export const validateTemplateSlug = (value: unknown): string | true => {
 const engineHint =
   'Supports {{ tokens }}, {{#if}}, {{#each}}, and formatters. See docs/templates.md.'
 
+/** Field validation for `email.design` (the visual designer's block document). */
+export const validateEmailDesign = (value: unknown): string | true => {
+  if (value === null || value === undefined || value === '') return true
+  const parsed = parseDesign(value)
+  return parsed.ok ? true : `Email design is invalid: ${parsed.errors.join('; ')}`
+}
+
 const emailGroup: Field = {
   name: 'email',
   type: 'group',
@@ -56,6 +64,25 @@ const emailGroup: Field = {
     condition: (_, siblingData) => siblingData?.channels?.includes?.('email'),
   },
   fields: [
+    {
+      name: 'editor',
+      type: 'select',
+      defaultValue: 'code',
+      options: [
+        { label: 'Code (HTML)', value: 'code' },
+        { label: 'Visual designer', value: 'visual' },
+      ],
+      admin: {
+        description:
+          'Visual: design with blocks in the template studio; HTML and plain text are generated on save.',
+      },
+    },
+    {
+      name: 'design',
+      type: 'json',
+      validate: validateEmailDesign,
+      admin: { hidden: true },
+    },
     { name: 'subject', type: 'text', admin: { description: engineHint } },
     {
       name: 'preheader',
