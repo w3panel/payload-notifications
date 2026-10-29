@@ -18,6 +18,7 @@ import { whatsappStatusEndpoint } from '../templates/whatsappStatus'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 import { versionedCollectionDefaults } from '../compat'
 import { parseDesign } from '../studio/model'
+import { compileVisualEmail } from '../studio/save'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -452,7 +453,8 @@ export const NotificationTemplatesCollection = ({
     },
     hooks: {
       beforeValidate: [uniqueSlugPerLocale(slug)],
-      beforeChange: [trackTemplateVersions],
+      // Design edits are content edits for version tracking (email.design is in `email`).
+      beforeChange: [trackTemplateVersions, compileVisualEmail(getOptions)],
       afterChange: [snapshotOnActivate(getOptions)],
     },
     endpoints,

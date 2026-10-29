@@ -200,6 +200,11 @@ export type NotificationsPluginOptions = {
     testSend?: NotificationAccessCheck
     /** Publish / roll back notification templates. */
     publishTemplates?: NotificationAccessCheck
+    /**
+     * Add or change raw HTML blocks in the visual email designer. Raw HTML is
+     * sent as-is, so this defaults to nobody; grant it to trusted roles only.
+     */
+    rawHtml?: NotificationAccessCheck
   }
   /** Admin-created triggers (`notification-triggers`). */
   adminTriggers?: {
@@ -364,6 +369,7 @@ export type NormalizedNotificationsPluginOptions = {
     publishTriggers: NotificationAccessCheck
     testSend: NotificationAccessCheck
     publishTemplates: NotificationAccessCheck
+    rawHtml: NotificationAccessCheck
   }
   adminTriggers: {
     cancelQueuedOnDisable: boolean

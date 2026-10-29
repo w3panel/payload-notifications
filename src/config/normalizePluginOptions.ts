@@ -181,6 +181,7 @@ const normalizeAccess = (
     publishTriggers: access?.publishTriggers ?? isAdmin,
     testSend: access?.testSend ?? isAdmin,
     publishTemplates: access?.publishTemplates ?? isAdmin,
+    rawHtml: access?.rawHtml ?? (() => false),
   }
 }
 
