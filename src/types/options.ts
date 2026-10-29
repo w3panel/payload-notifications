@@ -76,6 +76,11 @@ export type NotificationsPluginOptions = {
     /** Brand theme for visual email designs. Default `notification-theme`. */
     theme?: string
   }
+  /** Payload admin integration. */
+  admin?: {
+    /** Show the notifications overview on the Payload dashboard. Default true. */
+    dashboard?: boolean
+  }
   jobs?: NotificationsJobsOptions
   templates?: {
     email?: string
@@ -297,6 +302,9 @@ export type NormalizedNotificationsPluginOptions = {
   /** Global slugs. */
   globals: {
     theme: string
+  }
+  admin: {
+    dashboard: boolean
   }
   jobs: {
     queue: string

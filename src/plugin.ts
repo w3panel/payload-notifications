@@ -34,6 +34,8 @@ import {
 } from './collections/NotificationConsent'
 import { accessWithTenant } from './admin-ops/access'
 import { deliveryEndpoints } from './admin-ops/deliveries'
+import { withAdminComponents } from './admin-ops/adminConfig'
+import { statsEndpoint } from './admin-ops/stats'
 import { NotificationTemplatePartialsCollection } from './collections/NotificationTemplatePartials'
 import { NotificationThemeGlobal } from './collections/NotificationTheme'
 import { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
@@ -321,8 +323,10 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         dataSourcesListEndpoint(() => runtime.options),
         ...adminTriggerRootEndpoints(() => runtime.options),
         ...unsubscribeEndpoints(() => runtime.options),
+        statsEndpoint(() => runtime.options),
         ...webhookEndpoints(() => runtime.options),
       ],
+      admin: withAdminComponents(config, normalizedOptions),
       collections: injectCollectionEventHooks(
         withCollections,
         () => runtime.options,

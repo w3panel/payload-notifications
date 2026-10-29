@@ -473,6 +473,9 @@ export const normalizePluginOptions = (
     globals: {
       theme: options.globals?.theme || 'notification-theme',
     },
+    admin: {
+      dashboard: options.admin?.dashboard !== false,
+    },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
     },
