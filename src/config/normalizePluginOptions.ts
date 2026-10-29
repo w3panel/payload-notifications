@@ -103,6 +103,33 @@ const normalizePreferenceMode = (preferences: NotificationsPluginOptions['prefer
   } as const
 }
 
+const normalizeWebhooks = (
+  webhooks: NotificationsPluginOptions['webhooks'],
+): NormalizedNotificationsPluginOptions['webhooks'] => {
+  if (webhooks?.meta && (!webhooks.meta.appSecret || !webhooks.meta.verifyToken)) {
+    throw new Error('payload-notifications: webhooks.meta needs appSecret and verifyToken')
+  }
+  return { ...webhooks }
+}
+
+const normalizeMaintenance = (
+  maintenance: NotificationsPluginOptions['maintenance'],
+): NormalizedNotificationsPluginOptions['maintenance'] => {
+  const retention = maintenance?.retention ?? {}
+  for (const [key, value] of Object.entries(retention)) {
+    if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+      throw new Error(
+        `payload-notifications: maintenance.retention.${key} must be a positive number of days`,
+      )
+    }
+  }
+  return {
+    reconcileCron: maintenance?.reconcileCron,
+    retentionCron: maintenance?.retentionCron,
+    retention: { ...retention },
+  }
+}
+
 const normalizeCustomProviders = (
   custom: NonNullable<NotificationsPluginOptions['providers']>['custom'],
 ): NormalizedNotificationsPluginOptions['providers']['custom'] => {
@@ -458,6 +485,8 @@ export const normalizePluginOptions = (
     eventsInbox: options.eventsInbox === true,
     reliability: normalizeReliabilityOptions(options.reliability),
     logs: { storeRendered: options.logs?.storeRendered === true },
+    webhooks: normalizeWebhooks(options.webhooks),
+    maintenance: normalizeMaintenance(options.maintenance),
     access: normalizeAccess(options.access),
     adminTriggers: normalizeAdminTriggers(options.adminTriggers),
     ...(options.tenancy ? { tenancy: normalizeTenancy(options.tenancy) } : {}),

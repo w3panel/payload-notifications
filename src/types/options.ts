@@ -193,6 +193,26 @@ export type NotificationsPluginOptions = {
     /** Store rendered subject / text on attempt logs. Default false (may contain personal data). */
     storeRendered?: boolean
   }
+  /** Provider webhooks (delivery status, STOP replies). */
+  webhooks?: {
+    /**
+     * Public origin the providers call (e.g. https://shop.example.com) when the
+     * server sits behind a proxy; Twilio signatures cover the full URL.
+     */
+    publicUrl?: string
+    /** Defaults to the Twilio auth token in `providers.sms` / `providers.whatsapp`. */
+    twilio?: { authToken?: string }
+    meta?: { appSecret: string; verifyToken: string }
+  }
+  /** Scheduled maintenance tasks. */
+  maintenance?: {
+    /** Cron for `notification:reconcile` (stale / unknown deliveries). */
+    reconcileCron?: string
+    /** Cron for `notification:retention`. */
+    retentionCron?: string
+    /** Delete attempt logs, final deliveries and processed inbox events older than these. */
+    retention?: { logsDays?: number; deliveriesDays?: number; eventsDays?: number }
+  }
   /** Store every emitted event in `notification-events` for audit and replay. Default false. */
   eventsInbox?: boolean
   /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
@@ -293,6 +313,16 @@ export type NormalizedNotificationsPluginOptions = {
     staleSendingMinutes: number
   }
   logs: { storeRendered: boolean }
+  webhooks: {
+    publicUrl?: string
+    twilio?: { authToken?: string }
+    meta?: { appSecret: string; verifyToken: string }
+  }
+  maintenance: {
+    reconcileCron?: string
+    retentionCron?: string
+    retention: { logsDays?: number; deliveriesDays?: number; eventsDays?: number }
+  }
   access: {
     manageTriggers: NotificationAccessCheck
     publishTriggers: NotificationAccessCheck

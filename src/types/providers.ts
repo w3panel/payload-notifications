@@ -100,6 +100,8 @@ export type ProviderInboundMessage = {
   from: string
   text?: string
   optOut: boolean
+  /** A START / resubscribe reply: lifts an earlier STOP suppression. */
+  optIn?: boolean
 }
 
 export type ProviderWebhookRequest = {

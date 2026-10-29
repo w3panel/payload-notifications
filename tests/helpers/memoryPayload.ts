@@ -16,6 +16,8 @@ const matches = (doc: Doc, where: Where | undefined): boolean => {
     if ('equals' in ops) return String(value) === String(ops.equals)
     if ('not_equals' in ops) return String(value) !== String(ops.not_equals)
     if ('greater_than' in ops) return String(value) > String(ops.greater_than)
+    if ('less_than' in ops) return value !== undefined && String(value) < String(ops.less_than)
+    if ('exists' in ops) return (value !== undefined && value !== null) === Boolean(ops.exists)
     if ('in' in ops) {
       const list = (ops.in as unknown[]).map(String)
       return Array.isArray(value)
@@ -97,6 +99,13 @@ export const createMemoryPayload = (
       return doc
     },
   )
+  const remove = mock(
+    async ({ collection: slug, where }: { collection: string; where?: Where }) => {
+      const docs = collection(slug).filter((doc) => matches(doc, where))
+      db[slug] = collection(slug).filter((doc) => !docs.includes(doc))
+      return { docs, errors: [] }
+    },
+  )
   const queue = overrides.queue ?? mock(async () => undefined)
   const sendEmail = overrides.sendEmail ?? mock(async () => undefined)
   const logger = {
@@ -105,7 +114,16 @@ export const createMemoryPayload = (
     info: mock(() => undefined),
   }
 
-  const payload = { find, findByID, create, update, jobs: { queue }, sendEmail, logger }
+  const payload = {
+    find,
+    findByID,
+    create,
+    update,
+    delete: remove,
+    jobs: { queue },
+    sendEmail,
+    logger,
+  }
 
   return {
     payload: payload as never,
@@ -114,6 +132,7 @@ export const createMemoryPayload = (
     findByID,
     create,
     update,
+    remove,
     queue,
     sendEmail,
     logger,

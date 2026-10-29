@@ -8,6 +8,7 @@ import type {
 import { createMetaWhatsAppProvider } from './meta-whatsapp'
 import { createTwilioSMSProvider } from './twilio-sms'
 import { createTwilioWhatsAppProvider } from './twilio-whatsapp'
+import { parseMetaWebhook } from '../webhooks/providers'
 
 /** Payload's configured email adapter. */
 export const payloadEmailProvider = (): NotificationProvider => ({
@@ -92,7 +93,11 @@ export const builtinProvider = (
         : undefined
     case 'whatsapp':
       if (options.providers.whatsapp?.provider === 'meta') {
-        return textAdapterProvider('meta', 'whatsapp', 4096, createMetaWhatsAppProvider)
+        const meta = options.webhooks.meta
+        return {
+          ...textAdapterProvider('meta', 'whatsapp', 4096, createMetaWhatsAppProvider),
+          ...(meta ? { parseWebhook: (request) => parseMetaWebhook(request, meta) } : {}),
+        }
       }
       if (options.providers.whatsapp?.provider === 'twilio') {
         return textAdapterProvider('twilio', 'whatsapp', 1600, createTwilioWhatsAppProvider)

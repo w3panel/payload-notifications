@@ -47,6 +47,8 @@ import { injectCollectionEventHooks, validateCollectionEvents } from './events/c
 import { setEventDepth } from './events/depth'
 import { adminTriggerRootEndpoints } from './admin-triggers/endpoints'
 import { unsubscribeEndpoints } from './endpoints/unsubscribe'
+import { maintenanceTasks } from './jobs/maintenance'
+import { webhookEndpoints } from './webhooks/endpoints'
 import { triggerLifecycleEndpoint } from './admin-triggers/lifecycle'
 import { createAdminTriggerCache, type AdminTriggerCache } from './admin-triggers/store'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
@@ -303,6 +305,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         dataSourcesListEndpoint(() => runtime.options),
         ...adminTriggerRootEndpoints(() => runtime.options),
         ...unsubscribeEndpoints(() => runtime.options),
+        ...webhookEndpoints(() => runtime.options),
       ],
       collections: injectCollectionEventHooks(
         withCollections,
@@ -317,7 +320,12 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       ),
       jobs: {
         ...config.jobs,
-        tasks,
+        tasks: [
+          ...tasks,
+          ...maintenanceTasks(() => runtime.options, normalizedOptions).filter(
+            (task) => !tasks.some((existing) => existing.slug === task.slug),
+          ),
+        ],
       },
       onInit: async (payload: Payload) => {
         runtime.payload = payload

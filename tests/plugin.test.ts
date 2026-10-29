@@ -86,7 +86,12 @@ describe('payload-notifications', () => {
 
     expect(config.collections).toHaveLength(7)
     const tasks = config.jobs && 'tasks' in config.jobs ? (config.jobs.tasks as any[]) : []
-    expect(tasks).toHaveLength(2)
+    expect(tasks.map((task) => task.slug)).toEqual([
+      'notification:process-event',
+      'notification:send',
+      'notification:reconcile',
+      'notification:retention',
+    ])
 
     const sendTask = tasks.find((task) => task.slug === 'notification:send')
     expect(sendTask?.retries?.attempts).toBe(2)

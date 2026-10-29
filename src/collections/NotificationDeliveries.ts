@@ -87,6 +87,7 @@ const baseFields: Field[] = [
   { name: 'recheckConditions', type: 'checkbox', defaultValue: false },
   { name: 'sentAt', type: 'date' },
   { name: 'deliveredAt', type: 'date' },
+  { name: 'readAt', type: 'date' },
   { name: 'lastError', type: 'textarea' },
   { name: 'skipReason', type: 'text' },
   { name: 'test', type: 'checkbox', defaultValue: false, index: true },
