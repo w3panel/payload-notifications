@@ -12,3 +12,12 @@ export { OVERRIDABLE_FIELDS, resolveEffectiveTriggers } from './registry'
 export type { EffectiveTriggersResult } from './registry'
 export { collectTriggerWarnings, validateTrigger } from './validate'
 export type { TriggerValidationResult } from './validate'
+export {
+  collectConditionRefs,
+  CONDITION_OPERATORS,
+  conditionNeedsData,
+  evaluateCondition,
+  previousPathFor,
+  validateCondition,
+} from './conditions'
+export type { ConditionValidationContext, EvaluateConditionArgs } from './conditions'

@@ -12,6 +12,7 @@ import { generateEventId } from '../events/registry'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination, resolveRecipients } from '../recipients/resolve'
+import { conditionNeedsData, evaluateCondition } from '../triggers/conditions'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
 
@@ -153,9 +154,41 @@ const planTrigger = async ({
 
   if (trigger.condition && !(await trigger.condition(event.payload ?? {}))) return
 
+  const documentAliases = (trigger.data?.sources ?? [])
+    .filter((source) => source.type === 'document')
+    .map((source) => source.alias)
+  const conditionArgs = (scope: Record<string, unknown>) => ({
+    scope,
+    event,
+    payload,
+    custom: options.conditions,
+    documentAliases,
+  })
+
+  // Conditions that only read event / doc fields run before any data is loaded.
+  const conditionsNeedData = conditionNeedsData(trigger.conditions)
+  if (
+    trigger.conditions &&
+    !conditionsNeedData &&
+    !(await evaluateCondition(
+      trigger.conditions,
+      conditionArgs({
+        event,
+        payload: event.payload ?? {},
+        doc: event.doc,
+        previous: event.previous,
+        trigger: { name: event.name, eventId: event.eventId },
+      }),
+    ))
+  ) {
+    return
+  }
+
   const dataContext = await buildDataContext({
     payload,
     event,
+    doc: event.doc ?? undefined,
+    previous: event.previous ?? undefined,
     sources: trigger.data?.sources,
     dataResolvers: options.dataResolvers,
     computed: options.computed,
@@ -167,6 +200,16 @@ const planTrigger = async ({
       'skipped',
       `${dataContext.reason} (${dataContext.source}): ${dataContext.message}`,
     )
+    return
+  }
+
+  /** Condition scope: the template context with `event` as the full event object. */
+  const scope: Record<string, unknown> = { ...dataContext.context, event }
+  if (
+    trigger.conditions &&
+    conditionsNeedData &&
+    !(await evaluateCondition(trigger.conditions, conditionArgs(scope)))
+  ) {
     return
   }
 
@@ -202,6 +245,24 @@ const planTrigger = async ({
 
     for (const recipient of recipients) {
       if (target !== 'all' && !recipient.aliases.includes(target)) continue
+
+      const recipientScope = {
+        id: recipient.recipientId,
+        name: recipient.name,
+        email: recipient.destinations.email,
+        locale: recipient.locale,
+        timezone: recipient.timezone,
+        aliases: recipient.aliases,
+      }
+      if (
+        delivery.when &&
+        !(await evaluateCondition(
+          delivery.when,
+          conditionArgs({ ...scope, recipient: recipientScope }),
+        ))
+      ) {
+        continue
+      }
 
       const idempotencyKey = buildDeliveryKey({
         event,
@@ -249,14 +310,7 @@ const planTrigger = async ({
         skipReason,
         context: {
           ...dataContext.context,
-          recipient: {
-            id: recipient.recipientId,
-            name: recipient.name,
-            email: recipient.destinations.email,
-            locale: recipient.locale,
-            timezone: recipient.timezone,
-            aliases: recipient.aliases,
-          },
+          recipient: recipientScope,
         },
         templateOverrides: delivery.templateOverrides,
       }

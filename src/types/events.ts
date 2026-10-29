@@ -12,6 +12,12 @@ export type NotificationEvent = {
   payload?: NotificationEventPayload
   classification?: NotificationClassification
   idempotencyKey?: string
+  /** Set for collection events: which collection and operation produced the event. */
+  source?: { type: 'collection'; collection: string; operation: 'create' | 'update' | 'delete' }
+  /** Collection events: captured fields of the document after the change. */
+  doc?: Record<string, unknown> | null
+  /** Collection events: captured fields of the document before an update. */
+  previous?: Record<string, unknown> | null
 }
 
 export type NotificationProcessEventJobInput = NotificationEvent

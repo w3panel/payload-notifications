@@ -67,6 +67,22 @@ const normalizeEventRegistry = (
   return { ...events }
 }
 
+const normalizeConditionRegistry = (
+  conditions: NotificationsPluginOptions['conditions'],
+): NormalizedNotificationsPluginOptions['conditions'] => {
+  const normalized: NormalizedNotificationsPluginOptions['conditions'] = {}
+  for (const [name, entry] of Object.entries(conditions ?? {})) {
+    const definition = typeof entry === 'function' ? { handler: entry } : entry
+    if (!definition || typeof definition.handler !== 'function') {
+      throw new Error(
+        `payload-notifications: conditions["${name}"] must be a function or { handler }`,
+      )
+    }
+    normalized[name] = { ...definition }
+  }
+  return normalized
+}
+
 const normalizeDataOptions = (
   data: NotificationsPluginOptions['data'],
 ): NormalizedNotificationsPluginOptions['data'] => {
@@ -225,32 +241,7 @@ export const normalizePluginOptions = (
   const recipientResolvers = normalizeRecipientResolvers(options.recipientResolvers)
   const recipientQueries = normalizeRecipientQueries(options.recipientQueries)
 
-  // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).
-  const triggerErrors = triggers.slice(rules.length).flatMap((trigger) => [
-    ...(trigger.data
-      ? validateDataSources(trigger.data.sources, {
-          allowlist: data.collections,
-          resolvers: Object.keys(dataResolvers),
-          computed: Object.keys(computed),
-          isSensitive,
-          owner: `trigger "${trigger.slug}"`,
-        })
-      : []),
-    ...validateTrigger(trigger, {
-      channels,
-      templates: {
-        registry: { ...getDefaultTemplateRegistry(), ...options.templates?.registry },
-      } as never,
-      recipients,
-      recipientResolvers,
-      recipientQueries,
-    }).errors,
-  ])
-  if (triggerErrors.length) {
-    throw new Error(`payload-notifications: invalid triggers\n  - ${triggerErrors.join('\n  - ')}`)
-  }
-
-  return {
+  const normalized: NormalizedNotificationsPluginOptions = {
     enabled: options.enabled ?? true,
     channels,
     userCollectionSlug: options.userCollectionSlug || 'users',
@@ -292,7 +283,27 @@ export const normalizePluginOptions = (
     recipients,
     recipientResolvers,
     recipientQueries,
+    conditions: normalizeConditionRegistry(options.conditions),
   }
+
+  // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).
+  const triggerErrors = triggers.slice(rules.length).flatMap((trigger) => [
+    ...(trigger.data
+      ? validateDataSources(trigger.data.sources, {
+          allowlist: data.collections,
+          resolvers: Object.keys(dataResolvers),
+          computed: Object.keys(computed),
+          isSensitive,
+          owner: `trigger "${trigger.slug}"`,
+        })
+      : []),
+    ...validateTrigger(trigger, normalized).errors,
+  ])
+  if (triggerErrors.length) {
+    throw new Error(`payload-notifications: invalid triggers\n  - ${triggerErrors.join('\n  - ')}`)
+  }
+
+  return normalized
 }
 
 /**

@@ -11,6 +11,8 @@ export const OVERRIDABLE_FIELDS: TriggerOverridableField[] = [
   'recipients',
   'deliveries',
   'data',
+  'conditions',
+  'schedule',
 ]
 
 /** Record keys that describe the record itself rather than trigger behaviour. */

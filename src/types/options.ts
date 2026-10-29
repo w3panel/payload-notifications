@@ -21,7 +21,13 @@ import type {
   NotificationRecipientResolverDefinition,
   NotificationRecipientsOptions,
 } from './recipients'
-import type { NotificationRule, NotificationTrigger, NotificationTriggerInput } from './triggers'
+import type {
+  ConditionDefinition,
+  ConditionHandler,
+  NotificationRule,
+  NotificationTrigger,
+  NotificationTriggerInput,
+} from './triggers'
 
 export type NotificationsJobsOptions = {
   /** Named Payload jobs queue. Defaults to `notifications`. */
@@ -88,6 +94,8 @@ export type NotificationsPluginOptions = {
   >
   /** Developer-registered named user queries, selectable as `{ type: 'query', name }`. */
   recipientQueries?: Record<string, NotificationRecipientQueryDefinition>
+  /** Developer-registered conditions, referenced from JSON as `{ custom: name }`. */
+  conditions?: Record<string, ConditionHandler | ConditionDefinition>
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -156,4 +164,5 @@ export type NormalizedNotificationsPluginOptions = {
   }
   recipientResolvers: Record<string, NotificationRecipientResolverDefinition>
   recipientQueries: Record<string, NotificationRecipientQueryDefinition>
+  conditions: Record<string, ConditionDefinition>
 }
