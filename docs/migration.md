@@ -41,6 +41,12 @@ New fields:
   ```
 
   On Cloudflare D1, apply the generated migration the same way you apply your other migrations, for example in your deploy step.
+
+- **SQLite and D1: check the generated migration before deploying.** SQLite can't change a column default in place, so `notification_templates` is rebuilt: a `__new_notification_templates` table, an `INSERT … SELECT` copy, then a rename. Because the same migration also adds new template columns, the copy that Payload's migration generator (drizzle) writes selects columns the old table doesn't have yet (`locale`, `source`, `email_editor`, `email_design`, …). On D1 the migration then fails with "no such column".
+
+  To fix it, edit the `` INSERT INTO `__new_notification_templates`(…) SELECT … FROM `notification_templates` `` statement in the `up` function. Keep only the columns from your previous migration's snapshot (the `.json` next to it); the new columns are nullable or have defaults. Then test the file on a copy of your database, or on a local SQLite database, before `payload migrate` runs against production. Postgres and MongoDB are not affected.
+
+  Other tables in the same migration may be rebuilt for reasons unrelated to this plugin, for example a field whose `defaultValue` is computed when the config loads (such as `new Date()`). Those rebuilds copy every row, but they appear in every new migration until the default is made stable.
 - **MongoDB:** needs no migration.
 - **Payload 3 with several job workers:** to keep one send per delivery at a time, also set `jobs.enableConcurrencyControl: true`. That needs a migration too.
 
