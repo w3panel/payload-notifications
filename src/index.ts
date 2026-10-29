@@ -10,10 +10,12 @@ export type {
   CollectionDataSource,
   ComputedDataSource,
   DataCollectionAllowlist,
+  DataContextResult,
   DataSourceLookup,
   DocumentDataSource,
   EventDataSource,
   NotificationDataConfig,
+  NotificationDataContext,
   NotificationDataSource,
   NotificationsDataOptions,
   ResolverDataSource,
@@ -46,6 +48,7 @@ export type {
   NotificationTemplateResolver,
   NotificationTemplateSet,
   NotificationTriggerDefinition,
+  NotificationTriggerInfo,
   NotificationsJobsOptions,
   PreferenceFieldMapping,
   RenderedNotificationContent,
@@ -134,3 +137,6 @@ export {
   validateDataSources,
 } from './data/sources'
 export type { DataSourceValidationContext } from './data/sources'
+export { buildDataContext } from './data/buildContext'
+export type { BuildDataContextArgs } from './data/buildContext'
+export { getPath, pickPaths, toRelationId, toSelect } from './data/paths'

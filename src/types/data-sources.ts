@@ -89,3 +89,42 @@ export type NotificationsDataOptions = {
   /** Dot paths masked in previews, inspectors and logs (e.g. `customer.phone`). */
   redact?: string[]
 }
+
+/** Metadata about the occurrence, exposed to templates as `trigger`. */
+export type NotificationTriggerInfo = {
+  /** Event name, e.g. `order.paid`. */
+  name: string
+  eventId?: string
+  occurredAt?: string
+  classification?: 'transactional' | 'marketing'
+}
+
+/**
+ * Template context produced by the data context builder. Keeps the legacy
+ * `{ event, userId, payload }` shape (where `event` is the event name) and adds
+ * `trigger`, `doc` / `previous` (collection events) and one key per source alias.
+ */
+export type NotificationDataContext = {
+  event: string
+  userId: string
+  payload: Record<string, unknown>
+  trigger: NotificationTriggerInfo
+  doc?: Record<string, unknown> | null
+  previous?: Record<string, unknown> | null
+  [alias: string]: unknown
+}
+
+export type DataContextResult =
+  | {
+      ok: true
+      context: NotificationDataContext
+      /** Optional sources that resolved to null. */
+      missing: string[]
+    }
+  | {
+      ok: false
+      reason: 'data-missing' | 'resolver-failed'
+      /** Alias of the source that stopped the notification. */
+      source: string
+      message: string
+    }
