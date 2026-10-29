@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Docs
 - Migration guide: on SQLite / D1, the generated migration's `notification_templates` rebuild copies columns that don't exist yet; how to check and fix it
 
+## [0.3.3] - 2026-10-29 (branch `release/0.3.x`, npm `latest`)
+
+Stable line for Payload 3. Backports from 0.4: string user IDs on SQL databases (attempt logs, in-app recipients), Payload 3 compatibility (`authorship`, the send task's concurrency key), package entry points; peer `payload ^3.92.0`.
+
 ## [0.4.0-beta.1] - 2026-10-29
 
 First beta of the notification automation release (roadmap Phases 1–9). 0.3.x configurations keep working; see [docs/migration.md](docs/migration.md). Published to npm `next` for validation before 1.0.0.

@@ -4,14 +4,17 @@
 
 | Plugin Version | Payload Version | npm dist-tag | Status |
 |----------------|-----------------|--------------|--------|
-| next (unreleased) | `^3.92.0` and `>=4.0.0-beta.4 <5` | `latest` (stable) / `next` (prereleases) | Supported |
-| 0.2.x – 0.3.x  | `>=4.0.0-beta.4 <5` | `latest` | Supported |
-| 0.1.x          | ^3.79.0             | — | Legacy (unmaintained) |
+| 0.4.x betas | `>=4.0.0-beta.4 <5` (also runs on `^3.92.0`) | `next` | Beta: Payload 4 apps (e.g. electrofit) |
+| 0.3.3+ (0.3.x, branch `release/0.3.x`) | `^3.92.0` | `latest` | Stable: Payload 3 apps (e.g. HappenCare) |
+| 0.2.0 – 0.3.2 | `>=4.0.0-beta.4 <5` | — | Superseded |
+| 0.1.x | ^3.79.0 | — | Legacy (unmaintained) |
 
-One build serves both majors. CI runs typecheck and the full test suite against Payload 3.92 and Payload 4 beta.
+Two release lines:
 
-- Install the stable channel with `bun add @wtree/payload-notifications`; prereleases (tested first against Payload 4 betas) with `bun add @wtree/payload-notifications@next`.
-- Release tags without a prerelease suffix (`v0.4.0`) publish to `latest`; prerelease tags (`v0.4.0-next.1`, `v0.4.0-beta.2`) publish to `next`.
+- **Payload 3: `bun add @wtree/payload-notifications`** installs the stable 0.3.x line from `latest`. Fixes are made on the `release/0.3.x` branch, which publishes stable tags (`v0.3.4`, …) to `latest` only.
+- **Payload 4: `bun add @wtree/payload-notifications@next`** installs the 0.4.x betas from `next`. They are built from `main`; prerelease tags (`v0.4.0-beta.N`) publish to `next`.
+
+The 0.4.x code also runs on Payload 3.92 (CI tests both majors), so a Payload 3 app can opt into the beta features. Moving `latest` to 0.4.x / 1.0 is a separate decision once the betas are validated.
 
 ### Payload 3 vs 4 differences handled by the plugin
 
