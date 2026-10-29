@@ -12,6 +12,8 @@
 | `collections.templates` | `'notification-templates'` | Template slug |
 | `collections.deliveries` | `'notification-deliveries'` | Delivery records slug |
 | `collections.events` | `'notification-events'` | Event inbox slug (with `eventsInbox`) |
+| `collections.triggers` | `'notification-triggers'` | Admin-created triggers |
+| `collections.triggerVersions` | `'notification-trigger-versions'` | Published admin trigger snapshots |
 | `jobs.queue` | `'notifications'` | Payload jobs queue name |
 | `templates.registry` | package starters | Code templates keyed by slug |
 | `templates.seedOnInit` | `false` | Seed missing DB templates from registry on init |
@@ -37,6 +39,12 @@
 | `tenancy` | — | `{ field, userField? }`: tenant-scoped lookups and role/query recipients |
 | `quietHours` | — | `{ start, end, timezone?, classifications? }`: hold sends during local hours (marketing by default) |
 | `eventsInbox` | `false` | Store emitted events in `notification-events` for audit and replay |
+| `access.isAdmin` | any logged-in user | Default for the three checks below — see [admin-triggers.md](./admin-triggers.md) |
+| `access.manageTriggers` | `isAdmin` | Create / edit / validate / customize admin triggers |
+| `access.publishTriggers` | `isAdmin` | Publish, enable, disable, archive, roll back |
+| `access.testSend` | `isAdmin` | Trigger test sends and template test-send |
+| `adminTriggers.cancelQueuedOnDisable` | `false` | Cancel queued deliveries when a trigger is disabled / archived |
+| `adminTriggers.cacheTtlMs` | `30000` | Per-instance cache for published admin triggers |
 | `events` | `{}` | Registered application events (`label`, `description`, `classification`, `schema`, `samplePayload`, `docsUrl`) — see [events.md](./events.md) |
 | `eventsStrict` | `false` | Reject emits for events missing from `events` |
 | `data.collections` | `{}` | Collections/fields data sources may read — see [data-sources.md](./data-sources.md) |

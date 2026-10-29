@@ -7,7 +7,7 @@ A **trigger** is a complete notification workflow. It defines:
 - who receives it
 - which channels and templates each recipient gets
 
-Code-defined triggers and admin-created triggers (Phase 4) share the same engine. Legacy `rules`
+Code-defined triggers and admin-created triggers ([admin-triggers.md](./admin-triggers.md)) share the same engine. Legacy `rules`
 are compiled into triggers automatically, so existing configs keep working.
 
 ## Defining a trigger
