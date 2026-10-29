@@ -14,6 +14,7 @@ const matches = (doc: Doc, where: Where | undefined): boolean => {
     const value = getPath(doc, key)
     const ops = condition as Record<string, unknown>
     if ('equals' in ops) return String(value) === String(ops.equals)
+    if ('not_equals' in ops) return String(value) !== String(ops.not_equals)
     if ('in' in ops) {
       const list = (ops.in as unknown[]).map(String)
       return Array.isArray(value)
@@ -72,7 +73,23 @@ export const createMemoryPayload = (
     return doc
   })
   const update = mock(
-    async ({ collection: slug, id, data }: { collection: string; id: unknown; data: Doc }) => {
+    async ({
+      collection: slug,
+      id,
+      where,
+      data,
+    }: {
+      collection: string
+      id?: unknown
+      where?: Where
+      data: Doc
+    }) => {
+      if (id === undefined) {
+        // Bulk update by where, like payload.update({ where })
+        const docs = collection(slug).filter((doc) => matches(doc, where))
+        for (const doc of docs) Object.assign(doc, data)
+        return { docs, errors: [] }
+      }
       const doc = collection(slug).find((entry) => String(entry.id) === String(id))
       if (!doc) throw new Error(`Not found: ${slug}/${String(id)}`)
       Object.assign(doc, data)

@@ -27,6 +27,7 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 | [docs/data-sources.md](docs/data-sources.md) | Collections, relationships, resolvers in templates |
 | [docs/triggers.md](docs/triggers.md) | Triggers, recipients, deliveries, code/admin precedence |
 | [docs/automation.md](docs/automation.md) | Conditions, collection events, scheduling, guards, event inbox |
+| [docs/admin-triggers.md](docs/admin-triggers.md) | Trigger Builder, lifecycle and versions, code triggers in admin, testing |
 | [docs/rules-and-triggers.md](docs/rules-and-triggers.md) | Legacy rules, `defineTrigger`, domain hooks |
 | [docs/seeding.md](docs/seeding.md) | Seed templates from registry |
 | [docs/jobs-and-operations.md](docs/jobs-and-operations.md) | Queue ops, retries, debugging |
@@ -40,7 +41,7 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 bun add @wtree/payload-notifications
 ```
 
-After install/upgrade, regenerate the Payload **import map** so `@wtree/payload-notifications/admin#TemplateStudioField` resolves.
+After install/upgrade, regenerate the Payload **import map** so the admin components (`@wtree/payload-notifications/admin#TemplateStudioField`, `#TriggerBuilderField`, `#CodeTriggersList`) resolve.
 
 ## Quick start
 ```ts

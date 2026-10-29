@@ -27,6 +27,9 @@ export const createTemplateTestSendHandler = (
     }
 
     const options = getOptions()
+    if (!(await options.access.testSend({ req }))) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const payload = req.payload as Payload
 
     let body: unknown

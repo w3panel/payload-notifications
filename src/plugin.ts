@@ -1,7 +1,6 @@
 import type { Config, Payload } from 'payload'
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Endpoint } from 'payload'
 import type {
-  AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationQueueTask,
   NotificationsPluginOptions,
@@ -29,6 +28,8 @@ import {
   NotificationEventsCollection,
   type NotificationEventsCollectionOverrides,
 } from './collections/NotificationEvents'
+import { NotificationTriggersCollection } from './collections/NotificationTriggers'
+import { NotificationTriggerVersionsCollection } from './collections/NotificationTriggerVersions'
 import {
   NotificationTemplatesCollection,
   type NotificationTemplatesCollectionOverrides,
@@ -40,6 +41,9 @@ import { eventsListEndpoint } from './endpoints/events'
 import { validateDataAllowlist } from './data/sources'
 import { injectCollectionEventHooks, validateCollectionEvents } from './events/collectionEvents'
 import { setEventDepth } from './events/depth'
+import { adminTriggerRootEndpoints } from './admin-triggers/endpoints'
+import { triggerLifecycleEndpoint } from './admin-triggers/lifecycle'
+import { createAdminTriggerCache, type AdminTriggerCache } from './admin-triggers/store'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
 import { assertNotificationEvent, emitNotificationEvent, processEvent } from './jobs/processEvent'
 import { assertNotificationSendInput, sendNotification } from './jobs/sendNotification'
@@ -77,8 +81,8 @@ const getExistingTaskSlugs = (config: Config): string[] => {
 type RuntimeRef = {
   payload: Payload | null
   options: NormalizedNotificationsPluginOptions
-  /** Published admin-created triggers, loaded from `notification-triggers` (Phase 4). */
-  adminTriggers: AdminTriggerRecord[]
+  /** Published admin-created triggers (TTL cache over `notification-trigger-versions`). */
+  adminTriggers: AdminTriggerCache
 }
 
 const createSendOnFail =
@@ -154,7 +158,7 @@ const createLiveTaskHandler = (
         payload,
         event,
         options: runtime.options,
-        adminTriggers: runtime.adminTriggers,
+        adminTriggers: await runtime.adminTriggers.get(payload),
         req,
       })
       return { output: {} } as TaskHandlerResult<any>
@@ -168,7 +172,7 @@ const createLiveTaskHandler = (
       payload,
       input: sendInput,
       options: runtime.options,
-      adminTriggers: runtime.adminTriggers,
+      adminTriggers: await runtime.adminTriggers.get(payload),
     })
     return { output: result ?? {} } as TaskHandlerResult<any>
   }
@@ -243,7 +247,11 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
   const normalizedOptions = normalizePluginOptions(options)
   validateNormalizedOptions(normalizedOptions)
 
-  const runtime: RuntimeRef = { payload: null, options: normalizedOptions, adminTriggers: [] }
+  const runtime: RuntimeRef = {
+    payload: null,
+    options: normalizedOptions,
+    adminTriggers: createAdminTriggerCache(() => runtime.options),
+  }
 
   return (config: Config): Config => {
     if (normalizedOptions.enabled === false) {
@@ -256,6 +264,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       normalizedOptions,
       undefined,
       () => runtime.options,
+      (getOptions) => [triggerLifecycleEndpoint(getOptions, runtime.adminTriggers)],
     )
     const allowlistErrors = [
       ...validateDataAllowlist(withCollections, normalizedOptions.data.collections),
@@ -287,6 +296,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         ...(config.endpoints || []),
         eventsListEndpoint(() => runtime.options),
         dataSourcesListEndpoint(() => runtime.options),
+        ...adminTriggerRootEndpoints(() => runtime.options),
       ],
       collections: injectCollectionEventHooks(
         withCollections,
@@ -338,6 +348,8 @@ export const registerCollections = (
     events?: NotificationEventsCollectionOverrides
   },
   getOptions?: () => NormalizedNotificationsPluginOptions,
+  /** Endpoints for the notification-triggers collection (lifecycle, test runner). */
+  adminTriggerEndpoints?: (getOptions: () => NormalizedNotificationsPluginOptions) => Endpoint[],
 ): CollectionConfig[] => {
   const next = [...collections]
 
@@ -367,6 +379,28 @@ export const registerCollections = (
         slug: options.collections.templates,
         overrides: overrides?.templates,
         getOptions: getOptions || (() => options),
+      }),
+    )
+  }
+
+  if (!hasCollectionSlug(next, options.collections.triggers)) {
+    const resolveOptions = getOptions || (() => options)
+    next.push(
+      NotificationTriggersCollection({
+        slug: options.collections.triggers,
+        userCollectionSlug: options.userCollectionSlug,
+        getOptions: resolveOptions,
+        endpoints: adminTriggerEndpoints?.(resolveOptions) ?? [],
+      }),
+    )
+  }
+
+  if (!hasCollectionSlug(next, options.collections.triggerVersions)) {
+    next.push(
+      NotificationTriggerVersionsCollection({
+        slug: options.collections.triggerVersions,
+        triggersSlug: options.collections.triggers,
+        userCollectionSlug: options.userCollectionSlug,
       }),
     )
   }
@@ -405,7 +439,7 @@ export const registerNotificationTasks = (
   const standaloneRuntime: RuntimeRef = {
     payload: null,
     options: normalizePluginOptions(),
-    adminTriggers: [],
+    adminTriggers: createAdminTriggerCache(() => standaloneRuntime.options),
   }
   return registerTaskDefinitions(config, tasks, standaloneRuntime)
 }
