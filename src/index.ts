@@ -7,6 +7,16 @@ export {
 export { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
 export type {
   ChannelProviderResult,
+  CollectionDataSource,
+  ComputedDataSource,
+  DataCollectionAllowlist,
+  DataSourceLookup,
+  DocumentDataSource,
+  EventDataSource,
+  NotificationDataConfig,
+  NotificationDataSource,
+  NotificationsDataOptions,
+  ResolverDataSource,
   EmailProviderConfig,
   NormalizedNotificationsPluginOptions,
   NotificationChannel,
@@ -115,3 +125,12 @@ export {
 export { EVENT_NAME_PATTERN, isValidEventName } from './events/names'
 export { getRuntimeOptions } from './config/runtime'
 export { eventsListEndpoint } from './endpoints/events'
+export {
+  assertValidDataSources,
+  collectCollectionFieldPaths,
+  orderDataSources,
+  RESERVED_ALIASES,
+  validateDataAllowlist,
+  validateDataSources,
+} from './data/sources'
+export type { DataSourceValidationContext } from './data/sources'

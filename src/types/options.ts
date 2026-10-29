@@ -1,4 +1,5 @@
 import type { NotificationChannel } from './channels'
+import type { DataCollectionAllowlist, NotificationsDataOptions } from './data-sources'
 import type { NotificationObservabilityHook } from './deliveries'
 import type { NotificationEventRegistry } from './events'
 import type {
@@ -57,6 +58,8 @@ export type NotificationsPluginOptions = {
   events?: NotificationEventRegistry
   /** Reject emits for events not present in `events`. Default false. */
   eventsStrict?: boolean
+  /** Collections/fields data sources may read, and paths to redact. */
+  data?: NotificationsDataOptions
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -100,4 +103,8 @@ export type NormalizedNotificationsPluginOptions = {
   rules: NotificationRule[]
   events: NotificationEventRegistry
   eventsStrict: boolean
+  data: {
+    collections: DataCollectionAllowlist
+    redact: string[]
+  }
 }

@@ -57,6 +57,32 @@ const normalizeEventRegistry = (
   return { ...events }
 }
 
+const normalizeDataOptions = (
+  data: NotificationsPluginOptions['data'],
+): NormalizedNotificationsPluginOptions['data'] => {
+  const collections: NormalizedNotificationsPluginOptions['data']['collections'] = {}
+
+  for (const [slug, entry] of Object.entries(data?.collections ?? {})) {
+    if (
+      !entry ||
+      !Array.isArray(entry.fields) ||
+      entry.fields.some((field) => typeof field !== 'string' || !field)
+    ) {
+      throw new Error(
+        `payload-notifications: data.collections["${slug}"].fields must be an array of field names`,
+      )
+    }
+    collections[slug] = { ...entry, fields: [...new Set(entry.fields)] }
+  }
+
+  const redact = data?.redact ?? []
+  if (!Array.isArray(redact) || redact.some((path) => typeof path !== 'string')) {
+    throw new Error('payload-notifications: data.redact must be an array of dot paths')
+  }
+
+  return { collections, redact: [...redact] }
+}
+
 export const normalizePluginOptions = (
   options: NotificationsPluginOptions = {},
 ): NormalizedNotificationsPluginOptions => {
@@ -178,6 +204,7 @@ export const normalizePluginOptions = (
     rules: options.rules || [],
     events: normalizeEventRegistry(options.events),
     eventsStrict: options.eventsStrict === true,
+    data: normalizeDataOptions(options.data),
   }
 }
 

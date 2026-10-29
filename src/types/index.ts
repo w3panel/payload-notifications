@@ -1,4 +1,5 @@
 export type * from './channels'
+export type * from './data-sources'
 export type * from './deliveries'
 export type * from './events'
 export type * from './options'
