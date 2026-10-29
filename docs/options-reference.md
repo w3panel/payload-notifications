@@ -25,6 +25,10 @@
 | `templates.localized` | `{}` | Per-locale code registry variants |
 | `templates.emailLayout` | — | Layout wrapping every HTML email (template string or function) |
 | `templates.shortenLink` | — | Shortens links in SMS / WhatsApp text |
+| `templates.mediaCollection` | — | Upload collection for designer images and the theme logo — see [admin-templates.md](./admin-templates.md#media) |
+| `templates.mediaBaseUrl` | `serverURL` | Origin for relative media URLs |
+| `collections.partials` | `notification-template-partials` | Reusable sections for visual emails |
+| `globals.theme` | `notification-theme` | Brand theme global for visual emails |
 | `templates.email` / `whatsapp` / `sms` | — | Legacy string keys (prefer registry) |
 | `providers.email` | — | `defaultFromAddress`, `defaultFromName` |
 | `providers.whatsapp` | — | `meta` or `twilio` credentials (`businessAccountId` for Meta template approval sync) |
@@ -58,8 +62,9 @@
 | `access.isAdmin` | any logged-in user | Default for the three checks below — see [admin-triggers.md](./admin-triggers.md) |
 | `access.manageTriggers` | `isAdmin` | Create / edit / validate / customize admin triggers |
 | `access.publishTriggers` | `isAdmin` | Publish, enable, disable, archive, roll back |
-| `access.testSend` | `isAdmin` | Trigger test sends and template test-send |
-| `access.publishTemplates` | `isAdmin` | Publish / roll back templates, sync WhatsApp approval |
+| `access.testSend` | `isAdmin` | Trigger test sends and template test-send (to the caller only) |
+| `access.publishTemplates` | `isAdmin` | Publish / roll back templates, sync WhatsApp approval, edit the theme |
+| `access.rawHtml` | nobody | Add or change raw HTML blocks in visual designs |
 | `adminTriggers.cancelQueuedOnDisable` | `false` | Cancel queued deliveries when a trigger is disabled / archived |
 | `adminTriggers.cacheTtlMs` | `30000` | Per-instance cache for published admin triggers |
 | `reliability.attempts` / `backoff` / `jitter` | `3` / exponential 5s→1h / `true` | Default retry policy — see [reliability.md](./reliability.md) |

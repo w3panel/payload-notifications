@@ -8,7 +8,7 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 - Channel implementations for email, WhatsApp, SMS, and in-app notifications
 - **Real provider integrations**: Meta WhatsApp Cloud API, Twilio SMS, and Twilio WhatsApp
 - Delivery log persistence and in-app notification storage with resolved template content
-- Template registry + DB `notification-templates` with admin **template studio** (preview / test-send)
+- Template registry + DB `notification-templates` with an admin **template studio**: a visual email designer (blocks, brand theme, reusable sections), channel-native previews with accessibility checks, versions with diff and rollback, and test sends to yourself
 - Registry → DB seeding (`seedTemplatesFromRegistry` / `templates.seedOnInit`)
 - Preference mapping, consent enforcement, and custom policy hooks
 - Reliability helpers for idempotency, retry classification, throw-to-retry dispatch, and observability hooks
@@ -22,7 +22,7 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 | [docs/getting-started.md](docs/getting-started.md) | Install, first emit, jobs queue |
 | [docs/end-to-end.md](docs/end-to-end.md) | Full dynamic checklist |
 | [docs/templates.md](docs/templates.md) | Registry vs DB, engine syntax |
-| [docs/admin-templates.md](docs/admin-templates.md) | Preview, test-send, import map |
+| [docs/admin-templates.md](docs/admin-templates.md) | Visual designer, theme, partials, preview, versions, test-send, import map |
 | [docs/events.md](docs/events.md) | Event registry, schemas, emitting |
 | [docs/data-sources.md](docs/data-sources.md) | Collections, relationships, resolvers in templates |
 | [docs/triggers.md](docs/triggers.md) | Triggers, recipients, deliveries, code/admin precedence |
@@ -42,7 +42,7 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 bun add @wtree/payload-notifications
 ```
 
-After install/upgrade, regenerate the Payload **import map** so the admin components (`@wtree/payload-notifications/admin#TemplateStudioField`, `#TriggerBuilderField`, `#CodeTriggersList`) resolve.
+After install/upgrade, regenerate the Payload **import map** so the admin components (`@wtree/payload-notifications/admin#TemplateStudioField`, `#PartialDesignerField`, `#TriggerBuilderField`, `#CodeTriggersList`) resolve.
 
 ## Quick start
 ```ts
