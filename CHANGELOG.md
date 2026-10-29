@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.2] - 2026-10-29
+
 ### Fixed
 - Found by testing in a Payload 3 / Next.js / D1 app: the first publish of a draft template is now version 1 (new templates start at version 0); the delivery inspector masks the recipient's email and phone; the generated HTML / text bodies are hidden while the visual designer is used; the designer layout follows the form width
 
