@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Visual Template Studio (Phase 7)
+- Visual email designer in the template studio: a versioned block document in `email.design` with sections, columns, headings, text, images, buttons, dividers, spacers, lists, social links, footers, loops, conditions, saved sections and raw HTML. It compiles on save to table-based, inline-styled, Outlook-safe HTML plus plain text (ADR: `docs/adr/0001-visual-email-editor.md`)
+- Drag and drop, keyboard editing, undo/redo, copy/paste; a formatting toolbar; `{{` variable autocomplete with unknown variables highlighted
+- `notification-theme` global (brand theme) and the `notification-template-partials` collection (versioned reusable sections)
+- `templates.mediaCollection` / `templates.mediaBaseUrl` for images and the theme logo; images need alt text and absolute URLs
+- Preview with sample data (event sample, real document, trigger data or JSON), desktop and mobile widths, dark-mode simulation, accessibility and size checks, and channel-native SMS / WhatsApp / in-app previews
+- Code mode: one-way visual → HTML conversion (`POST …/compile-design`); `{{` autocomplete in Payload's code editors
+- Versions panel: publish, history, field and HTML diff, side-by-side previews, rollback
+- `access.rawHtml` (default: nobody)
+
+### Changed
+- Template test-send goes only to the signed-in admin (another `userId` is rejected). It is marked `[Test]`, uses the preview's sample data and unsaved visual design, and applies channel finishing
+- `templates.emailLayout` no longer wraps compiled visual designs, which are full documents
+- The variables endpoint also returns `roots`
+- New collection (`notification-template-partials`) and global (`notification-theme`): SQL hosts need a migration
+
 ### Added
 - Payload 3 support alongside Payload 4: peer range is now `^3.92.0 || >=4.0.0-beta.4 <5`. `authorship: false` is set only on Payload 4, and the `notification:send` concurrency key only where the host supports it (always on Payload 4; on Payload 3 when `jobs.enableConcurrencyControl` is on)
 - CI matrix runs typecheck and tests on Payload 3.92 and Payload 4 beta

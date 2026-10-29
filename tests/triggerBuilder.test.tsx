@@ -28,6 +28,7 @@ mock.module('@payloadcms/ui', () => ({
     setValue,
   }),
   useDocumentInfo: () => ({ id: 't1' }),
+  useFormModified: () => false,
 }))
 
 const registry: BuilderRegistry = {

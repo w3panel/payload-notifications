@@ -1,219 +1,105 @@
 'use client'
 
 import React, { useCallback, useState } from 'react'
-import { useForm } from '@payloadcms/ui'
-import {
-  buildTemplateApiPath,
-  CHANNEL_OPTIONS,
-  DEFAULT_PREVIEW_CONTEXT,
-  parsePreviewContext,
-} from './previewHelpers'
+import { useDocumentInfo, useField, useForm, useFormModified } from '@payloadcms/ui'
+import type { EmailDesign } from '../studio/model'
+import { STUDIO_CSS } from './studio/styles'
+import { useDesignerLists } from './studio/useDesignerLists'
+import { useTemplateVariables } from './studio/useTemplateVariables'
+import { VisualEmailEditor } from './studio/VisualEmailEditor'
+import { buildPreviewBody, buildTemplateApiPath, type PreviewSampleChoice } from './previewHelpers'
+import { CodeVariablesPanel } from './studio/CodeVariablesPanel'
+import { EditorModeBar } from './studio/EditorModeBar'
+import { useMonacoVariableCompletion } from './studio/monacoVariables'
+import { PreviewPanel } from './studio/PreviewPanel'
+import { VersionsPanel } from './studio/VersionsPanel'
 import { TemplateEngineHelp } from './TemplateEngineHelp'
 import type { NotificationChannel } from '../types'
 
-type StudioInnerProps = {
+type TestSendProps = {
   getDoc: () => Record<string, unknown>
-  collectionSlug?: string
-  apiRoute?: string
+  collectionSlug: string
+  apiRoute: string
+  channel: NotificationChannel
+  sample: PreviewSampleChoice
+  contextJson: string
 }
 
-const StudioInner: React.FC<StudioInnerProps> = ({
+/** Sends the current form values once to the signed-in admin, marked as a test. */
+const TestSend: React.FC<TestSendProps> = ({
   getDoc,
-  collectionSlug = 'notification-templates',
-  apiRoute = '/api',
+  collectionSlug,
+  apiRoute,
+  channel,
+  sample,
+  contextJson,
 }) => {
-  const [channel, setChannel] = useState<NotificationChannel>('email')
-  const [contextJson, setContextJson] = useState(DEFAULT_PREVIEW_CONTEXT)
-  const [userId, setUserId] = useState('')
-  const [previewResult, setPreviewResult] = useState('')
-  const [previewHtml, setPreviewHtml] = useState('')
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const runPreview = useCallback(async () => {
-    const parsed = parsePreviewContext(contextJson)
-    if (!parsed.ok) {
-      setStatus(parsed.error)
+  const run = async () => {
+    const doc = getDoc()
+    const request = buildPreviewBody({ channel, doc, contextJson, sample })
+    if (!request.ok) {
+      setStatus(request.error)
       return
     }
-
     setBusy(true)
     setStatus('')
     try {
-      const res = await fetch(buildTemplateApiPath(collectionSlug, 'preview', apiRoute), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel,
-          doc: getDoc(),
-          context: parsed.value,
-        }),
-      })
-      const data = (await res.json()) as {
-        error?: string
-        rendered?: {
-          subject?: string
-          title?: string
-          text?: string
-          body?: string
-          html?: string
-        }
-      }
-      if (!res.ok) {
-        setStatus(data.error || `Preview failed (${res.status})`)
-        setPreviewResult('')
-        setPreviewHtml('')
-        return
-      }
-
-      const rendered = data.rendered || {}
-      setPreviewResult(
-        [
-          rendered.subject ? `Subject: ${rendered.subject}` : null,
-          rendered.title ? `Title: ${rendered.title}` : null,
-          rendered.text || rendered.body || '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      )
-      setPreviewHtml(rendered.html || '')
-      setStatus('Preview updated')
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Preview request failed')
-    } finally {
-      setBusy(false)
-    }
-  }, [apiRoute, channel, collectionSlug, contextJson, getDoc])
-
-  const runTestSend = useCallback(async () => {
-    const parsed = parsePreviewContext(contextJson)
-    if (!parsed.ok) {
-      setStatus(parsed.error)
-      return
-    }
-    if (!userId.trim()) {
-      setStatus('Enter a userId for test send')
-      return
-    }
-
-    setBusy(true)
-    setStatus('')
-    try {
-      const doc = getDoc()
       const res = await fetch(buildTemplateApiPath(collectionSlug, 'test-send', apiRoute), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel,
-          userId: userId.trim(),
-          doc,
-          id: doc.id,
-          context: parsed.value.payload || parsed.value,
-        }),
+        body: JSON.stringify({ ...request.body, id: doc.id }),
       })
       const data = (await res.json()) as {
         error?: string
+        errors?: string[]
         result?: { status?: string; reason?: string }
       }
-      if (!res.ok) {
-        setStatus(data.error || `Test send failed (${res.status})`)
-        return
-      }
       setStatus(
-        `Test send: ${data.result?.status || 'ok'}${data.result?.reason ? ` — ${data.result.reason}` : ''}`,
+        res.ok
+          ? `Test ${channel} ${data.result?.status || 'sent'}${data.result?.reason ? ` — ${data.result.reason}` : ''}`
+          : [data.error || `Test send failed (${res.status})`, ...(data.errors ?? [])].join(' — '),
       )
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Test send request failed')
     } finally {
       setBusy(false)
     }
-  }, [apiRoute, channel, collectionSlug, contextJson, getDoc, userId])
+  }
 
   return (
-    <div style={{ display: 'grid', gap: '0.75rem', marginTop: '0.5rem' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-        <label style={{ fontSize: 13 }}>
-          Channel{' '}
-          <select
-            value={channel}
-            onChange={(event) => setChannel(event.target.value as NotificationChannel)}
-          >
-            {CHANNEL_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" disabled={busy} onClick={() => void runPreview()}>
-          Preview
-        </button>
-        <button type="button" disabled={busy} onClick={() => void runTestSend()}>
-          Send test
-        </button>
-      </div>
-
-      <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>
-        Sample context (JSON)
-        <textarea
-          value={contextJson}
-          onChange={(event) => setContextJson(event.target.value)}
-          rows={8}
-          style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}
-        />
-      </label>
-
-      <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>
-        Test-send userId
-        <input
-          value={userId}
-          onChange={(event) => setUserId(event.target.value)}
-          placeholder="user id"
-        />
-      </label>
-
-      {status ? <p style={{ margin: 0, fontSize: 13 }}>{status}</p> : null}
-
-      {previewResult ? (
-        <pre
-          style={{
-            margin: 0,
-            padding: '0.75rem',
-            background: 'var(--theme-elevation-50, #f6f6f6)',
-            borderRadius: 4,
-            whiteSpace: 'pre-wrap',
-            fontSize: 12,
-          }}
-        >
-          {previewResult}
-        </pre>
+    <div className="pn-row">
+      <button type="button" disabled={busy} onClick={() => void run()}>
+        {busy ? 'Sending…' : `Send test ${channel} to me`}
+      </button>
+      <span className="pn-hint">
+        Uses the preview&apos;s sample data; sent only to your account and marked [Test].
+      </span>
+      {status ? (
+        <span className="pn-hint" role="status">
+          {status}
+        </span>
       ) : null}
-
-      {previewHtml ? (
-        <iframe
-          title="Email HTML preview"
-          sandbox=""
-          srcDoc={previewHtml}
-          style={{
-            width: '100%',
-            minHeight: 180,
-            border: '1px solid var(--theme-elevation-150, #ddd)',
-            borderRadius: 4,
-            background: '#fff',
-          }}
-        />
-      ) : null}
-
-      <TemplateEngineHelp />
     </div>
   )
 }
 
 type TemplateStudioFieldProps = {
   path?: string
-  field?: { admin?: { custom?: { collectionSlug?: string; apiRoute?: string } } }
+  field?: {
+    admin?: {
+      custom?: {
+        collectionSlug?: string
+        apiRoute?: string
+        partialsSlug?: string
+        mediaSlug?: string
+        templateVersionsSlug?: string
+      }
+    }
+  }
 }
 
 /**
@@ -230,10 +116,137 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
     return data && typeof data === 'object' ? data : {}
   }, [getData])
 
+  const editor = useField<string>({ path: 'email.editor' })
+  const design = useField<EmailDesign | null>({ path: 'email.design' })
+  const slug = useField<string>({ path: 'slug' })
+  const [trigger, setTrigger] = useState('')
+  const visual = editor.value === 'visual'
+  const lists = useDesignerLists({
+    apiRoute,
+    partialsSlug: visual ? custom?.partialsSlug : undefined,
+    mediaSlug: visual ? custom?.mediaSlug : undefined,
+  })
+  const variables = useTemplateVariables({
+    apiRoute,
+    collectionSlug,
+    event: slug.value || undefined,
+    trigger: trigger.trim() || undefined,
+  })
+  const channels = useField<string[]>({ path: 'channels' })
+  const htmlBody = useField<string>({ path: 'email.htmlBody' })
+  const textBody = useField<string>({ path: 'email.textBody' })
+  const subject = useField<string>({ path: 'email.subject' })
+  const preheader = useField<string>({ path: 'email.preheader' })
+  const hasEmail = Array.isArray(channels.value) && channels.value.includes('email')
+  const { id } = useDocumentInfo()
+  const modified = useFormModified()
+  const status = useField<string>({ path: 'status' })
+  const publishedVersion = useField<number>({ path: 'version' })
+  const unpublished = useField<boolean>({ path: 'hasUnpublishedChanges' })
+  useMonacoVariableCompletion(variables.paths, hasEmail && !visual)
+
+  const compile = useCallback(
+    async (next: EmailDesign) => {
+      const res = await fetch(`${apiRoute.replace(/\/$/, '')}/${collectionSlug}/compile-design`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ design: next, locale: getDoc().locale }),
+      })
+      const data = (await res.json()) as {
+        html?: string
+        text?: string
+        error?: string
+        errors?: string[]
+      }
+      return res.ok && typeof data.html === 'string'
+        ? { html: data.html, text: data.text ?? '' }
+        : {
+            error: [data.error || `Conversion failed (${res.status})`, ...(data.errors ?? [])].join(
+              ' — ',
+            ),
+          }
+    },
+    [apiRoute, collectionSlug, getDoc],
+  )
+
   return (
-    <div>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>Template studio</div>
-      <StudioInner collectionSlug={collectionSlug} apiRoute={apiRoute} getDoc={getDoc} />
+    <div className="pn-studio">
+      <style>{STUDIO_CSS}</style>
+      <div style={{ fontWeight: 600 }}>Template studio</div>
+      {hasEmail ? (
+        <EditorModeBar
+          editor={editor.value}
+          design={design.value}
+          setEditor={(value) => editor.setValue(value)}
+          setDesign={(next) => design.setValue(next)}
+          setBodies={({ html, text }) => {
+            htmlBody.setValue(html)
+            textBody.setValue(text)
+          }}
+          compile={compile}
+        />
+      ) : null}
+      {hasEmail && !visual ? (
+        <CodeVariablesPanel
+          paths={variables.paths}
+          roots={variables.roots}
+          sources={[subject.value, preheader.value, htmlBody.value, textBody.value]}
+        />
+      ) : null}
+      {visual ? (
+        <>
+          <div className="pn-toolbar">
+            <span className="pn-hint">
+              Variables for event <code>{slug.value || '(set a slug)'}</code>
+              {variables.paths.length ? ` · ${variables.paths.length} available` : ''}
+              {variables.error ? ` · ${variables.error}` : ''}
+            </span>
+            <label className="pn-check">
+              Trigger
+              <input
+                value={trigger}
+                placeholder="optional trigger slug"
+                onChange={(event) => setTrigger(event.target.value)}
+                style={{ width: 180 }}
+              />
+            </label>
+          </div>
+          <VisualEmailEditor
+            design={design.value}
+            onChange={(next) => design.setValue(next)}
+            variables={variables.paths}
+            roots={variables.roots}
+            partials={lists.partials}
+            media={lists.media}
+          />
+        </>
+      ) : null}
+      <PreviewPanel getDoc={getDoc} collectionSlug={collectionSlug} apiRoute={apiRoute}>
+        {({ channel, sample, contextJson }) => (
+          <TestSend
+            getDoc={getDoc}
+            collectionSlug={collectionSlug}
+            apiRoute={apiRoute}
+            channel={channel}
+            sample={sample}
+            contextJson={contextJson}
+          />
+        )}
+      </PreviewPanel>
+      <VersionsPanel
+        apiRoute={apiRoute}
+        collectionSlug={collectionSlug}
+        versionsSlug={custom?.templateVersionsSlug || 'notification-template-versions'}
+        id={id}
+        status={status.value}
+        version={publishedVersion.value}
+        hasUnpublishedChanges={unpublished.value}
+        modified={modified}
+        getDoc={getDoc}
+        compile={(next) => compile(next as EmailDesign)}
+      />
+      <TemplateEngineHelp />
     </div>
   )
 }

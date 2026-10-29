@@ -37,7 +37,7 @@ export const TemplateEngineHelp: React.FC = () => {
       </ul>
       <p style={{ margin: '0.5rem 0 0' }}>
         Full docs: <code>docs/templates.md</code> and <code>docs/admin-templates.md</code> in the
-        package. WYSIWYG/block builders are not included in this release.
+        package. For a visual email, set Email → Editor to "Visual designer".
       </p>
     </div>
   )

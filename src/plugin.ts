@@ -32,6 +32,8 @@ import {
   NotificationPreferencesCollection,
   NotificationSuppressionsCollection,
 } from './collections/NotificationConsent'
+import { NotificationTemplatePartialsCollection } from './collections/NotificationTemplatePartials'
+import { NotificationThemeGlobal } from './collections/NotificationTheme'
 import { NotificationTemplateVersionsCollection } from './collections/NotificationTemplateVersions'
 import { NotificationTriggersCollection } from './collections/NotificationTriggers'
 import { NotificationTriggerVersionsCollection } from './collections/NotificationTriggerVersions'
@@ -330,6 +332,17 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
             options: runtime.options,
           }).then(() => undefined),
       ),
+      globals: (config.globals ?? []).some(
+        (global) => global.slug === normalizedOptions.globals.theme,
+      )
+        ? config.globals
+        : [
+            ...(config.globals ?? []),
+            NotificationThemeGlobal({
+              slug: normalizedOptions.globals.theme,
+              getOptions: () => runtime.options,
+            }),
+          ],
       jobs: {
         ...config.jobs,
         tasks: [
@@ -450,6 +463,15 @@ export const registerCollections = (
         slug: options.collections.templateVersions,
         templatesSlug: options.collections.templates,
         userCollectionSlug: options.userCollectionSlug,
+      }),
+    )
+  }
+
+  if (!hasCollectionSlug(next, options.collections.partials)) {
+    next.push(
+      NotificationTemplatePartialsCollection({
+        slug: options.collections.partials,
+        getOptions: getOptions || (() => options),
       }),
     )
   }

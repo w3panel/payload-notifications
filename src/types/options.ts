@@ -67,8 +67,14 @@ export type NotificationsPluginOptions = {
     suppressions?: string
     /** Published template snapshots. */
     templateVersions?: string
+    /** Reusable sections for visual email designs. */
+    partials?: string
     /** Event inbox slug (only with `eventsInbox: true`). */
     events?: string
+  }
+  globals?: {
+    /** Brand theme for visual email designs. Default `notification-theme`. */
+    theme?: string
   }
   jobs?: NotificationsJobsOptions
   templates?: {
@@ -99,6 +105,13 @@ export type NotificationsPluginOptions = {
     starterPack?: boolean | Array<'ecommerce' | 'auth' | 'saas'>
     /** Shortens links in SMS / WhatsApp text before sending. */
     shortenLink?: (url: string) => string | Promise<string>
+    /**
+     * Upload collection for images in the visual designer and the theme logo
+     * (e.g. `media`). Its documents' `url` is used, made absolute with `mediaBaseUrl`.
+     */
+    mediaCollection?: string
+    /** Origin for relative media URLs, e.g. https://cdn.example.com. Defaults to `serverURL`. */
+    mediaBaseUrl?: string
     localized?: Record<string, NotificationTemplateRegistry>
   }
   providers?: {
@@ -200,6 +213,11 @@ export type NotificationsPluginOptions = {
     testSend?: NotificationAccessCheck
     /** Publish / roll back notification templates. */
     publishTemplates?: NotificationAccessCheck
+    /**
+     * Add or change raw HTML blocks in the visual email designer. Raw HTML is
+     * sent as-is, so this defaults to nobody; grant it to trusted roles only.
+     */
+    rawHtml?: NotificationAccessCheck
   }
   /** Admin-created triggers (`notification-triggers`). */
   adminTriggers?: {
@@ -266,6 +284,11 @@ export type NormalizedNotificationsPluginOptions = {
     preferences: string
     suppressions: string
     templateVersions: string
+    partials: string
+  }
+  /** Global slugs. */
+  globals: {
+    theme: string
   }
   jobs: {
     queue: string
@@ -281,6 +304,8 @@ export type NormalizedNotificationsPluginOptions = {
       | string
       | ((args: { html: string; subject?: string; preheader?: string }) => string)
     shortenLink?: (url: string) => string | Promise<string>
+    mediaCollection?: string
+    mediaBaseUrl?: string
     localized: Record<string, NotificationTemplateRegistry>
   }
   providers: {
@@ -364,6 +389,7 @@ export type NormalizedNotificationsPluginOptions = {
     publishTriggers: NotificationAccessCheck
     testSend: NotificationAccessCheck
     publishTemplates: NotificationAccessCheck
+    rawHtml: NotificationAccessCheck
   }
   adminTriggers: {
     cancelQueuedOnDisable: boolean

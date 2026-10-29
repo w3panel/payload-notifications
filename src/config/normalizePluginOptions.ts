@@ -181,6 +181,7 @@ const normalizeAccess = (
     publishTriggers: access?.publishTriggers ?? isAdmin,
     testSend: access?.testSend ?? isAdmin,
     publishTemplates: access?.publishTemplates ?? isAdmin,
+    rawHtml: access?.rawHtml ?? (() => false),
   }
 }
 
@@ -321,6 +322,7 @@ export const normalizePluginOptions = (
   const suppressionsSlug = options.collections?.suppressions || 'notification-suppressions'
   const templateVersionsSlug =
     options.collections?.templateVersions || 'notification-template-versions'
+  const partialsSlug = options.collections?.partials || 'notification-template-partials'
 
   const allSlugs = [
     notificationsSlug,
@@ -333,6 +335,7 @@ export const normalizePluginOptions = (
     preferencesSlug,
     suppressionsSlug,
     templateVersionsSlug,
+    partialsSlug,
   ]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
@@ -426,6 +429,8 @@ export const normalizePluginOptions = (
     defaultLocale: options.templates?.defaultLocale || undefined,
     emailLayout: options.templates?.emailLayout,
     shortenLink: options.templates?.shortenLink,
+    mediaCollection: options.templates?.mediaCollection,
+    mediaBaseUrl: options.templates?.mediaBaseUrl,
     localized: Object.fromEntries(
       Object.entries(options.templates?.localized ?? {}).map(([locale, registry]) => [
         locale.replace('_', '-').toLowerCase(),
@@ -459,6 +464,10 @@ export const normalizePluginOptions = (
       preferences: preferencesSlug,
       suppressions: suppressionsSlug,
       templateVersions: templateVersionsSlug,
+      partials: partialsSlug,
+    },
+    globals: {
+      theme: options.globals?.theme || 'notification-theme',
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,

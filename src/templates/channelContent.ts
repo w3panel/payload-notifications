@@ -4,6 +4,7 @@ import type {
   RenderedNotificationContent,
   SmsSegmentInfo,
 } from '../types'
+import { VISUAL_DESIGN_MARKER } from '../studio/compile'
 import { renderTemplate as renderEngineTemplate } from './engine'
 
 const GSM_BASIC =
@@ -94,7 +95,8 @@ export const finalizeForChannel = async (
 ): Promise<RenderedNotificationContent> => {
   if (channel === 'email') {
     let html = sanitizeLinks(rendered.html)
-    const layout = options.templates.emailLayout
+    // Visual designs compile to full documents with their own layout.
+    const layout = html.includes(VISUAL_DESIGN_MARKER) ? undefined : options.templates.emailLayout
     if (typeof layout === 'function') {
       html = layout({ html, subject: rendered.subject, preheader: rendered.preheader })
     } else if (typeof layout === 'string') {

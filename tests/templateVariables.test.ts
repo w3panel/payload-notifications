@@ -117,7 +117,10 @@ describe('template publish validation', () => {
       user: { id: 'a' },
       url: 'http://x/api/notification-templates/variables?event=order.paid',
     } as never)
-    expect((await res.json()).variables).toContain('payload.orderId')
+    const body = await res.json()
+    expect(body.variables).toContain('payload.orderId')
+    expect(body.roots.payload).toContain('orderId')
+    expect(body.roots.recipient).toContain('email')
     expect((await endpoint.handler({ user: null, url: 'http://x' } as never)).status).toBe(401)
   })
 })

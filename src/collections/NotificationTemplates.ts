@@ -9,6 +9,7 @@ import {
   type Field,
 } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { compileDesignEndpoint } from '../endpoints/compileDesign'
 import { templatePreviewEndpoint } from '../endpoints/templatePreview'
 import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
 import { EVENT_NAME_PATTERN } from '../events/names'
@@ -17,6 +18,9 @@ import { templateVariablesEndpoint, validateTemplateDoc } from '../templates/val
 import { whatsappStatusEndpoint } from '../templates/whatsappStatus'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 import { versionedCollectionDefaults } from '../compat'
+import { parseDesign } from '../studio/model'
+import { loadDesignResources } from '../studio/resources'
+import { compileVisualEmail } from '../studio/save'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -49,6 +53,13 @@ export const validateTemplateSlug = (value: unknown): string | true => {
 const engineHint =
   'Supports {{ tokens }}, {{#if}}, {{#each}}, and formatters. See docs/templates.md.'
 
+/** Field validation for `email.design` (the visual designer's block document). */
+export const validateEmailDesign = (value: unknown): string | true => {
+  if (value === null || value === undefined || value === '') return true
+  const parsed = parseDesign(value)
+  return parsed.ok ? true : `Email design is invalid: ${parsed.errors.join('; ')}`
+}
+
 const emailGroup: Field = {
   name: 'email',
   type: 'group',
@@ -56,6 +67,25 @@ const emailGroup: Field = {
     condition: (_, siblingData) => siblingData?.channels?.includes?.('email'),
   },
   fields: [
+    {
+      name: 'editor',
+      type: 'select',
+      defaultValue: 'code',
+      options: [
+        { label: 'Code (HTML)', value: 'code' },
+        { label: 'Visual designer', value: 'visual' },
+      ],
+      admin: {
+        description:
+          'Visual: design with blocks in the template studio; HTML and plain text are generated on save.',
+      },
+    },
+    {
+      name: 'design',
+      type: 'json',
+      validate: validateEmailDesign,
+      admin: { hidden: true },
+    },
     { name: 'subject', type: 'text', admin: { description: engineHint } },
     {
       name: 'preheader',
@@ -176,7 +206,10 @@ const variablesField: Field = {
   ],
 }
 
-const templateStudioField = (collectionSlug: string): Field => ({
+/** Slugs the studio needs besides the templates collection. */
+type StudioSlugs = { partialsSlug?: string; mediaSlug?: string; templateVersionsSlug?: string }
+
+const templateStudioField = (collectionSlug: string, slugs: StudioSlugs = {}): Field => ({
   name: 'templateStudio',
   type: 'ui',
   admin: {
@@ -186,11 +219,12 @@ const templateStudioField = (collectionSlug: string): Field => ({
     custom: {
       collectionSlug,
       apiRoute: '/api',
+      ...slugs,
     },
   },
 })
 
-const baseFields = (collectionSlug: string): Field[] => [
+const baseFields = (collectionSlug: string, slugs: StudioSlugs = {}): Field[] => [
   {
     name: 'name',
     type: 'text',
@@ -293,7 +327,7 @@ const baseFields = (collectionSlug: string): Field[] => [
   whatsappGroup,
   inappGroup,
   variablesField,
-  templateStudioField(collectionSlug),
+  templateStudioField(collectionSlug, slugs),
 ]
 
 /** `req.context` flag set by the publish endpoint (it manages versions itself). */
@@ -377,6 +411,23 @@ const snapshotOnActivate =
     return doc
   }
 
+const studioSlugs = (getOptions?: () => NormalizedNotificationsPluginOptions): StudioSlugs => {
+  try {
+    const options = getOptions?.()
+    return options
+      ? {
+          partialsSlug: options.collections.partials,
+          templateVersionsSlug: options.collections.templateVersions,
+          ...(options.templates.mediaCollection
+            ? { mediaSlug: options.templates.mediaCollection }
+            : {}),
+        }
+      : {}
+  } catch {
+    return {}
+  }
+}
+
 export const NotificationTemplatesCollection = ({
   slug = 'notification-templates',
   overrides,
@@ -391,6 +442,7 @@ export const NotificationTemplatesCollection = ({
     templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
     ...templateLifecycleEndpoints(getOptions || defaultOptionsGetter, validateTemplateDoc),
     templateVariablesEndpoint(getOptions || defaultOptionsGetter),
+    compileDesignEndpoint(getOptions || defaultOptionsGetter),
     whatsappStatusEndpoint(getOptions || defaultOptionsGetter),
     ...(overrides?.endpoints || []),
   ]
@@ -425,11 +477,12 @@ export const NotificationTemplatesCollection = ({
     },
     hooks: {
       beforeValidate: [uniqueSlugPerLocale(slug)],
-      beforeChange: [trackTemplateVersions],
+      // Design edits are content edits for version tracking (email.design is in `email`).
+      beforeChange: [trackTemplateVersions, compileVisualEmail(getOptions, loadDesignResources)],
       afterChange: [snapshotOnActivate(getOptions)],
     },
     endpoints,
-    fields: overrides?.fields || baseFields(slug),
+    fields: overrides?.fields || baseFields(slug, studioSlugs(getOptions)),
     timestamps: true,
   }
 }
