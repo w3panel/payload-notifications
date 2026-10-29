@@ -1,6 +1,7 @@
 import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions } from '../types'
 import { normalizeComputedRegistry, normalizeResolverRegistry } from '../data/resolvers'
 import { createSensitiveFieldMatcher, isSensitivePath } from '../data/sensitive'
+import { validateDataSources } from '../data/sources'
 import { isValidEventName } from '../events/names'
 import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
@@ -176,6 +177,29 @@ export const normalizePluginOptions = (
     throw new Error('payload-notifications: at least one channel must be enabled')
   }
 
+  const data = normalizeDataOptions(options.data)
+  const dataResolvers = normalizeResolverRegistry(options.dataResolvers)
+  const computed = normalizeComputedRegistry(options.computed)
+  const rules = options.rules || []
+
+  const isSensitive = createSensitiveFieldMatcher(data.sensitiveFields)
+  const ruleErrors = rules.flatMap((rule, index) =>
+    rule.data
+      ? validateDataSources(rule.data.sources, {
+          allowlist: data.collections,
+          resolvers: Object.keys(dataResolvers),
+          computed: Object.keys(computed),
+          isSensitive,
+          owner: `rules[${index}] ("${rule.event}")`,
+        })
+      : [],
+  )
+  if (ruleErrors.length) {
+    throw new Error(
+      `payload-notifications: invalid rule data sources\n  - ${ruleErrors.join('\n  - ')}`,
+    )
+  }
+
   return {
     enabled: options.enabled ?? true,
     channels,
@@ -216,12 +240,12 @@ export const normalizePluginOptions = (
     observability: {
       onDispatch: options.observability?.onDispatch,
     },
-    rules: options.rules || [],
+    rules,
     events: normalizeEventRegistry(options.events),
     eventsStrict: options.eventsStrict === true,
-    data: normalizeDataOptions(options.data),
-    dataResolvers: normalizeResolverRegistry(options.dataResolvers),
-    computed: normalizeComputedRegistry(options.computed),
+    data,
+    dataResolvers,
+    computed,
   }
 }
 

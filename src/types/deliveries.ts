@@ -1,4 +1,5 @@
 import type { NotificationChannel } from './channels'
+import type { NotificationDataSource } from './data-sources'
 import type { NotificationClassification, NotificationEventPayload } from './events'
 import type { NotificationTemplateDefinition } from './templates'
 
@@ -39,6 +40,11 @@ export type NotificationSendInput = {
   templateOverrides?: Partial<NotificationTemplateDefinition>
   /** Optional Payload job id for log correlation */
   jobId?: string | number
+  /** Identifier of the event occurrence that produced this send. */
+  eventId?: string
+  occurredAt?: string
+  /** Data sources resolved into the template context before rendering. */
+  dataSources?: NotificationDataSource[]
 }
 
 export type NotificationDispatchStatus = 'queued' | 'sent' | 'stored' | 'failed' | 'skipped'

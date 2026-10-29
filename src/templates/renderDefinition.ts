@@ -15,8 +15,7 @@ const escapeHtml = (value: string): string => {
 }
 
 const toEngineContext = (context: NotificationTemplateContext): Record<string, unknown> => ({
-  event: context.event,
-  userId: context.userId,
+  ...context,
   payload: context.payload ?? {},
 })
 

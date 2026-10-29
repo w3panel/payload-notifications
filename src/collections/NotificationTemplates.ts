@@ -243,7 +243,7 @@ export const NotificationTemplatesCollection = ({
   }
 
   const endpoints: Endpoint[] = [
-    templatePreviewEndpoint('/preview'),
+    templatePreviewEndpoint('/preview', getOptions || defaultOptionsGetter),
     templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
     ...(overrides?.endpoints || []),
   ]

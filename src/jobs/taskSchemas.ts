@@ -72,6 +72,18 @@ export const sendNotificationInputSchema: Field[] = [
     name: 'templateOverrides',
     type: 'json',
   },
+  {
+    name: 'eventId',
+    type: 'text',
+  },
+  {
+    name: 'occurredAt',
+    type: 'text',
+  },
+  {
+    name: 'dataSources',
+    type: 'json',
+  },
 ]
 
 export const sendNotificationOutputSchema: Field[] = [

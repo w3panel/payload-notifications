@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import type {
   CollectionDataSource,
   NotificationComputedDefinition,
@@ -31,6 +31,8 @@ export type BuildDataContextArgs = {
    * work and read only allowlisted fields).
    */
   overrideAccess?: boolean
+  /** Request whose user and transaction lookups run under (e.g. admin preview with `overrideAccess: false`). */
+  req?: PayloadRequest
   /** Label used in messages, e.g. `trigger "order-paid"`. */
   owner?: string
   /** Registered resolvers (normalized `options.dataResolvers`). */
@@ -60,6 +62,7 @@ const loadCollectionSource = async (
   scope: Record<string, unknown>,
   payload: Payload,
   overrideAccess: boolean,
+  req: PayloadRequest | undefined,
 ): Promise<unknown> => {
   const raw = getPath(scope, source.lookup.from)
   const select = toSelect(source.fields)
@@ -89,6 +92,7 @@ const loadCollectionSource = async (
       select: select as never,
       overrideAccess,
       pagination: false,
+      ...(req ? { req } : {}),
     })
     const byId = new Map(
       (result.docs as Record<string, unknown>[]).map((doc) => [String(doc.id), doc]),
@@ -114,6 +118,7 @@ const loadCollectionSource = async (
     select: select as never,
     overrideAccess,
     disableErrors: true,
+    ...(req ? { req } : {}),
   })
   return isObject(doc) ? pickPaths(doc, source.fields) : null
 }
@@ -137,6 +142,7 @@ export const buildDataContext = async ({
   previous,
   userId,
   overrideAccess = true,
+  req,
   owner = 'data sources',
   dataResolvers = {},
   computed = {},
@@ -184,7 +190,7 @@ export const buildDataContext = async ({
             : null
           break
         case 'collection':
-          value = await loadCollectionSource(source, scope, payload, overrideAccess)
+          value = await loadCollectionSource(source, scope, payload, overrideAccess, req)
           break
         case 'resolver': {
           const definition = dataResolvers[source.name]

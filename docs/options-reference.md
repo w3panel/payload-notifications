@@ -21,9 +21,14 @@
 | `preferences.fields.marketingConsent` | `notificationPreferences.marketing` | Dot-path on user |
 | `policy.canSend` | — | Custom allow/deny hook |
 | `observability.onDispatch` | — | Dispatch telemetry hook |
-| `rules` | `[]` | Event → channels → template fan-out |
+| `rules` | `[]` | Event → channels → template fan-out (optional `data.sources`) |
 | `events` | `{}` | Registered application events (`label`, `description`, `classification`, `schema`, `samplePayload`, `docsUrl`) — see [events.md](./events.md) |
 | `eventsStrict` | `false` | Reject emits for events missing from `events` |
+| `data.collections` | `{}` | Collections/fields data sources may read — see [data-sources.md](./data-sources.md) |
+| `data.redact` | `[]` | Dot paths masked in previews, inspectors and logs |
+| `data.sensitiveFields` | `[]` | Extra field names added to the sensitive-field denylist |
+| `dataResolvers` | `{}` | Registered resolvers (`handler`, `label`, `input`, `output`, `timeoutMs`, `fields`) |
+| `computed` | `{}` | Registered pure functions over the resolved context |
 
 Fail-fast validation throws `payload-notifications: …` when SMS/WhatsApp lack providers or channels are empty/unknown.
 

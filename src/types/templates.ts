@@ -1,11 +1,17 @@
 import type { NotificationChannel } from './channels'
+import type { NotificationTriggerInfo } from './data-sources'
 import type { NotificationEventPayload } from './events'
 import type { NormalizedNotificationsPluginOptions } from './options'
 
 export type NotificationTemplateContext = {
+  /** Event name, e.g. `order.paid`. */
   event: string
   userId: string
   payload?: NotificationEventPayload
+  /** Occurrence metadata (`trigger.name`, `trigger.eventId`, …) when built by the data context builder. */
+  trigger?: NotificationTriggerInfo
+  /** Data source aliases (`order`, `customer`, …) and `doc` / `previous`. */
+  [key: string]: unknown
 }
 
 export type NotificationTemplateDefinition = {

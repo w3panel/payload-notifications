@@ -145,6 +145,9 @@ export const processEvent = async ({
           classification: validatedEvent.classification,
           idempotencyKey: validatedEvent.idempotencyKey,
           templateOverrides: rule.templateOverrides?.[channel],
+          eventId: validatedEvent.eventId,
+          occurredAt: validatedEvent.occurredAt,
+          dataSources: rule.data?.sources,
         },
       })
     }
