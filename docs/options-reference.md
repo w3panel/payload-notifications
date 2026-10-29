@@ -22,6 +22,8 @@
 | `policy.canSend` | — | Custom allow/deny hook |
 | `observability.onDispatch` | — | Dispatch telemetry hook |
 | `rules` | `[]` | Event → channels → template fan-out |
+| `events` | `{}` | Registered application events (`label`, `description`, `classification`, `schema`, `samplePayload`, `docsUrl`) — see [events.md](./events.md) |
+| `eventsStrict` | `false` | Reject emits for events missing from `events` |
 
 Fail-fast validation throws `payload-notifications: …` when SMS/WhatsApp lack providers or channels are empty/unknown.
 

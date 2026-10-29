@@ -1,4 +1,5 @@
 import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions } from '../types'
+import { isValidEventName } from '../events/names'
 import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
 
@@ -13,6 +14,48 @@ import { getDefaultTemplateRegistry } from '../templates/context'
 const DEFAULT_CHANNELS: NormalizedNotificationsPluginOptions['channels'] = ['email', 'inapp']
 
 const VALID_CHANNELS = new Set(['email', 'whatsapp', 'sms', 'inapp', 'push'])
+
+const VALID_CLASSIFICATIONS = new Set(['transactional', 'marketing'])
+
+const normalizeEventRegistry = (
+  events: NotificationsPluginOptions['events'],
+): NormalizedNotificationsPluginOptions['events'] => {
+  if (events === undefined) return {}
+  if (typeof events !== 'object' || events === null || Array.isArray(events)) {
+    throw new Error('payload-notifications: events must be an object keyed by event name')
+  }
+
+  for (const [name, definition] of Object.entries(events)) {
+    if (!isValidEventName(name)) {
+      throw new Error(
+        `payload-notifications: invalid event name "${name}" (use letters, numbers and single . _ : - separators, e.g. order.paid)`,
+      )
+    }
+    if (typeof definition !== 'object' || definition === null) {
+      throw new Error(`payload-notifications: events["${name}"] must be an object`)
+    }
+    if (
+      definition.classification !== undefined &&
+      !VALID_CLASSIFICATIONS.has(definition.classification)
+    ) {
+      throw new Error(
+        `payload-notifications: events["${name}"].classification must be "transactional" or "marketing"`,
+      )
+    }
+    const schema = definition.schema as unknown
+    if (
+      schema !== undefined &&
+      typeof schema !== 'function' &&
+      !(typeof schema === 'object' && schema !== null && '~standard' in schema)
+    ) {
+      throw new Error(
+        `payload-notifications: events["${name}"].schema must be a Standard Schema (Zod, Valibot, …) or a validator function`,
+      )
+    }
+  }
+
+  return { ...events }
+}
 
 export const normalizePluginOptions = (
   options: NotificationsPluginOptions = {},
@@ -133,6 +176,8 @@ export const normalizePluginOptions = (
       onDispatch: options.observability?.onDispatch,
     },
     rules: options.rules || [],
+    events: normalizeEventRegistry(options.events),
+    eventsStrict: options.eventsStrict === true,
   }
 }
 

@@ -1,5 +1,6 @@
 import type { NotificationChannel } from './channels'
 import type { NotificationObservabilityHook } from './deliveries'
+import type { NotificationEventRegistry } from './events'
 import type {
   NotificationPolicyContext,
   NotificationPolicyDecision,
@@ -52,6 +53,10 @@ export type NotificationsPluginOptions = {
     onDispatch?: NotificationObservabilityHook
   }
   rules?: NotificationRule[]
+  /** Registered application events (label, schema, default classification, sample payload). */
+  events?: NotificationEventRegistry
+  /** Reject emits for events not present in `events`. Default false. */
+  eventsStrict?: boolean
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -93,4 +98,6 @@ export type NormalizedNotificationsPluginOptions = {
     onDispatch?: NotificationObservabilityHook
   }
   rules: NotificationRule[]
+  events: NotificationEventRegistry
+  eventsStrict: boolean
 }

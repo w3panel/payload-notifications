@@ -14,7 +14,11 @@ export type {
   NotificationDispatchResult,
   NotificationDispatchStatus,
   NotificationEvent,
+  NotificationEventDefinition,
   NotificationEventPayload,
+  NotificationEventRegistry,
+  NotificationEventSchema,
+  NotificationEventValidator,
   NotificationPolicyContext,
   NotificationPolicyDecision,
   NotificationProcessEventJobInput,
@@ -35,8 +39,10 @@ export type {
   NotificationsJobsOptions,
   PreferenceFieldMapping,
   RenderedNotificationContent,
+  RegisteredNotificationEvent,
   RenderedTemplate,
   SMSProviderAdapter,
+  StandardSchemaV1Like,
   SMSProviderConfig,
   SMSProviderSendInput,
   WhatsAppProviderAdapter,
@@ -100,3 +106,12 @@ export {
 } from './templates/engine'
 export type { CompiledTemplate, CompileOptions, TemplateNode } from './templates/engine'
 export { defineTrigger } from './triggers'
+export {
+  collectFieldPaths,
+  listRegisteredEvents,
+  prepareNotificationEvent,
+  validateEventPayload,
+} from './events/registry'
+export { EVENT_NAME_PATTERN, isValidEventName } from './events/names'
+export { getRuntimeOptions } from './config/runtime'
+export { eventsListEndpoint } from './endpoints/events'

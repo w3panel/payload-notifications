@@ -4,6 +4,8 @@ import type {
   NotificationEvent,
   NotificationRule,
 } from '../types'
+import { getRuntimeOptions } from '../config/runtime'
+import { prepareNotificationEvent } from '../events/registry'
 import {
   NOTIFICATION_PROCESS_EVENT_TASK,
   NOTIFICATION_SEND_TASK,
@@ -39,8 +41,18 @@ export const assertNotificationEvent = (value: unknown): NotificationEvent => {
     throw new Error('payload-notifications: notification event payload must be an object')
   }
 
+  if (value.eventId !== undefined && typeof value.eventId !== 'string') {
+    throw new Error('payload-notifications: notification event eventId must be a string')
+  }
+
+  if (value.occurredAt !== undefined && typeof value.occurredAt !== 'string') {
+    throw new Error('payload-notifications: notification event occurredAt must be an ISO string')
+  }
+
   return {
     name: value.name,
+    eventId: value.eventId || undefined,
+    occurredAt: value.occurredAt || undefined,
     userId: value.userId,
     payload: value.payload,
     classification:
@@ -51,23 +63,36 @@ export const assertNotificationEvent = (value: unknown): NotificationEvent => {
   }
 }
 
+/**
+ * Validates an event against the registry and queues it for processing.
+ * Emit only after the business action is confirmed, from trusted server code.
+ *
+ * Returns the prepared event (with `eventId` / `occurredAt` filled in).
+ */
 export const emitNotificationEvent = async ({
   payload,
   event,
-  queue = NOTIFICATIONS_JOB_QUEUE,
+  queue,
+  options,
 }: {
   payload: Payload
   event: NotificationEvent
   queue?: string
-}) => {
+  /** Defaults to the options of the installed plugin. */
+  options?: NormalizedNotificationsPluginOptions
+}): Promise<NotificationEvent> => {
   const validatedEvent = assertNotificationEvent(event)
+  const pluginOptions = options ?? getRuntimeOptions(payload)
+  const preparedEvent = await prepareNotificationEvent(validatedEvent, pluginOptions)
 
   await payload.jobs.queue({
     overrideAccess: true,
     task: NOTIFICATION_PROCESS_EVENT_TASK,
-    queue,
-    input: validatedEvent,
+    queue: queue ?? pluginOptions?.jobs.queue ?? NOTIFICATIONS_JOB_QUEUE,
+    input: preparedEvent,
   })
+
+  return preparedEvent
 }
 
 export const processEvent = async ({

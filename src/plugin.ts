@@ -25,6 +25,8 @@ import {
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
 import { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
+import { PLUGIN_CUSTOM_KEY, type PluginCustomConfig } from './config/runtime'
+import { eventsListEndpoint } from './endpoints/events'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
 import { assertNotificationEvent, processEvent } from './jobs/processEvent'
 import { assertNotificationSendInput, sendNotification } from './jobs/sendNotification'
@@ -225,8 +227,15 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
 
     const existingOnInit = config.onInit
 
+    const custom: PluginCustomConfig = { getOptions: () => runtime.options }
+
     return {
       ...config,
+      custom: {
+        ...config.custom,
+        [PLUGIN_CUSTOM_KEY]: custom,
+      },
+      endpoints: [...(config.endpoints || []), eventsListEndpoint(() => runtime.options)],
       collections: withCollections,
       jobs: {
         ...config.jobs,
