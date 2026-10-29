@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import type {
   AdminTriggerRecord,
   EffectiveTrigger,
@@ -12,6 +12,8 @@ import { generateEventId } from '../events/registry'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination, resolveRecipients } from '../recipients/resolve'
+import { applyQuietHours, computeSchedule, isValidTimeZone } from './schedule'
+import { conditionNeedsData, evaluateCondition } from '../triggers/conditions'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
 
@@ -82,11 +84,14 @@ export const planDeliveries = async ({
   event: inputEvent,
   options,
   adminTriggers = [],
+  req,
 }: {
   payload: Payload
   event: NotificationEvent
   options: NormalizedNotificationsPluginOptions
   adminTriggers?: AdminTriggerRecord[]
+  /** Job request: passed to resolvers so their writes are depth-tracked. */
+  req?: PayloadRequest
 }): Promise<DeliveryPlanResult> => {
   const event: NotificationEvent = {
     ...inputEvent,
@@ -100,7 +105,15 @@ export const planDeliveries = async ({
     payload.logger?.warn?.(`payload-notifications: ${error}`)
   }
 
-  const matched = matchTriggers(registry.triggers, { type: 'event', name: event.name })
+  const byName = matchTriggers(registry.triggers, { type: 'event', name: event.name })
+  const bySource = event.source
+    ? matchTriggers(registry.triggers, {
+        type: 'collection',
+        collection: event.source.collection,
+        operation: event.source.operation,
+      })
+    : []
+  const matched = [...bySource, ...byName.filter((entry) => !bySource.includes(entry))]
   const result: DeliveryPlanResult = {
     eventId,
     matched: matched.map(snapshotTrigger),
@@ -109,7 +122,7 @@ export const planDeliveries = async ({
   const isSensitive = createSensitiveFieldMatcher(options.data.sensitiveFields)
 
   for (const entry of matched) {
-    await planTrigger({ payload, event, entry, options, isSensitive, result })
+    await planTrigger({ payload, event, entry, options, isSensitive, result, req })
   }
 
   return result
@@ -122,6 +135,7 @@ const planTrigger = async ({
   options,
   isSensitive,
   result,
+  req,
 }: {
   payload: Payload
   event: NotificationEvent
@@ -129,6 +143,7 @@ const planTrigger = async ({
   options: NormalizedNotificationsPluginOptions
   isSensitive: ReturnType<typeof createSensitiveFieldMatcher>
   result: DeliveryPlanResult
+  req?: PayloadRequest
 }) => {
   const { trigger } = entry
   const snapshot = snapshotTrigger(entry)
@@ -153,20 +168,67 @@ const planTrigger = async ({
 
   if (trigger.condition && !(await trigger.condition(event.payload ?? {}))) return
 
+  const documentAliases = (trigger.data?.sources ?? [])
+    .filter((source) => source.type === 'document')
+    .map((source) => source.alias)
+  const conditionArgs = (scope: Record<string, unknown>) => ({
+    scope,
+    event,
+    payload,
+    custom: options.conditions,
+    documentAliases,
+  })
+
+  // Conditions that only read event / doc fields run before any data is loaded.
+  const conditionsNeedData = conditionNeedsData(trigger.conditions)
+  if (
+    trigger.conditions &&
+    !conditionsNeedData &&
+    !(await evaluateCondition(
+      trigger.conditions,
+      conditionArgs({
+        event,
+        payload: event.payload ?? {},
+        doc: event.doc,
+        previous: event.previous,
+        trigger: { name: event.name, eventId: event.eventId },
+      }),
+    ))
+  ) {
+    return
+  }
+
   const dataContext = await buildDataContext({
     payload,
     event,
+    doc: event.doc ?? undefined,
+    previous: event.previous ?? undefined,
     sources: trigger.data?.sources,
     dataResolvers: options.dataResolvers,
     computed: options.computed,
     isSensitive,
     owner,
+    resolverReq: req,
+    tenancy:
+      options.tenancy && event.tenant
+        ? { field: options.tenancy.field, value: event.tenant }
+        : undefined,
   })
   if (!dataContext.ok) {
     await logTriggerSkip(
       'skipped',
       `${dataContext.reason} (${dataContext.source}): ${dataContext.message}`,
     )
+    return
+  }
+
+  /** Condition scope: the template context with `event` as the full event object. */
+  const scope: Record<string, unknown> = { ...dataContext.context, event }
+  if (
+    trigger.conditions &&
+    conditionsNeedData &&
+    !(await evaluateCondition(trigger.conditions, conditionArgs(scope)))
+  ) {
     return
   }
 
@@ -177,6 +239,7 @@ const planTrigger = async ({
     definitions: trigger.recipients,
     options,
     owner,
+    req,
   })
   for (const warning of warnings) payload.logger?.warn?.(`payload-notifications: ${warning}`)
 
@@ -195,6 +258,34 @@ const planTrigger = async ({
 
   const classification = trigger.classification ?? event.classification
 
+  const now = new Date()
+  const schedule = computeSchedule(trigger.schedule, scope, now)
+  if (!schedule.ok) {
+    await logTriggerSkip('skipped', `schedule: ${schedule.reason}`)
+    return
+  }
+  if (schedule.at && schedule.at < now && trigger.schedule?.skipIfPast) {
+    await logTriggerSkip('skipped', `schedule: ${schedule.at.toISOString()} has already passed`)
+    return
+  }
+  const quietHours =
+    options.quietHours &&
+    classification &&
+    options.quietHours.classifications.includes(classification)
+      ? options.quietHours
+      : undefined
+  /** Send time for one recipient: the schedule, moved out of their quiet hours. */
+  const sendTimeFor = (recipient: ResolvedRecipient): Date | undefined => {
+    if (!quietHours) return schedule.at
+    const base = schedule.at && schedule.at > now ? schedule.at : now
+    const timeZone =
+      recipient.timezone && isValidTimeZone(recipient.timezone)
+        ? recipient.timezone
+        : quietHours.timezone
+    const adjusted = applyQuietHours(base, quietHours, timeZone)
+    return adjusted > base ? adjusted : schedule.at
+  }
+
   for (const delivery of trigger.deliveries) {
     // Compiled legacy rules may list channels that are not enabled; v2 triggers are validated.
     if (!options.channels.includes(delivery.channel)) continue
@@ -202,6 +293,24 @@ const planTrigger = async ({
 
     for (const recipient of recipients) {
       if (target !== 'all' && !recipient.aliases.includes(target)) continue
+
+      const recipientScope = {
+        id: recipient.recipientId,
+        name: recipient.name,
+        email: recipient.destinations.email,
+        locale: recipient.locale,
+        timezone: recipient.timezone,
+        aliases: recipient.aliases,
+      }
+      if (
+        delivery.when &&
+        !(await evaluateCondition(
+          delivery.when,
+          conditionArgs({ ...scope, recipient: recipientScope }),
+        ))
+      ) {
+        continue
+      }
 
       const idempotencyKey = buildDeliveryKey({
         event,
@@ -228,6 +337,7 @@ const planTrigger = async ({
       const skipReason = destination
         ? undefined
         : `No ${delivery.channel} destination for recipient`
+      const sendAt = sendTimeFor(recipient)
       const record = {
         event: event.name,
         eventId: event.eventId,
@@ -247,16 +357,11 @@ const planTrigger = async ({
         classification,
         idempotencyKey,
         skipReason,
+        scheduledFor: sendAt?.toISOString(),
+        recheckConditions: trigger.schedule?.recheckConditions === true,
         context: {
           ...dataContext.context,
-          recipient: {
-            id: recipient.recipientId,
-            name: recipient.name,
-            email: recipient.destinations.email,
-            locale: recipient.locale,
-            timezone: recipient.timezone,
-            aliases: recipient.aliases,
-          },
+          recipient: recipientScope,
         },
         templateOverrides: delivery.templateOverrides,
       }
@@ -312,6 +417,7 @@ const planTrigger = async ({
           classification,
           idempotencyKey: event.idempotencyKey,
         },
+        ...(sendAt && sendAt > now ? { waitUntil: sendAt } : {}),
       })
       result.deliveries.push({ ...planned, deliveryId })
     }

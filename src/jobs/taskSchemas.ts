@@ -31,6 +31,26 @@ export const processEventInputSchema: Field[] = [
     name: 'idempotencyKey',
     type: 'text',
   },
+  {
+    name: 'source',
+    type: 'json',
+  },
+  {
+    name: 'tenant',
+    type: 'text',
+  },
+  {
+    name: 'depth',
+    type: 'number',
+  },
+  {
+    name: 'doc',
+    type: 'json',
+  },
+  {
+    name: 'previous',
+    type: 'json',
+  },
 ]
 
 export const sendNotificationInputSchema: Field[] = [
@@ -99,7 +119,7 @@ export const sendNotificationOutputSchema: Field[] = [
   {
     name: 'status',
     type: 'select',
-    options: ['queued', 'sent', 'stored', 'failed', 'skipped'],
+    options: ['queued', 'sent', 'stored', 'failed', 'skipped', 'cancelled'],
   },
   {
     name: 'reason',

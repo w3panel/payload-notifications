@@ -7,6 +7,9 @@ import {
   normalizeRecipientResolvers,
   normalizeRecipientsOptions,
 } from '../recipients/options'
+import { normalizeCollectionEvents } from '../events/collectionEvents'
+import { DEFAULT_MAX_EVENT_DEPTH } from '../events/depth'
+import { isValidTimeZone, parseClock } from '../deliveries/schedule'
 import { compileCodeTriggers } from '../triggers/compile'
 import { validateTrigger } from '../triggers/validate'
 import { isValidEventName } from '../events/names'
@@ -65,6 +68,59 @@ const normalizeEventRegistry = (
   }
 
   return { ...events }
+}
+
+const normalizeMaxEventDepth = (value: number | undefined): number => {
+  if (value === undefined) return DEFAULT_MAX_EVENT_DEPTH
+  if (!Number.isInteger(value) || value < 1 || value > 10) {
+    throw new Error('payload-notifications: maxEventDepth must be an integer between 1 and 10')
+  }
+  return value
+}
+
+const normalizeTenancy = (
+  tenancy: NonNullable<NotificationsPluginOptions['tenancy']>,
+): NonNullable<NormalizedNotificationsPluginOptions['tenancy']> => {
+  if (typeof tenancy.field !== 'string' || !tenancy.field) {
+    throw new Error('payload-notifications: tenancy.field is required')
+  }
+  return { field: tenancy.field, userField: tenancy.userField || tenancy.field }
+}
+
+const normalizeQuietHours = (
+  quietHours: NonNullable<NotificationsPluginOptions['quietHours']>,
+): NonNullable<NormalizedNotificationsPluginOptions['quietHours']> => {
+  if (parseClock(quietHours.start) === undefined || parseClock(quietHours.end) === undefined) {
+    throw new Error('payload-notifications: quietHours.start and end must be HH:MM (24h)')
+  }
+  const timezone = quietHours.timezone || 'UTC'
+  if (!isValidTimeZone(timezone)) {
+    throw new Error(
+      `payload-notifications: quietHours.timezone "${timezone}" is not a valid IANA zone`,
+    )
+  }
+  return {
+    start: quietHours.start,
+    end: quietHours.end,
+    timezone,
+    classifications: quietHours.classifications ?? ['marketing'],
+  }
+}
+
+const normalizeConditionRegistry = (
+  conditions: NotificationsPluginOptions['conditions'],
+): NormalizedNotificationsPluginOptions['conditions'] => {
+  const normalized: NormalizedNotificationsPluginOptions['conditions'] = {}
+  for (const [name, entry] of Object.entries(conditions ?? {})) {
+    const definition = typeof entry === 'function' ? { handler: entry } : entry
+    if (!definition || typeof definition.handler !== 'function') {
+      throw new Error(
+        `payload-notifications: conditions["${name}"] must be a function or { handler }`,
+      )
+    }
+    normalized[name] = { ...definition }
+  }
+  return normalized
 }
 
 const normalizeDataOptions = (
@@ -131,11 +187,12 @@ export const normalizePluginOptions = (
   }
 
   const deliveriesSlug = options.collections?.deliveries || 'notification-deliveries'
+  const eventsSlug = options.collections?.events || 'notification-events'
 
-  const allSlugs = [notificationsSlug, logsSlug, templatesSlug, deliveriesSlug]
+  const allSlugs = [notificationsSlug, logsSlug, templatesSlug, deliveriesSlug, eventsSlug]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
-      'payload-notifications: notifications, logs, templates, and deliveries collections must use different slugs',
+      'payload-notifications: notifications, logs, templates, deliveries, and events collections must use different slugs',
     )
   }
 
@@ -225,32 +282,7 @@ export const normalizePluginOptions = (
   const recipientResolvers = normalizeRecipientResolvers(options.recipientResolvers)
   const recipientQueries = normalizeRecipientQueries(options.recipientQueries)
 
-  // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).
-  const triggerErrors = triggers.slice(rules.length).flatMap((trigger) => [
-    ...(trigger.data
-      ? validateDataSources(trigger.data.sources, {
-          allowlist: data.collections,
-          resolvers: Object.keys(dataResolvers),
-          computed: Object.keys(computed),
-          isSensitive,
-          owner: `trigger "${trigger.slug}"`,
-        })
-      : []),
-    ...validateTrigger(trigger, {
-      channels,
-      templates: {
-        registry: { ...getDefaultTemplateRegistry(), ...options.templates?.registry },
-      } as never,
-      recipients,
-      recipientResolvers,
-      recipientQueries,
-    }).errors,
-  ])
-  if (triggerErrors.length) {
-    throw new Error(`payload-notifications: invalid triggers\n  - ${triggerErrors.join('\n  - ')}`)
-  }
-
-  return {
+  const normalized: NormalizedNotificationsPluginOptions = {
     enabled: options.enabled ?? true,
     channels,
     userCollectionSlug: options.userCollectionSlug || 'users',
@@ -259,6 +291,7 @@ export const normalizePluginOptions = (
       logs: logsSlug,
       templates: templatesSlug,
       deliveries: deliveriesSlug,
+      events: eventsSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
@@ -292,7 +325,32 @@ export const normalizePluginOptions = (
     recipients,
     recipientResolvers,
     recipientQueries,
+    conditions: normalizeConditionRegistry(options.conditions),
+    collectionEvents: normalizeCollectionEvents(options.collectionEvents),
+    maxEventDepth: normalizeMaxEventDepth(options.maxEventDepth),
+    eventsInbox: options.eventsInbox === true,
+    ...(options.tenancy ? { tenancy: normalizeTenancy(options.tenancy) } : {}),
+    ...(options.quietHours ? { quietHours: normalizeQuietHours(options.quietHours) } : {}),
   }
+
+  // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).
+  const triggerErrors = triggers.slice(rules.length).flatMap((trigger) => [
+    ...(trigger.data
+      ? validateDataSources(trigger.data.sources, {
+          allowlist: data.collections,
+          resolvers: Object.keys(dataResolvers),
+          computed: Object.keys(computed),
+          isSensitive,
+          owner: `trigger "${trigger.slug}"`,
+        })
+      : []),
+    ...validateTrigger(trigger, normalized).errors,
+  ])
+  if (triggerErrors.length) {
+    throw new Error(`payload-notifications: invalid triggers\n  - ${triggerErrors.join('\n  - ')}`)
+  }
+
+  return normalized
 }
 
 /**

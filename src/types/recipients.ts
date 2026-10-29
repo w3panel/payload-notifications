@@ -1,4 +1,4 @@
-import type { Payload, Where } from 'payload'
+import type { Payload, PayloadRequest, Where } from 'payload'
 import type { NotificationDataContext } from './data-sources'
 import type { NotificationEvent } from './events'
 
@@ -90,6 +90,8 @@ export type NotificationRecipientResolverDefinition = {
     event: NotificationEvent
     context: NotificationDataContext
     input: Record<string, unknown>
+    /** The job request; pass it to writes so they are depth-tracked. */
+    req?: PayloadRequest
   }) => RecipientResolverResult[] | Promise<RecipientResolverResult[]>
   label?: string
   description?: string

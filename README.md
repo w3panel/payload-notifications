@@ -26,6 +26,7 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 | [docs/events.md](docs/events.md) | Event registry, schemas, emitting |
 | [docs/data-sources.md](docs/data-sources.md) | Collections, relationships, resolvers in templates |
 | [docs/triggers.md](docs/triggers.md) | Triggers, recipients, deliveries, code/admin precedence |
+| [docs/automation.md](docs/automation.md) | Conditions, collection events, scheduling, guards, event inbox |
 | [docs/rules-and-triggers.md](docs/rules-and-triggers.md) | Legacy rules, `defineTrigger`, domain hooks |
 | [docs/seeding.md](docs/seeding.md) | Seed templates from registry |
 | [docs/jobs-and-operations.md](docs/jobs-and-operations.md) | Queue ops, retries, debugging |

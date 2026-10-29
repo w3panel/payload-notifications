@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import type {
   NotificationComputedDefinition,
   NotificationComputedRegistry,
@@ -115,6 +115,7 @@ export const runDataResolver = async ({
   event,
   context,
   input = {},
+  req,
 }: {
   name: string
   definition: NotificationDataResolverDefinition
@@ -122,6 +123,7 @@ export const runDataResolver = async ({
   event: NotificationEvent
   context: NotificationDataContext
   input?: Record<string, unknown>
+  req?: PayloadRequest
 }): Promise<unknown> => {
   let resolvedInput: Record<string, unknown> = input
   if (definition.input) {
@@ -136,7 +138,7 @@ export const runDataResolver = async ({
   try {
     outcome = await withTimeout(
       async (signal) =>
-        definition.handler({ payload, event, context, input: resolvedInput, signal }),
+        definition.handler({ payload, event, context, input: resolvedInput, signal, req }),
       timeoutMs,
     )
   } catch (error) {

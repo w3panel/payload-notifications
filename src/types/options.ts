@@ -8,7 +8,11 @@ import type {
   NotificationsDataOptions,
 } from './data-sources'
 import type { NotificationObservabilityHook } from './deliveries'
-import type { NotificationEventRegistry } from './events'
+import type {
+  CollectionEventConfig,
+  NormalizedCollectionEventConfig,
+  NotificationEventRegistry,
+} from './events'
 import type {
   NotificationPolicyContext,
   NotificationPolicyDecision,
@@ -21,7 +25,13 @@ import type {
   NotificationRecipientResolverDefinition,
   NotificationRecipientsOptions,
 } from './recipients'
-import type { NotificationRule, NotificationTrigger, NotificationTriggerInput } from './triggers'
+import type {
+  ConditionDefinition,
+  ConditionHandler,
+  NotificationRule,
+  NotificationTrigger,
+  NotificationTriggerInput,
+} from './triggers'
 
 export type NotificationsJobsOptions = {
   /** Named Payload jobs queue. Defaults to `notifications`. */
@@ -37,6 +47,8 @@ export type NotificationsPluginOptions = {
     logs?: string
     templates?: string
     deliveries?: string
+    /** Event inbox slug (only with `eventsInbox: true`). */
+    events?: string
   }
   jobs?: NotificationsJobsOptions
   templates?: {
@@ -88,6 +100,37 @@ export type NotificationsPluginOptions = {
   >
   /** Developer-registered named user queries, selectable as `{ type: 'query', name }`. */
   recipientQueries?: Record<string, NotificationRecipientQueryDefinition>
+  /** Developer-registered conditions, referenced from JSON as `{ custom: name }`. */
+  conditions?: Record<string, ConditionHandler | ConditionDefinition>
+  /**
+   * Collections whose changes emit `collection.<slug>.<operation>` events. Hooks
+   * are added only to these collections, once, when the config is built.
+   */
+  collectionEvents?: Record<string, CollectionEventConfig>
+  /**
+   * Stop emitting events this many processing levels deep (e.g. a resolver that
+   * writes to a hooked collection). Default 3.
+   */
+  maxEventDepth?: number
+  /**
+   * Hold back sends during these local hours (recipient timezone, else
+   * `timezone`, else UTC). Applies to `marketing` deliveries by default.
+   */
+  quietHours?: {
+    start: string
+    end: string
+    timezone?: string
+    classifications?: Array<'transactional' | 'marketing'>
+  }
+  /** Store every emitted event in `notification-events` for audit and replay. Default false. */
+  eventsInbox?: boolean
+  /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
+  tenancy?: {
+    /** Tenant field on documents (relationship or ID), e.g. `tenant`. */
+    field: string
+    /** Tenant field on users. Defaults to `field`. */
+    userField?: string
+  }
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -99,6 +142,7 @@ export type NormalizedNotificationsPluginOptions = {
     logs: string
     templates: string
     deliveries: string
+    events: string
   }
   jobs: {
     queue: string
@@ -156,4 +200,15 @@ export type NormalizedNotificationsPluginOptions = {
   }
   recipientResolvers: Record<string, NotificationRecipientResolverDefinition>
   recipientQueries: Record<string, NotificationRecipientQueryDefinition>
+  conditions: Record<string, ConditionDefinition>
+  collectionEvents: Record<string, NormalizedCollectionEventConfig>
+  maxEventDepth: number
+  eventsInbox: boolean
+  tenancy?: { field: string; userField: string }
+  quietHours?: {
+    start: string
+    end: string
+    timezone: string
+    classifications: Array<'transactional' | 'marketing'>
+  }
 }

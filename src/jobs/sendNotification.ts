@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 import type {
+  AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationDispatchResult,
   NotificationSendInput,
@@ -135,14 +136,17 @@ export const sendNotification = async ({
   payload,
   input,
   options,
+  adminTriggers,
 }: {
   payload: Payload
   input: NotificationSendInput
   options: NormalizedNotificationsPluginOptions
+  /** Published admin triggers, used when a scheduled delivery re-checks its conditions. */
+  adminTriggers?: AdminTriggerRecord[]
 }): Promise<NotificationDispatchResult | void> => {
   const validatedInput = assertNotificationSendInput(input)
   if (validatedInput.deliveryId) {
-    return sendDelivery({ payload, input: validatedInput, options })
+    return sendDelivery({ payload, input: validatedInput, options, adminTriggers })
   }
   const fingerprint = buildDeliveryFingerprint(validatedInput)
 

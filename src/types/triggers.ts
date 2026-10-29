@@ -1,6 +1,11 @@
+import type { Payload } from 'payload'
 import type { NotificationChannel } from './channels'
 import type { NotificationDataConfig } from './data-sources'
-import type { NotificationClassification, NotificationEventPayload } from './events'
+import type {
+  NotificationClassification,
+  NotificationEvent,
+  NotificationEventPayload,
+} from './events'
 import type { NotificationRecipientDefinition } from './recipients'
 import type { NotificationTemplateDefinition } from './templates'
 
@@ -39,7 +44,87 @@ export type TriggerSource = TriggerEventSource | TriggerCollectionSource
  */
 export type TriggerAdminPolicy = 'independent' | 'managed' | 'enforced'
 
-export type TriggerOverridableField = 'enabled' | 'recipients' | 'deliveries' | 'data'
+export type TriggerOverridableField =
+  | 'enabled'
+  | 'recipients'
+  | 'deliveries'
+  | 'data'
+  | 'conditions'
+  | 'schedule'
+
+export type ConditionOperator =
+  | 'equals'
+  | 'notEquals'
+  | 'in'
+  | 'notIn'
+  | 'greaterThan'
+  | 'greaterThanOrEqual'
+  | 'lessThan'
+  | 'lessThanOrEqual'
+  | 'exists'
+  | 'contains'
+  | 'changed'
+  | 'changedTo'
+  | 'changedFrom'
+
+/**
+ * Compares the value at `field` (a dot path such as `doc.status`,
+ * `event.payload.total` or `order.total`). Change operators compare `doc.*` (or
+ * a `document` source alias) with the same path on `previous`.
+ */
+export type FieldCondition = {
+  field: string
+  operator: ConditionOperator
+  value?: unknown
+}
+
+/** Calls a developer-registered condition from the plugin `conditions` option. */
+export type CustomCondition = { custom: string; input?: Record<string, unknown> }
+
+/** JSON condition tree. Never executes admin-provided code. */
+export type NotificationCondition =
+  | { all: NotificationCondition[] }
+  | { any: NotificationCondition[] }
+  | { not: NotificationCondition }
+  | FieldCondition
+  | CustomCondition
+
+export type ConditionHandler = (args: {
+  /** Evaluation scope: `event`, `payload`, `doc`, `previous`, source aliases, `recipient`. */
+  scope: Record<string, unknown>
+  event: NotificationEvent
+  input: Record<string, unknown>
+  payload: Payload
+}) => boolean | Promise<boolean>
+
+/** A developer-registered condition, referenced from JSON as `{ custom: name }`. */
+export type ConditionDefinition = {
+  handler: ConditionHandler
+  label?: string
+  description?: string
+}
+
+/** A duration in milliseconds, or a string such as `30m`, `24h`, `2d`, `-24h`. */
+export type NotificationDuration = number | string
+
+export type NotificationSchedule =
+  | { type: 'immediate' }
+  /** Send `delay` after the event. */
+  | { type: 'delay'; delay: NotificationDuration }
+  /** Send at the timestamp found at `at` (e.g. `event.payload.sendAt`). */
+  | { type: 'at'; at: string }
+  /** Send `offset` relative to the timestamp at `at` (e.g. `-24h` before `booking.startsAt`). */
+  | { type: 'relative'; at: string; offset: NotificationDuration }
+
+export type NotificationScheduleOptions = {
+  /**
+   * Re-load data and re-evaluate `conditions` / `when` when a scheduled delivery
+   * is due; cancel it when they no longer match (e.g. booking cancelled).
+   */
+  recheckConditions?: boolean
+  /** Skip (instead of sending immediately) when the computed time is already past. */
+  skipIfPast?: boolean
+}
 
 export type NotificationDeliveryDefinition = {
   channel: NotificationChannel
@@ -48,6 +133,8 @@ export type NotificationDeliveryDefinition = {
   /** Recipient alias, or `all` (default). */
   recipient?: string
   templateOverrides?: Partial<NotificationTemplateDefinition>
+  /** Per-recipient condition; the context also has `recipient.*`. */
+  when?: NotificationCondition
 }
 
 export type NotificationTrigger = {
@@ -59,12 +146,16 @@ export type NotificationTrigger = {
   enabled?: boolean
   /** Developer-only predicate over the event payload (code triggers). */
   condition?: (payload: NotificationEventPayload) => boolean | Promise<boolean>
+  /** JSON conditions; evaluated before data loading when they only read event / doc fields. */
+  conditions?: NotificationCondition
   data?: NotificationDataConfig
   /** Defaults to the event user. */
   recipients?: NotificationRecipientDefinition[]
   deliveries: NotificationDeliveryDefinition[]
   /** Overrides the event classification for these deliveries. */
   classification?: NotificationClassification
+  /** When deliveries are sent. Default: immediately. */
+  schedule?: NotificationSchedule & NotificationScheduleOptions
   admin?: {
     policy?: TriggerAdminPolicy
     /** Fields a `managed` override may replace. Default: all overridable fields. */

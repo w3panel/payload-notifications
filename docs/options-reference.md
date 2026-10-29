@@ -11,6 +11,7 @@
 | `collections.logs` | `'notification-logs'` | Delivery log slug |
 | `collections.templates` | `'notification-templates'` | Template slug |
 | `collections.deliveries` | `'notification-deliveries'` | Delivery records slug |
+| `collections.events` | `'notification-events'` | Event inbox slug (with `eventsInbox`) |
 | `jobs.queue` | `'notifications'` | Payload jobs queue name |
 | `templates.registry` | package starters | Code templates keyed by slug |
 | `templates.seedOnInit` | `false` | Seed missing DB templates from registry on init |
@@ -30,6 +31,12 @@
 | `recipients.maxPerEvent` | `100` | Recipient cap per trigger per event |
 | `recipientResolvers` | `{}` | Registered recipient resolvers |
 | `recipientQueries` | `{}` | Registered named user queries (`where`, `maxResults`) |
+| `conditions` | `{}` | Registered custom conditions (`{ custom: name }` in JSON conditions) — see [automation.md](./automation.md) |
+| `collectionEvents` | `{}` | Collections that emit `collection.<slug>.<operation>` events (`operations`, `capture`, `userField`, `onlyWhenCaptureChanges`) |
+| `maxEventDepth` | `3` | Processing depth at which events stop being emitted (loop guard) |
+| `tenancy` | — | `{ field, userField? }`: tenant-scoped lookups and role/query recipients |
+| `quietHours` | — | `{ start, end, timezone?, classifications? }`: hold sends during local hours (marketing by default) |
+| `eventsInbox` | `false` | Store emitted events in `notification-events` for audit and replay |
 | `events` | `{}` | Registered application events (`label`, `description`, `classification`, `schema`, `samplePayload`, `docsUrl`) — see [events.md](./events.md) |
 | `eventsStrict` | `false` | Reject emits for events missing from `events` |
 | `data.collections` | `{}` | Collections/fields data sources may read — see [data-sources.md](./data-sources.md) |

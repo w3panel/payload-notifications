@@ -34,6 +34,9 @@ export type {
   NotificationDispatchResult,
   NotificationDispatchStatus,
   NotificationEvent,
+  CollectionEventConfig,
+  CollectionEventOperation,
+  NormalizedCollectionEventConfig,
   NotificationEventDefinition,
   NotificationEventPayload,
   NotificationEventRegistry,
@@ -67,6 +70,15 @@ export type {
   TriggerOrigin,
   TriggerOverridableField,
   TriggerSource,
+  ConditionDefinition,
+  ConditionHandler,
+  ConditionOperator,
+  CustomCondition,
+  FieldCondition,
+  NotificationCondition,
+  NotificationDuration,
+  NotificationSchedule,
+  NotificationScheduleOptions,
   ContextRecipient,
   EventUserRecipient,
   NotificationRecipientDefinition,
@@ -107,6 +119,12 @@ export {
   NotificationDeliveriesCollection,
 } from './collections/NotificationDeliveries'
 export type { NotificationDeliveriesCollectionOverrides } from './collections/NotificationDeliveries'
+export {
+  EVENT_INBOX_STATUSES,
+  NotificationEventsCollection,
+} from './collections/NotificationEvents'
+export type { NotificationEventsCollectionOverrides } from './collections/NotificationEvents'
+export { findInboxRecord, replayNotificationEvent } from './events/inbox'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
 export {
   NOTIFICATION_PROCESS_EVENT_TASK,
@@ -171,12 +189,20 @@ export {
   snapshotTrigger,
   collectTriggerWarnings,
   validateTrigger,
+  collectConditionRefs,
+  CONDITION_OPERATORS,
+  conditionNeedsData,
+  evaluateCondition,
+  previousPathFor,
+  validateCondition,
 } from './triggers'
 export type {
   EffectiveTriggersResult,
   TriggerMatchInput,
   TriggerSnapshot,
   TriggerValidationResult,
+  ConditionValidationContext,
+  EvaluateConditionArgs,
 } from './triggers'
 export {
   DEFAULT_RECIPIENTS,
@@ -193,12 +219,36 @@ export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
 export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
 export { dispatchToChannel } from './channels/dispatch'
 export {
+  applyQuietHours,
+  computeSchedule,
+  isValidTimeZone,
+  parseClock,
+  parseDuration,
+} from './deliveries/schedule'
+export type { ScheduleResult } from './deliveries/schedule'
+export { recheckDelivery } from './deliveries/recheck'
+export type { RecheckDelivery, RecheckResult } from './deliveries/recheck'
+export {
   collectFieldPaths,
   listRegisteredEvents,
   prepareNotificationEvent,
   validateEventPayload,
 } from './events/registry'
 export { EVENT_NAME_PATTERN, isValidEventName } from './events/names'
+export {
+  buildCollectionEvent,
+  collectionEventName,
+  createCollectionEventHooks,
+  injectCollectionEventHooks,
+  validateCollectionEvents,
+} from './events/collectionEvents'
+export type { QueueCollectionEvent } from './events/collectionEvents'
+export {
+  DEFAULT_MAX_EVENT_DEPTH,
+  EVENT_DEPTH_CONTEXT_KEY,
+  getEventDepth,
+  setEventDepth,
+} from './events/depth'
 export { getRuntimeOptions } from './config/runtime'
 export { eventsListEndpoint } from './endpoints/events'
 export {

@@ -130,7 +130,7 @@ describe('notification-deliveries collection', () => {
   it('supports a custom slug through plugin options', () => {
     expect(() =>
       normalizePluginOptions({ collections: { deliveries: 'notification-logs' } }),
-    ).toThrow('deliveries collections must use different slugs')
+    ).toThrow('events collections must use different slugs')
     expect(
       normalizePluginOptions({ collections: { deliveries: 'sends' } }).collections.deliveries,
     ).toBe('sends')

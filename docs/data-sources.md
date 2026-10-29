@@ -60,6 +60,8 @@ notificationsPlugin({
   `invalid-output` or `error`. The error is also logged with `payload.logger.warn`.
 - **Admin access:** admins can select registered resolvers in the UI but can never run their own
   code.
+- **Writes:** resolvers receive the job's `req`. Pass it to any Payload writes so that collection
+  events they cause are depth-tracked (see [automation.md](./automation.md#guards)).
 
 ## 3. Attach sources to a rule
 
@@ -95,7 +97,7 @@ rules: [
 | Type | Reads |
 | --- | --- |
 | `event` | The event, or `fields` picked from it, e.g. `payload.orderId` |
-| `document` | The document that triggered a collection event |
+| `document` | The captured fields of the document that triggered a collection event |
 | `collection` | `lookup.type: 'id'` finds by the ID at `from`; `'relationship'` follows an ID, populated doc, polymorphic value or `hasMany` list (`maxItems`, default 50) |
 | `resolver` | A registered `dataResolvers` entry, with an optional static `input` |
 | `computed` | A registered `computed` function over the context resolved so far |

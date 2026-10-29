@@ -12,6 +12,19 @@ export type NotificationEvent = {
   payload?: NotificationEventPayload
   classification?: NotificationClassification
   idempotencyKey?: string
+  /** Set for collection events: which collection and operation produced the event. */
+  source?: { type: 'collection'; collection: string; operation: 'create' | 'update' | 'delete' }
+  /** Collection events: captured fields of the document after the change. */
+  doc?: Record<string, unknown> | null
+  /** Collection events: captured fields of the document before an update. */
+  previous?: Record<string, unknown> | null
+  /** Tenant the event belongs to (`tenancy.field`); scopes lookups and role/query recipients. */
+  tenant?: string
+  /**
+   * How many notification-processing levels produced this event (0 for user
+   * actions). Events at `maxEventDepth` are not emitted, which breaks loops.
+   */
+  depth?: number
 }
 
 export type NotificationProcessEventJobInput = NotificationEvent
@@ -76,3 +89,26 @@ export type RegisteredNotificationEvent = {
   docsUrl?: string
   hasSchema: boolean
 }
+
+export type CollectionEventOperation = 'create' | 'update' | 'delete'
+
+/** A collection admins and developers may build collection-event triggers on. */
+export type CollectionEventConfig = {
+  /** Default `['create', 'update']`. `delete` captures fields from the deleted document. */
+  operations?: CollectionEventOperation[]
+  /** Fields copied into `doc` / `previous` on the event (and usable in conditions). */
+  capture: string[]
+  label?: string
+  /** Relationship / ID field whose value becomes `event.userId` (e.g. `customer`). */
+  userField?: string
+  /**
+   * For updates, emit only when a captured field changed (default true), so
+   * unrelated edits (e.g. notes) do not queue jobs.
+   */
+  onlyWhenCaptureChanges?: boolean
+}
+
+export type NormalizedCollectionEventConfig = Required<
+  Pick<CollectionEventConfig, 'operations' | 'capture' | 'onlyWhenCaptureChanges'>
+> &
+  Pick<CollectionEventConfig, 'label' | 'userField'>

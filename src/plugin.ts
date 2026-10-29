@@ -26,6 +26,10 @@ import {
   type NotificationDeliveriesCollectionOverrides,
 } from './collections/NotificationDeliveries'
 import {
+  NotificationEventsCollection,
+  type NotificationEventsCollectionOverrides,
+} from './collections/NotificationEvents'
+import {
   NotificationTemplatesCollection,
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
@@ -34,8 +38,10 @@ import { PLUGIN_CUSTOM_KEY, type PluginCustomConfig } from './config/runtime'
 import { dataSourcesListEndpoint } from './endpoints/dataSources'
 import { eventsListEndpoint } from './endpoints/events'
 import { validateDataAllowlist } from './data/sources'
+import { injectCollectionEventHooks, validateCollectionEvents } from './events/collectionEvents'
+import { setEventDepth } from './events/depth'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
-import { assertNotificationEvent, processEvent } from './jobs/processEvent'
+import { assertNotificationEvent, emitNotificationEvent, processEvent } from './jobs/processEvent'
 import { assertNotificationSendInput, sendNotification } from './jobs/sendNotification'
 import {
   processEventInputSchema,
@@ -142,11 +148,14 @@ const createLiveTaskHandler = (
 
     if (taskSlug === NOTIFICATION_PROCESS_EVENT_TASK) {
       const event = assertNotificationEvent(input)
+      // Writes made while processing (e.g. by resolvers using this req) are one level deeper.
+      setEventDepth(req, (event.depth ?? 0) + 1)
       await processEvent({
         payload,
         event,
         options: runtime.options,
         adminTriggers: runtime.adminTriggers,
+        req,
       })
       return { output: {} } as TaskHandlerResult<any>
     }
@@ -159,6 +168,7 @@ const createLiveTaskHandler = (
       payload,
       input: sendInput,
       options: runtime.options,
+      adminTriggers: runtime.adminTriggers,
     })
     return { output: result ?? {} } as TaskHandlerResult<any>
   }
@@ -247,10 +257,10 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       undefined,
       () => runtime.options,
     )
-    const allowlistErrors = validateDataAllowlist(
-      withCollections,
-      normalizedOptions.data.collections,
-    )
+    const allowlistErrors = [
+      ...validateDataAllowlist(withCollections, normalizedOptions.data.collections),
+      ...validateCollectionEvents(withCollections, normalizedOptions),
+    ]
     if (allowlistErrors.length) {
       throw new Error(
         `payload-notifications: invalid configuration\n  - ${allowlistErrors.join('\n  - ')}`,
@@ -278,7 +288,17 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         eventsListEndpoint(() => runtime.options),
         dataSourcesListEndpoint(() => runtime.options),
       ],
-      collections: withCollections,
+      collections: injectCollectionEventHooks(
+        withCollections,
+        () => runtime.options,
+        ({ event, req }) =>
+          emitNotificationEvent({
+            payload: req.payload,
+            event,
+            req,
+            options: runtime.options,
+          }).then(() => undefined),
+      ),
       jobs: {
         ...config.jobs,
         tasks,
@@ -315,6 +335,7 @@ export const registerCollections = (
     logs?: NotificationLogsCollectionOverrides
     templates?: NotificationTemplatesCollectionOverrides
     deliveries?: NotificationDeliveriesCollectionOverrides
+    events?: NotificationEventsCollectionOverrides
   },
   getOptions?: () => NormalizedNotificationsPluginOptions,
 ): CollectionConfig[] => {
@@ -346,6 +367,15 @@ export const registerCollections = (
         slug: options.collections.templates,
         overrides: overrides?.templates,
         getOptions: getOptions || (() => options),
+      }),
+    )
+  }
+
+  if (options.eventsInbox && !hasCollectionSlug(next, options.collections.events)) {
+    next.push(
+      NotificationEventsCollection({
+        slug: options.collections.events,
+        overrides: overrides?.events,
       }),
     )
   }

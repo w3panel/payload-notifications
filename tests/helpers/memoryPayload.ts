@@ -25,7 +25,10 @@ const matches = (doc: Doc, where: Where | undefined): boolean => {
 }
 
 /** Fields that must be unique per collection, like the real unique indexes. */
-const UNIQUE_FIELDS: Record<string, string[]> = { 'notification-deliveries': ['idempotencyKey'] }
+const UNIQUE_FIELDS: Record<string, string[]> = {
+  'notification-deliveries': ['idempotencyKey'],
+  'notification-events': ['eventId'],
+}
 
 /**
  * Minimal in-memory Payload Local API for pipeline tests: find / findByID /
