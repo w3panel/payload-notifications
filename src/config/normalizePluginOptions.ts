@@ -166,11 +166,12 @@ export const normalizePluginOptions = (
   }
 
   const deliveriesSlug = options.collections?.deliveries || 'notification-deliveries'
+  const eventsSlug = options.collections?.events || 'notification-events'
 
-  const allSlugs = [notificationsSlug, logsSlug, templatesSlug, deliveriesSlug]
+  const allSlugs = [notificationsSlug, logsSlug, templatesSlug, deliveriesSlug, eventsSlug]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
-      'payload-notifications: notifications, logs, templates, and deliveries collections must use different slugs',
+      'payload-notifications: notifications, logs, templates, deliveries, and events collections must use different slugs',
     )
   }
 
@@ -269,6 +270,7 @@ export const normalizePluginOptions = (
       logs: logsSlug,
       templates: templatesSlug,
       deliveries: deliveriesSlug,
+      events: eventsSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
@@ -305,6 +307,7 @@ export const normalizePluginOptions = (
     conditions: normalizeConditionRegistry(options.conditions),
     collectionEvents: normalizeCollectionEvents(options.collectionEvents),
     maxEventDepth: normalizeMaxEventDepth(options.maxEventDepth),
+    eventsInbox: options.eventsInbox === true,
     ...(options.tenancy ? { tenancy: normalizeTenancy(options.tenancy) } : {}),
   }
 

@@ -8,6 +8,7 @@ import type {
 import { getRuntimeOptions } from '../config/runtime'
 import { planDeliveries, type DeliveryPlanResult } from '../deliveries/plan'
 import { DEFAULT_MAX_EVENT_DEPTH, getEventDepth } from '../events/depth'
+import { recordInboxEvent, trackInboxProcessing } from '../events/inbox'
 import { prepareNotificationEvent } from '../events/registry'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATIONS_JOB_QUEUE } from './constants'
 
@@ -112,6 +113,14 @@ export const emitNotificationEvent = async ({
     pluginOptions,
   )
 
+  // With the inbox enabled, an eventId that was already received is not queued again.
+  if (
+    pluginOptions?.eventsInbox &&
+    !(await recordInboxEvent({ payload, options: pluginOptions, event: preparedEvent, req }))
+  ) {
+    return preparedEvent
+  }
+
   await payload.jobs.queue({
     overrideAccess: true,
     task: NOTIFICATION_PROCESS_EVENT_TASK,
@@ -144,5 +153,6 @@ export const processEvent = async ({
   req?: PayloadRequest
 }): Promise<DeliveryPlanResult> => {
   const validatedEvent = assertNotificationEvent(event)
-  return planDeliveries({ payload, event: validatedEvent, options, adminTriggers, req })
+  const plan = () => planDeliveries({ payload, event: validatedEvent, options, adminTriggers, req })
+  return options.eventsInbox ? trackInboxProcessing(payload, options, validatedEvent, plan) : plan()
 }

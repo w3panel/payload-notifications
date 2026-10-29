@@ -119,6 +119,12 @@ export {
   NotificationDeliveriesCollection,
 } from './collections/NotificationDeliveries'
 export type { NotificationDeliveriesCollectionOverrides } from './collections/NotificationDeliveries'
+export {
+  EVENT_INBOX_STATUSES,
+  NotificationEventsCollection,
+} from './collections/NotificationEvents'
+export type { NotificationEventsCollectionOverrides } from './collections/NotificationEvents'
+export { findInboxRecord, replayNotificationEvent } from './events/inbox'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
 export {
   NOTIFICATION_PROCESS_EVENT_TASK,

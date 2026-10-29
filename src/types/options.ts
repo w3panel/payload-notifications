@@ -47,6 +47,8 @@ export type NotificationsPluginOptions = {
     logs?: string
     templates?: string
     deliveries?: string
+    /** Event inbox slug (only with `eventsInbox: true`). */
+    events?: string
   }
   jobs?: NotificationsJobsOptions
   templates?: {
@@ -110,6 +112,8 @@ export type NotificationsPluginOptions = {
    * writes to a hooked collection). Default 3.
    */
   maxEventDepth?: number
+  /** Store every emitted event in `notification-events` for audit and replay. Default false. */
+  eventsInbox?: boolean
   /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
   tenancy?: {
     /** Tenant field on documents (relationship or ID), e.g. `tenant`. */
@@ -128,6 +132,7 @@ export type NormalizedNotificationsPluginOptions = {
     logs: string
     templates: string
     deliveries: string
+    events: string
   }
   jobs: {
     queue: string
@@ -188,5 +193,6 @@ export type NormalizedNotificationsPluginOptions = {
   conditions: Record<string, ConditionDefinition>
   collectionEvents: Record<string, NormalizedCollectionEventConfig>
   maxEventDepth: number
+  eventsInbox: boolean
   tenancy?: { field: string; userField: string }
 }

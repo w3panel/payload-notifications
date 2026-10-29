@@ -26,6 +26,10 @@ import {
   type NotificationDeliveriesCollectionOverrides,
 } from './collections/NotificationDeliveries'
 import {
+  NotificationEventsCollection,
+  type NotificationEventsCollectionOverrides,
+} from './collections/NotificationEvents'
+import {
   NotificationTemplatesCollection,
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
@@ -330,6 +334,7 @@ export const registerCollections = (
     logs?: NotificationLogsCollectionOverrides
     templates?: NotificationTemplatesCollectionOverrides
     deliveries?: NotificationDeliveriesCollectionOverrides
+    events?: NotificationEventsCollectionOverrides
   },
   getOptions?: () => NormalizedNotificationsPluginOptions,
 ): CollectionConfig[] => {
@@ -361,6 +366,15 @@ export const registerCollections = (
         slug: options.collections.templates,
         overrides: overrides?.templates,
         getOptions: getOptions || (() => options),
+      }),
+    )
+  }
+
+  if (options.eventsInbox && !hasCollectionSlug(next, options.collections.events)) {
+    next.push(
+      NotificationEventsCollection({
+        slug: options.collections.events,
+        overrides: overrides?.events,
       }),
     )
   }
