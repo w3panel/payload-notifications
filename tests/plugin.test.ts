@@ -5,6 +5,7 @@ import {
   registerCollections,
   registerNotificationTasks,
 } from '../src/plugin'
+import { isPayload4 } from '../src/compat'
 import { normalizePluginOptions } from '../src/config/normalizePluginOptions'
 import { createMemoryPayload } from './helpers/memoryPayload'
 
@@ -83,7 +84,7 @@ describe('payload-notifications', () => {
 
   it('adds collections and tasks through plugin transformer', () => {
     const plugin = notificationsPlugin()
-    const config = plugin({ collections: [] })
+    const config = plugin({ collections: [], jobs: { enableConcurrencyControl: true } as never })
 
     expect(config.collections).toHaveLength(8)
     const tasks = config.jobs && 'tasks' in config.jobs ? (config.jobs.tasks as any[]) : []
@@ -101,10 +102,18 @@ describe('payload-notifications', () => {
     expect(sendTask?.outputSchema?.length).toBeGreaterThan(0)
     expect(typeof sendTask?.onFail).toBe('function')
     expect(typeof sendTask?.concurrency).toBe('function')
+    expect(config.jobs?.enableConcurrencyControl).toBe(true)
 
     const processTask = tasks.find((task) => task.slug === 'notification:process-event')
     expect(processTask?.retries).toBe(0)
     expect(processTask?.inputSchema?.length).toBeGreaterThan(0)
+  })
+
+  it('omits send concurrency on Payload 3 unless the host enables it', () => {
+    const config = notificationsPlugin()({ collections: [] })
+    const tasks = (config.jobs?.tasks ?? []) as Array<{ slug: string; concurrency?: unknown }>
+    const sendTask = tasks.find((task) => task.slug === 'notification:send')
+    expect(typeof sendTask?.concurrency).toBe(isPayload4 ? 'function' : 'undefined')
   })
 
   it('creates runnable task handlers for process-event and send', async () => {

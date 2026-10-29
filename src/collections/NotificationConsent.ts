@@ -1,5 +1,6 @@
 import type { Access, CollectionConfig, Where } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { versionedCollectionDefaults } from '../compat'
 
 export const SUPPRESSION_REASONS = ['bounce', 'complaint', 'stop', 'invalid', 'manual'] as const
 
@@ -24,7 +25,7 @@ export const NotificationPreferencesCollection = ({
   return {
     slug,
     versions: false,
-    authorship: false,
+    ...versionedCollectionDefaults(),
     labels: { singular: 'Notification Preference', plural: 'Notification Preferences' },
     access: { read: ownOrAdmin, create: ownOrAdmin, update: ownOrAdmin, delete: ownOrAdmin },
     admin: {
@@ -80,7 +81,7 @@ export const NotificationSuppressionsCollection = ({
   return {
     slug,
     versions: false,
-    authorship: false,
+    ...versionedCollectionDefaults(),
     labels: { singular: 'Notification Suppression', plural: 'Notification Suppressions' },
     access: { read: admin, create: admin, update: admin, delete: admin },
     admin: {

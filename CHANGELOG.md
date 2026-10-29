@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Payload 3 support alongside Payload 4: peer range is now `^3.92.0 || >=4.0.0-beta.4 <5`. `authorship: false` is set only on Payload 4, and the `notification:send` concurrency key only where the host supports it (always on Payload 4; on Payload 3 when `jobs.enableConcurrencyControl` is on)
+- CI matrix runs typecheck and tests on Payload 3.92 and Payload 4 beta
+- Release channels: prerelease tags publish to npm `next`, other tags to `latest`
+
 ## [0.3.2] - 2026-10-29
 
 ### Fixed

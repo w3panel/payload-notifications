@@ -9,6 +9,7 @@ import type {
 import type { NormalizedNotificationsPluginOptions } from '../types'
 import { definitionOf, sameDefinition } from '../admin-triggers/record'
 import { validateTemplateSlug } from './NotificationTemplates'
+import { versionedCollectionDefaults } from '../compat'
 
 export type NotificationTriggersCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -191,7 +192,7 @@ export const NotificationTriggersCollection = ({
   return {
     slug,
     versions: false,
-    authorship: false,
+    ...versionedCollectionDefaults(),
     labels: { singular: 'Notification Trigger', plural: 'Notification Triggers' },
     access: {
       read: overrides?.access?.read || read,

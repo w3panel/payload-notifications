@@ -16,6 +16,7 @@ import { templateLifecycleEndpoints } from '../templates/lifecycle'
 import { templateVariablesEndpoint, validateTemplateDoc } from '../templates/validate'
 import { whatsappStatusEndpoint } from '../templates/whatsappStatus'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
+import { versionedCollectionDefaults } from '../compat'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -397,7 +398,7 @@ export const NotificationTemplatesCollection = ({
   return {
     slug,
     versions: false,
-    authorship: false,
+    ...versionedCollectionDefaults(),
     labels: {
       singular: 'Notification Template',
       plural: 'Notification Templates',

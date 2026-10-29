@@ -21,6 +21,11 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
-      - run: npm publish --provenance --access public
+      # Prerelease tags (v0.4.0-next.1, v0.4.0-beta.2) go to `next`; others to `latest`.
+      - name: Pick npm dist-tag
+        id: dist
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then echo "tag=next" >> "$GITHUB_OUTPUT"; else echo "tag=latest" >> "$GITHUB_OUTPUT"; fi
+      - run: npm publish --provenance --access public --tag ${{ steps.dist.outputs.tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
