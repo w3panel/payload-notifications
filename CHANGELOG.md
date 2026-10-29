@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-29
+
+Stable line for **Payload 3** (npm `latest`). Payload 4 apps use the 0.4.x betas on npm `next`.
+
+### Fixed
+- SQL databases (SQLite, D1, Postgres): attempt logs and in-app notifications were written with string user IDs, which numeric-ID databases reject ("The following field is invalid: User"), so email and in-app sends failed
+- Payload 3: `authorship` (a Payload 4 option) is no longer set, and the send task's concurrency key is only added when the host enables `jobs.enableConcurrencyControl` (Payload 3 refuses to start otherwise)
+- Package entry points: `main` and the export conditions pointed at CommonJS files that were never built, and `styles.css` was exported but missing; the package is ESM-only and CI now checks every entry point
+
+### Changed
+- Peer dependency: `payload ^3.92.0`
+
 ## [0.3.2] - 2026-10-29
 
 ### Fixed

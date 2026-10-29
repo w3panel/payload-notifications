@@ -4,6 +4,7 @@ import type {
   NotificationDispatchStatus,
   NotificationSendInput,
 } from '../types'
+import { toRelationId } from '../relationId'
 
 export type WriteNotificationLogInput = {
   payload: Payload
@@ -65,7 +66,9 @@ export const writeNotificationLog = async ({
     overrideAccess: true,
     collection: options.collections.logs,
     data: {
-      ...(input.userId ? { user: input.userId } : {}),
+      ...(input.userId
+        ? { user: toRelationId(payload, options.userCollectionSlug, input.userId) }
+        : {}),
       event: input.event,
       channel: input.channel,
       status,

@@ -73,7 +73,8 @@ describe('payload-notifications', () => {
 
   it('adds collections and tasks through plugin transformer', () => {
     const plugin = notificationsPlugin()
-    const config = plugin({ collections: [] })
+    // Payload 3 needs the flag for the send task's concurrency key.
+    const config = plugin({ collections: [], jobs: { enableConcurrencyControl: true } as never })
 
     expect(config.collections).toHaveLength(3)
     const tasks = config.jobs && 'tasks' in config.jobs ? (config.jobs.tasks as any[]) : []

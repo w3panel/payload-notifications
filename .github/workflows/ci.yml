@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
 
 jobs:
   lint-and-test:
@@ -25,3 +25,4 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: bun run build
+      - run: bun run check:package

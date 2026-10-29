@@ -9,6 +9,7 @@ import type {
 } from '../types'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { renderDefinition } from '../templates/renderDefinition'
+import { toRelationId } from '../relationId'
 
 export const sendInAppNotification = async ({
   payload,
@@ -61,7 +62,7 @@ export const sendInAppNotification = async ({
       data: {
         title,
         message,
-        recipient: input.userId,
+        recipient: toRelationId(payload, options.userCollectionSlug, input.userId),
         meta: {
           data: input.eventPayload,
         },

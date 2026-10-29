@@ -2,6 +2,7 @@ import type { Access, CollectionConfig, Endpoint, Field } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
 import { templatePreviewEndpoint } from '../endpoints/templatePreview'
 import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
+import { versionedCollectionDefaults } from '../compat'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -236,7 +237,7 @@ export const NotificationTemplatesCollection = ({
   return {
     slug,
     versions: false,
-    authorship: false,
+    ...versionedCollectionDefaults(),
     labels: {
       singular: 'Notification Template',
       plural: 'Notification Templates',

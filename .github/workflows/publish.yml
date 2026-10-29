@@ -19,8 +19,11 @@ jobs:
       - run: bun run build
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-      - run: npm publish --provenance --access public
+      - name: Refuse prerelease tags on the stable line
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then echo "0.3.x publishes stable versions to latest only"; exit 1; fi
+      - run: npm publish --provenance --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

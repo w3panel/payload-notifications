@@ -2,10 +2,12 @@
 
 ## Payload CMS Versions
 
-| Plugin Version | Payload Version | Status |
-|----------------|-----------------|--------|
-| 0.2.x+         | `>=4.0.0-beta.4 <5` | Supported |
-| 0.1.x          | ^3.79.0             | Legacy (unmaintained) |
+| Plugin Version | Payload Version | npm dist-tag | Status |
+|----------------|-----------------|--------------|--------|
+| 0.3.3+ (0.3.x) | `^3.92.0` | `latest` | Supported (stable, Payload 3) |
+| 0.4.x betas | `^3.92.0` and `>=4.0.0-beta.4 <5` | `next` | Beta (Payload 4) |
+| 0.2.0 – 0.3.2  | `>=4.0.0-beta.4 <5` | — | Superseded |
+| 0.1.x          | ^3.79.0             | — | Legacy (unmaintained) |
 
 ## Node.js Versions
 
