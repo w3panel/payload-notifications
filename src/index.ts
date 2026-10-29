@@ -102,6 +102,11 @@ export {
 } from './collections/NotificationLogs'
 export type { NotificationLogsCollectionOverrides } from './collections/NotificationLogs'
 export { NotificationTemplatesCollection } from './collections/NotificationTemplates'
+export {
+  DELIVERY_STATUSES,
+  NotificationDeliveriesCollection,
+} from './collections/NotificationDeliveries'
+export type { NotificationDeliveriesCollectionOverrides } from './collections/NotificationDeliveries'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
 export {
   NOTIFICATION_PROCESS_EVENT_TASK,
@@ -164,8 +169,15 @@ export {
   OVERRIDABLE_FIELDS,
   resolveEffectiveTriggers,
   snapshotTrigger,
+  collectTriggerWarnings,
+  validateTrigger,
 } from './triggers'
-export type { EffectiveTriggersResult, TriggerMatchInput, TriggerSnapshot } from './triggers'
+export type {
+  EffectiveTriggersResult,
+  TriggerMatchInput,
+  TriggerSnapshot,
+  TriggerValidationResult,
+} from './triggers'
 export {
   DEFAULT_RECIPIENTS,
   maskDestination,

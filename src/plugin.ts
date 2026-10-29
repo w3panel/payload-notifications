@@ -21,6 +21,10 @@ import {
   type NotificationLogsCollectionOverrides,
 } from './collections/NotificationLogs'
 import {
+  NotificationDeliveriesCollection,
+  type NotificationDeliveriesCollectionOverrides,
+} from './collections/NotificationDeliveries'
+import {
   NotificationTemplatesCollection,
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
@@ -40,6 +44,7 @@ import {
 import { writeNotificationLog } from './jobs/writeLog'
 import { buildDeliveryFingerprint, createObservabilityEvent } from './reliability'
 import { seedTemplatesFromRegistry } from './templates/seed'
+import { collectTriggerWarnings } from './triggers/validate'
 
 const hasCollectionSlug = (collections: CollectionConfig[] = [], slug: string): boolean => {
   return collections.some((collection) => collection.slug === slug)
@@ -259,6 +264,9 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       },
       onInit: async (payload: Payload) => {
         runtime.payload = payload
+        for (const warning of collectTriggerWarnings(runtime.options)) {
+          payload.logger?.warn?.(`payload-notifications: ${warning}`)
+        }
         if (runtime.options.templates.seedOnInit) {
           try {
             await seedTemplatesFromRegistry({ payload, options: runtime.options })
@@ -285,6 +293,7 @@ export const registerCollections = (
     notifications?: NotificationsCollectionOverrides
     logs?: NotificationLogsCollectionOverrides
     templates?: NotificationTemplatesCollectionOverrides
+    deliveries?: NotificationDeliveriesCollectionOverrides
   },
   getOptions?: () => NormalizedNotificationsPluginOptions,
 ): CollectionConfig[] => {
@@ -316,6 +325,15 @@ export const registerCollections = (
         slug: options.collections.templates,
         overrides: overrides?.templates,
         getOptions: getOptions || (() => options),
+      }),
+    )
+  }
+
+  if (!hasCollectionSlug(next, options.collections.deliveries)) {
+    next.push(
+      NotificationDeliveriesCollection({
+        slug: options.collections.deliveries,
+        overrides: overrides?.deliveries,
       }),
     )
   }

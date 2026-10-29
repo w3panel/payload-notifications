@@ -36,6 +36,7 @@ export type NotificationsPluginOptions = {
     notifications?: string
     logs?: string
     templates?: string
+    deliveries?: string
   }
   jobs?: NotificationsJobsOptions
   templates?: {
@@ -97,6 +98,7 @@ export type NormalizedNotificationsPluginOptions = {
     notifications: string
     logs: string
     templates: string
+    deliveries: string
   }
   jobs: {
     queue: string
