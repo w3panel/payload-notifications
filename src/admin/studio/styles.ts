@@ -79,4 +79,15 @@ export const STUDIO_CSS = `
 .pn-badge{font-size:10px;padding:0 6px;border-radius:8px;background:#e4e4e7;font-weight:500;text-transform:uppercase}
 .pn-badge-high,.pn-badge-urgent{background:#fee2e2;color:#b91c1c}
 .pn-badge-low{background:#f4f4f5;color:#71717a}
+.pn-versions{border-collapse:collapse;font-size:12px;width:100%}
+.pn-versions th,.pn-versions td{text-align:left;padding:3px 6px;border-bottom:1px solid var(--pn-border)}
+.pn-compare-frames{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pn-compare-frames figure{margin:0;display:grid;gap:4px}
+.pn-compare-frames iframe{width:100%;height:480px}
+.pn-diff{display:grid;gap:6px}
+.pn-diff summary{cursor:pointer;font-weight:600}
+.pn-diff-lines{margin:4px 0 0;font-size:11px;max-height:360px;overflow:auto;background:var(--theme-elevation-50,#fafafa);padding:6px;white-space:pre-wrap;word-break:break-all}
+.pn-diff-added{background:#dcfce7;color:#166534}
+.pn-diff-removed{background:#fee2e2;color:#991b1b}
+.pn-diff-gap{color:#a1a1aa;font-style:italic}
 `

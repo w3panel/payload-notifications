@@ -207,7 +207,7 @@ const variablesField: Field = {
 }
 
 /** Slugs the studio needs besides the templates collection. */
-type StudioSlugs = { partialsSlug?: string; mediaSlug?: string }
+type StudioSlugs = { partialsSlug?: string; mediaSlug?: string; templateVersionsSlug?: string }
 
 const templateStudioField = (collectionSlug: string, slugs: StudioSlugs = {}): Field => ({
   name: 'templateStudio',
@@ -417,6 +417,7 @@ const studioSlugs = (getOptions?: () => NormalizedNotificationsPluginOptions): S
     return options
       ? {
           partialsSlug: options.collections.partials,
+          templateVersionsSlug: options.collections.templateVersions,
           ...(options.templates.mediaCollection
             ? { mediaSlug: options.templates.mediaCollection }
             : {}),

@@ -9,4 +9,5 @@ declare module '@payloadcms/ui' {
     setValue: (value: unknown, disableModifyingForm?: boolean) => void
   }
   export function useDocumentInfo(): { id?: number | string; collectionSlug?: string }
+  export function useFormModified(): boolean
 }

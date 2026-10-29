@@ -10,6 +10,8 @@ const fields: Record<string, unknown> = {}
 mock.module('@payloadcms/ui', () => ({
   useForm: () => ({ getData }),
   useField: ({ path }: { path: string }) => ({ value: fields[path], setValue: () => {} }),
+  useDocumentInfo: () => ({ id: fields.id }),
+  useFormModified: () => false,
 }))
 
 describe('TemplateStudioField', () => {

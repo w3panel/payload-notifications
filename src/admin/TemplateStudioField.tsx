@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useState } from 'react'
-import { useField, useForm } from '@payloadcms/ui'
+import { useDocumentInfo, useField, useForm, useFormModified } from '@payloadcms/ui'
 import type { EmailDesign } from '../studio/model'
 import { STUDIO_CSS } from './studio/styles'
 import { useDesignerLists } from './studio/useDesignerLists'
@@ -12,6 +12,7 @@ import { CodeVariablesPanel } from './studio/CodeVariablesPanel'
 import { EditorModeBar } from './studio/EditorModeBar'
 import { useMonacoVariableCompletion } from './studio/monacoVariables'
 import { PreviewPanel } from './studio/PreviewPanel'
+import { VersionsPanel } from './studio/VersionsPanel'
 import { TemplateEngineHelp } from './TemplateEngineHelp'
 import type { NotificationChannel } from '../types'
 
@@ -108,6 +109,7 @@ type TemplateStudioFieldProps = {
         apiRoute?: string
         partialsSlug?: string
         mediaSlug?: string
+        templateVersionsSlug?: string
       }
     }
   }
@@ -149,6 +151,11 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
   const subject = useField<string>({ path: 'email.subject' })
   const preheader = useField<string>({ path: 'email.preheader' })
   const hasEmail = Array.isArray(channels.value) && channels.value.includes('email')
+  const { id } = useDocumentInfo()
+  const modified = useFormModified()
+  const status = useField<string>({ path: 'status' })
+  const publishedVersion = useField<number>({ path: 'version' })
+  const unpublished = useField<boolean>({ path: 'hasUnpublishedChanges' })
   useMonacoVariableCompletion(variables.paths, hasEmail && !visual)
 
   const compile = useCallback(
@@ -239,6 +246,18 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
           />
         )}
       </PreviewPanel>
+      <VersionsPanel
+        apiRoute={apiRoute}
+        collectionSlug={collectionSlug}
+        versionsSlug={custom?.templateVersionsSlug || 'notification-template-versions'}
+        id={id}
+        status={status.value}
+        version={publishedVersion.value}
+        hasUnpublishedChanges={unpublished.value}
+        modified={modified}
+        getDoc={getDoc}
+        compile={(next) => compile(next as EmailDesign)}
+      />
       <TemplateEngineHelp />
     </div>
   )
