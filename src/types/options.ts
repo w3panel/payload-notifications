@@ -112,6 +112,16 @@ export type NotificationsPluginOptions = {
    * writes to a hooked collection). Default 3.
    */
   maxEventDepth?: number
+  /**
+   * Hold back sends during these local hours (recipient timezone, else
+   * `timezone`, else UTC). Applies to `marketing` deliveries by default.
+   */
+  quietHours?: {
+    start: string
+    end: string
+    timezone?: string
+    classifications?: Array<'transactional' | 'marketing'>
+  }
   /** Store every emitted event in `notification-events` for audit and replay. Default false. */
   eventsInbox?: boolean
   /** Multi-tenant scoping: lookups and role/query recipients stay within the event's tenant. */
@@ -195,4 +205,10 @@ export type NormalizedNotificationsPluginOptions = {
   maxEventDepth: number
   eventsInbox: boolean
   tenancy?: { field: string; userField: string }
+  quietHours?: {
+    start: string
+    end: string
+    timezone: string
+    classifications: Array<'transactional' | 'marketing'>
+  }
 }

@@ -168,6 +168,7 @@ const createLiveTaskHandler = (
       payload,
       input: sendInput,
       options: runtime.options,
+      adminTriggers: runtime.adminTriggers,
     })
     return { output: result ?? {} } as TaskHandlerResult<any>
   }

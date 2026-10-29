@@ -219,6 +219,16 @@ export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
 export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
 export { dispatchToChannel } from './channels/dispatch'
 export {
+  applyQuietHours,
+  computeSchedule,
+  isValidTimeZone,
+  parseClock,
+  parseDuration,
+} from './deliveries/schedule'
+export type { ScheduleResult } from './deliveries/schedule'
+export { recheckDelivery } from './deliveries/recheck'
+export type { RecheckDelivery, RecheckResult } from './deliveries/recheck'
+export {
   collectFieldPaths,
   listRegisteredEvents,
   prepareNotificationEvent,

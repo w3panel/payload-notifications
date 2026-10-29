@@ -2,6 +2,7 @@ import type { NormalizedNotificationsPluginOptions, NotificationTrigger } from '
 import { DEFAULT_RECIPIENTS, recipientAlias } from '../recipients/resolve'
 import { validateRecipientDefinitions } from '../recipients/validate'
 import { collectFieldPaths } from '../events/registry'
+import { parseDuration } from '../deliveries/schedule'
 import { validateCondition, type ConditionValidationContext } from './conditions'
 
 export type TriggerValidationResult = {
@@ -64,6 +65,7 @@ export const validateTrigger = (
   }
 
   const conditionContext = conditionContextFor(trigger, options, owner)
+  errors.push(...validateSchedule(trigger, conditionContext))
   const collect = (result: { errors: string[]; warnings: string[] }) => {
     errors.push(...result.errors)
     warnings.push(...result.warnings)
@@ -112,6 +114,35 @@ export const validateTrigger = (
   })
 
   return { errors, warnings }
+}
+
+const SCHEDULE_TYPES = new Set(['immediate', 'delay', 'at', 'relative'])
+const TIMESTAMP_ROOTS = new Set(['event', 'payload', 'doc', 'previous', 'trigger'])
+
+const validateSchedule = (
+  trigger: NotificationTrigger,
+  context: ConditionValidationContext,
+): string[] => {
+  const schedule = trigger.schedule
+  if (!schedule) return []
+  const label = `${context.owner} schedule`
+  if (!SCHEDULE_TYPES.has(schedule.type)) {
+    return [`${label}: type must be immediate, delay, at or relative`]
+  }
+  const errors: string[] = []
+  if (schedule.type === 'delay' && parseDuration(schedule.delay) === undefined) {
+    errors.push(`${label}: delay must be a duration such as 30m, 24h or 2d`)
+  }
+  if (schedule.type === 'relative' && parseDuration(schedule.offset) === undefined) {
+    errors.push(`${label}: offset must be a duration such as -24h`)
+  }
+  if (schedule.type === 'at' || schedule.type === 'relative') {
+    const root = typeof schedule.at === 'string' ? schedule.at.split('.')[0] : ''
+    if (!root || (!TIMESTAMP_ROOTS.has(root) && !context.aliases.has(root))) {
+      errors.push(`${label}: at must be a path such as event.payload.sendAt or booking.startsAt`)
+    }
+  }
+  return errors
 }
 
 /** What a trigger's conditions may reference: event payload, doc/previous, source aliases. */

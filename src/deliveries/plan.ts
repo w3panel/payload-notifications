@@ -12,6 +12,7 @@ import { generateEventId } from '../events/registry'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination, resolveRecipients } from '../recipients/resolve'
+import { applyQuietHours, computeSchedule, isValidTimeZone } from './schedule'
 import { conditionNeedsData, evaluateCondition } from '../triggers/conditions'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
@@ -257,6 +258,34 @@ const planTrigger = async ({
 
   const classification = trigger.classification ?? event.classification
 
+  const now = new Date()
+  const schedule = computeSchedule(trigger.schedule, scope, now)
+  if (!schedule.ok) {
+    await logTriggerSkip('skipped', `schedule: ${schedule.reason}`)
+    return
+  }
+  if (schedule.at && schedule.at < now && trigger.schedule?.skipIfPast) {
+    await logTriggerSkip('skipped', `schedule: ${schedule.at.toISOString()} has already passed`)
+    return
+  }
+  const quietHours =
+    options.quietHours &&
+    classification &&
+    options.quietHours.classifications.includes(classification)
+      ? options.quietHours
+      : undefined
+  /** Send time for one recipient: the schedule, moved out of their quiet hours. */
+  const sendTimeFor = (recipient: ResolvedRecipient): Date | undefined => {
+    if (!quietHours) return schedule.at
+    const base = schedule.at && schedule.at > now ? schedule.at : now
+    const timeZone =
+      recipient.timezone && isValidTimeZone(recipient.timezone)
+        ? recipient.timezone
+        : quietHours.timezone
+    const adjusted = applyQuietHours(base, quietHours, timeZone)
+    return adjusted > base ? adjusted : schedule.at
+  }
+
   for (const delivery of trigger.deliveries) {
     // Compiled legacy rules may list channels that are not enabled; v2 triggers are validated.
     if (!options.channels.includes(delivery.channel)) continue
@@ -308,6 +337,7 @@ const planTrigger = async ({
       const skipReason = destination
         ? undefined
         : `No ${delivery.channel} destination for recipient`
+      const sendAt = sendTimeFor(recipient)
       const record = {
         event: event.name,
         eventId: event.eventId,
@@ -327,6 +357,8 @@ const planTrigger = async ({
         classification,
         idempotencyKey,
         skipReason,
+        scheduledFor: sendAt?.toISOString(),
+        recheckConditions: trigger.schedule?.recheckConditions === true,
         context: {
           ...dataContext.context,
           recipient: recipientScope,
@@ -385,6 +417,7 @@ const planTrigger = async ({
           classification,
           idempotencyKey: event.idempotencyKey,
         },
+        ...(sendAt && sendAt > now ? { waitUntil: sendAt } : {}),
       })
       result.deliveries.push({ ...planned, deliveryId })
     }

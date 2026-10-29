@@ -119,7 +119,7 @@ export const sendNotificationOutputSchema: Field[] = [
   {
     name: 'status',
     type: 'select',
-    options: ['queued', 'sent', 'stored', 'failed', 'skipped'],
+    options: ['queued', 'sent', 'stored', 'failed', 'skipped', 'cancelled'],
   },
   {
     name: 'reason',

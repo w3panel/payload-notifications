@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 import type {
+  AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationDispatchResult,
   NotificationSendInput,
@@ -7,6 +8,7 @@ import type {
   NotificationTemplateDefinition,
 } from '../types'
 import { dispatchToChannel } from '../channels/dispatch'
+import { recheckDelivery } from './recheck'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { evaluateNotificationPolicy } from '../policy/evaluatePolicy'
 import { classifyDispatchFailure, createObservabilityEvent } from '../reliability'
@@ -36,6 +38,9 @@ type DeliveryDoc = {
   idempotencyKey: string
   context?: NotificationTemplateContext | null
   templateOverrides?: Partial<NotificationTemplateDefinition> | null
+  trigger: string
+  recipientAlias?: string | null
+  recheckConditions?: boolean | null
 }
 
 const updateDelivery = (
@@ -68,6 +73,8 @@ const deliveryUpdateFor = (
       }
     case 'skipped':
       return { status: 'skipped', skipReason: result.reason ?? null }
+    case 'cancelled':
+      return { status: 'cancelled', skipReason: result.reason ?? null }
     case 'failed':
       // Retriable failures stay `sending`; the job retry picks the delivery up again.
       return { status: retriable ? 'sending' : 'failed', lastError: result.reason ?? null }
@@ -86,10 +93,13 @@ export const sendDelivery = async ({
   payload,
   input,
   options,
+  adminTriggers,
 }: {
   payload: Payload
   input: NotificationSendInput
   options: NormalizedNotificationsPluginOptions
+  /** Published admin triggers, for `recheckConditions`. */
+  adminTriggers?: AdminTriggerRecord[]
 }): Promise<NotificationDispatchResult> => {
   const deliveryId = input.deliveryId as string
   const delivery = (await payload.findByID({
@@ -149,13 +159,13 @@ export const sendDelivery = async ({
     return result
   }
 
-  const stop = async (status: 'failed' | 'skipped', reason: string) => {
+  const stop = async (status: 'failed' | 'skipped' | 'cancelled', reason: string) => {
     await writeNotificationLog({
       payload,
       options,
       input: sendInput,
-      status,
-      error: reason,
+      status: status === 'cancelled' ? 'skipped' : status,
+      error: status === 'cancelled' ? `Cancelled: ${reason}` : reason,
       fingerprint,
       failureClassification: 'terminal',
     })
@@ -188,10 +198,17 @@ export const sendDelivery = async ({
     payload,
   })
   const definition = mergeTemplateDefinition(resolved.definition, sendInput.templateOverrides)
-  const context: NotificationTemplateContext = delivery.context ?? {
+  let context: NotificationTemplateContext = delivery.context ?? {
     event: delivery.event,
     userId: sendInput.userId,
     payload: {},
+  }
+
+  // Scheduled deliveries can re-check that they still apply, rendering from fresh data.
+  if (delivery.recheckConditions) {
+    const recheck = await recheckDelivery({ payload, delivery, options, adminTriggers })
+    if (!recheck.ok) return stop('cancelled', recheck.reason)
+    context = recheck.context
   }
 
   const renderStarted = Date.now()

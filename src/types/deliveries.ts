@@ -51,7 +51,13 @@ export type NotificationSendInput = {
   destination?: string
 }
 
-export type NotificationDispatchStatus = 'queued' | 'sent' | 'stored' | 'failed' | 'skipped'
+export type NotificationDispatchStatus =
+  | 'queued'
+  | 'sent'
+  | 'stored'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled'
 
 export type NotificationDispatchResult = {
   channel: NotificationChannel

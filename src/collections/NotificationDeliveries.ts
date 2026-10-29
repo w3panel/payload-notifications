@@ -78,6 +78,7 @@ const baseFields: Field[] = [
   { name: 'dedupeKey', type: 'text', index: true },
   { name: 'providerMessageId', type: 'text', index: true },
   { name: 'scheduledFor', type: 'date', index: true },
+  { name: 'recheckConditions', type: 'checkbox', defaultValue: false },
   { name: 'sentAt', type: 'date' },
   { name: 'deliveredAt', type: 'date' },
   { name: 'lastError', type: 'textarea' },

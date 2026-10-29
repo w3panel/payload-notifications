@@ -9,6 +9,7 @@ import {
 } from '../recipients/options'
 import { normalizeCollectionEvents } from '../events/collectionEvents'
 import { DEFAULT_MAX_EVENT_DEPTH } from '../events/depth'
+import { isValidTimeZone, parseClock } from '../deliveries/schedule'
 import { compileCodeTriggers } from '../triggers/compile'
 import { validateTrigger } from '../triggers/validate'
 import { isValidEventName } from '../events/names'
@@ -84,6 +85,26 @@ const normalizeTenancy = (
     throw new Error('payload-notifications: tenancy.field is required')
   }
   return { field: tenancy.field, userField: tenancy.userField || tenancy.field }
+}
+
+const normalizeQuietHours = (
+  quietHours: NonNullable<NotificationsPluginOptions['quietHours']>,
+): NonNullable<NormalizedNotificationsPluginOptions['quietHours']> => {
+  if (parseClock(quietHours.start) === undefined || parseClock(quietHours.end) === undefined) {
+    throw new Error('payload-notifications: quietHours.start and end must be HH:MM (24h)')
+  }
+  const timezone = quietHours.timezone || 'UTC'
+  if (!isValidTimeZone(timezone)) {
+    throw new Error(
+      `payload-notifications: quietHours.timezone "${timezone}" is not a valid IANA zone`,
+    )
+  }
+  return {
+    start: quietHours.start,
+    end: quietHours.end,
+    timezone,
+    classifications: quietHours.classifications ?? ['marketing'],
+  }
 }
 
 const normalizeConditionRegistry = (
@@ -309,6 +330,7 @@ export const normalizePluginOptions = (
     maxEventDepth: normalizeMaxEventDepth(options.maxEventDepth),
     eventsInbox: options.eventsInbox === true,
     ...(options.tenancy ? { tenancy: normalizeTenancy(options.tenancy) } : {}),
+    ...(options.quietHours ? { quietHours: normalizeQuietHours(options.quietHours) } : {}),
   }
 
   // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).
