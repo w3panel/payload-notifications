@@ -41,6 +41,7 @@ import { eventsListEndpoint } from './endpoints/events'
 import { validateDataAllowlist } from './data/sources'
 import { injectCollectionEventHooks, validateCollectionEvents } from './events/collectionEvents'
 import { setEventDepth } from './events/depth'
+import { adminTriggerRootEndpoints } from './admin-triggers/endpoints'
 import { triggerLifecycleEndpoint } from './admin-triggers/lifecycle'
 import { createAdminTriggerCache, type AdminTriggerCache } from './admin-triggers/store'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
@@ -295,6 +296,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         ...(config.endpoints || []),
         eventsListEndpoint(() => runtime.options),
         dataSourcesListEndpoint(() => runtime.options),
+        ...adminTriggerRootEndpoints(() => runtime.options),
       ],
       collections: injectCollectionEventHooks(
         withCollections,

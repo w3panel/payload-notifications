@@ -144,6 +144,15 @@ export {
 } from './admin-triggers/lifecycle'
 export type { LifecycleAction, LifecycleResult } from './admin-triggers/lifecycle'
 export { createAdminTriggerCache, loadPublishedAdminTriggers } from './admin-triggers/store'
+export {
+  adminTriggerRootEndpoints,
+  codeTriggersEndpoint,
+  customizeCodeTriggerEndpoint,
+  triggerRegistryEndpoint,
+  triggerTestEndpoint,
+} from './admin-triggers/endpoints'
+export { evaluateTriggerPlan, recipientScopeOf } from './deliveries/evaluate'
+export type { RecipientScope, TriggerPlan, TriggerPlanItem } from './deliveries/evaluate'
 export type { AdminTriggerCache } from './admin-triggers/store'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
 export {

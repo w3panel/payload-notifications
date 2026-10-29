@@ -14,6 +14,7 @@ const matches = (doc: Doc, where: Where | undefined): boolean => {
     const value = getPath(doc, key)
     const ops = condition as Record<string, unknown>
     if ('equals' in ops) return String(value) === String(ops.equals)
+    if ('not_equals' in ops) return String(value) !== String(ops.not_equals)
     if ('in' in ops) {
       const list = (ops.in as unknown[]).map(String)
       return Array.isArray(value)
