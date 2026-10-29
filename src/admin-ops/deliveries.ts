@@ -3,6 +3,7 @@ import type { NormalizedNotificationsPluginOptions } from '../types'
 import { createSensitiveFieldMatcher, redactContext } from '../data/sensitive'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { emitLifecycle } from '../observability'
+import { maskDestination } from '../recipients/resolve'
 import { denyUnless } from './access'
 
 type GetOptions = () => NormalizedNotificationsPluginOptions
@@ -57,6 +58,17 @@ const readableDelivery = async (
   })) as DeliveryDoc | null
 }
 
+/** The recipient's email and phone are shown masked, like the delivery's destination. */
+const maskRecipient = (context: Record<string, unknown>): Record<string, unknown> => {
+  const recipient = context.recipient
+  if (!recipient || typeof recipient !== 'object') return context
+  const masked = { ...(recipient as Record<string, unknown>) }
+  for (const key of ['email', 'phone']) {
+    if (typeof masked[key] === 'string') masked[key] = maskDestination(masked[key] as string)
+  }
+  return { ...context, recipient: masked }
+}
+
 /** Delivery details for the inspector: attempts, fallbacks and the redacted context. */
 export const inspectDelivery = async (
   payload: Payload,
@@ -89,7 +101,9 @@ export const inspectDelivery = async (
   void recipientDestinations
   return {
     delivery: rest,
-    context: context ? redactContext(context, options.data.redact, isSensitive) : null,
+    context: context
+      ? maskRecipient(redactContext(context, options.data.redact, isSensitive))
+      : null,
     attempts: (attempts.docs as Array<Record<string, unknown>>).map((log) => ({
       id: log.id,
       at: log.createdAt,

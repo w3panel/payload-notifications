@@ -34,7 +34,10 @@ const delivery = (status: string, extra: Record<string, unknown> = {}) => ({
   templateSlug: 'order.paid',
   idempotencyKey: 'idem-1',
   destination: 'alex@example.com',
-  context: { payload: { orderId: 'O1', phone: '+911234567890', password: 'x' } },
+  context: {
+    payload: { orderId: 'O1', phone: '+911234567890', password: 'x' },
+    recipient: { id: 'u1', name: 'Alex', email: 'alex@example.com', phone: '+919876543210' },
+  },
   ...extra,
 })
 
@@ -85,6 +88,13 @@ describe('deliveries admin', () => {
     expect(result.delivery).not.toHaveProperty('context')
     expect(result.context).toEqual({
       payload: { orderId: 'O1', phone: '[redacted]', password: '[redacted]' },
+      // Shown masked, like the delivery's destination.
+      recipient: {
+        id: 'u1',
+        name: 'Alex',
+        email: 'a***@example.com',
+        phone: expect.stringMatching(/^\+91\*+3210$/),
+      },
     })
     expect(result.attempts[0]).toMatchObject({
       attempt: 1,
