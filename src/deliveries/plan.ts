@@ -12,6 +12,7 @@ import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
 import { evaluateTriggerPlan } from './evaluate'
+import { deliveryCategory } from '../policy/deliveryPolicy'
 import { resolveRetryPolicy } from './retry'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
@@ -287,6 +288,7 @@ const planTrigger = async ({
       classification,
       idempotencyKey,
       dedupeKey: plan.dedupeKey,
+      category: deliveryCategory(trigger.category, classification),
       fallback: delivery.fallback,
       recipientDestinations: recipient.destinations,
       ...retryFields(resolveRetryPolicy(options, trigger.reliability, delivery.channel)),

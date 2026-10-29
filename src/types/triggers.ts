@@ -196,6 +196,11 @@ export type NotificationTrigger = {
   deliveries: NotificationDeliveryDefinition[]
   /** Overrides the event classification for these deliveries. */
   classification?: NotificationClassification
+  /**
+   * Preference category users opt in / out of (e.g. `order-updates`,
+   * `newsletter`). Defaults to the classification.
+   */
+  category?: string
   /** When deliveries are sent. Default: immediately. */
   schedule?: NotificationSchedule & NotificationScheduleOptions
   /**

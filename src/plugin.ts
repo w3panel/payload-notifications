@@ -28,6 +28,10 @@ import {
   NotificationEventsCollection,
   type NotificationEventsCollectionOverrides,
 } from './collections/NotificationEvents'
+import {
+  NotificationPreferencesCollection,
+  NotificationSuppressionsCollection,
+} from './collections/NotificationConsent'
 import { NotificationTriggersCollection } from './collections/NotificationTriggers'
 import { NotificationTriggerVersionsCollection } from './collections/NotificationTriggerVersions'
 import {
@@ -42,6 +46,7 @@ import { validateDataAllowlist } from './data/sources'
 import { injectCollectionEventHooks, validateCollectionEvents } from './events/collectionEvents'
 import { setEventDepth } from './events/depth'
 import { adminTriggerRootEndpoints } from './admin-triggers/endpoints'
+import { unsubscribeEndpoints } from './endpoints/unsubscribe'
 import { triggerLifecycleEndpoint } from './admin-triggers/lifecycle'
 import { createAdminTriggerCache, type AdminTriggerCache } from './admin-triggers/store'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
@@ -297,6 +302,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         eventsListEndpoint(() => runtime.options),
         dataSourcesListEndpoint(() => runtime.options),
         ...adminTriggerRootEndpoints(() => runtime.options),
+        ...unsubscribeEndpoints(() => runtime.options),
       ],
       collections: injectCollectionEventHooks(
         withCollections,
@@ -380,6 +386,28 @@ export const registerCollections = (
         slug: options.collections.templates,
         overrides: overrides?.templates,
         getOptions: getOptions || (() => options),
+      }),
+    )
+  }
+
+  const consentOptions = getOptions || (() => options)
+  if (!hasCollectionSlug(next, options.collections.suppressions)) {
+    next.push(
+      NotificationSuppressionsCollection({
+        slug: options.collections.suppressions,
+        getOptions: consentOptions,
+      }),
+    )
+  }
+  if (
+    options.preferences.mode === 'collection' &&
+    !hasCollectionSlug(next, options.collections.preferences)
+  ) {
+    next.push(
+      NotificationPreferencesCollection({
+        slug: options.collections.preferences,
+        userCollectionSlug: options.userCollectionSlug,
+        getOptions: consentOptions,
       }),
     )
   }

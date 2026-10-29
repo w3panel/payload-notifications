@@ -281,6 +281,22 @@ export type { FallbackReason, FallbackSource } from './deliveries/fallback'
 export type { ResolvedRetryPolicy } from './deliveries/retry'
 export { ATTEMPT_OUTCOMES } from './collections/NotificationLogs'
 export {
+  NotificationPreferencesCollection,
+  NotificationSuppressionsCollection,
+  SUPPRESSION_REASONS,
+} from './collections/NotificationConsent'
+export { findSuppression, normalizeDestination, recordSuppression } from './policy/suppressions'
+export type { SuppressionReason } from './policy/suppressions'
+export {
+  deliveryCategory,
+  evaluateDeliveryPolicy,
+  isMandatory,
+  pickPreference,
+} from './policy/deliveryPolicy'
+export { signUnsubscribeToken, verifyUnsubscribeToken } from './policy/unsubscribe'
+export type { UnsubscribeClaims } from './policy/unsubscribe'
+export { buildUnsubscribeUrl, recordOptOut, unsubscribeEndpoints } from './endpoints/unsubscribe'
+export {
   applyQuietHours,
   computeSchedule,
   isValidTimeZone,

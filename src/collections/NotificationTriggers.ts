@@ -119,6 +119,13 @@ const baseFields = (collectionSlug: string, userCollectionSlug: string): Field[]
     options: ['transactional', 'marketing'],
   },
   {
+    name: 'category',
+    type: 'text',
+    admin: {
+      description: 'Preference category users can opt out of (defaults to the classification)',
+    },
+  },
+  {
     name: 'builder',
     type: 'ui',
     admin: {

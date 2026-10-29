@@ -9,7 +9,8 @@ import type {
 } from '../types'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
-import { evaluateNotificationPolicy } from '../policy/evaluatePolicy'
+import { deliveryCategory, evaluateDeliveryPolicy, isMandatory } from '../policy/deliveryPolicy'
+import { buildUnsubscribeUrl } from '../endpoints/unsubscribe'
 import type { DeliveryOutcome } from '../providers/errors'
 import { resolveProvider } from '../providers/builtin'
 import { createObservabilityEvent } from '../reliability'
@@ -47,6 +48,7 @@ type DeliveryDoc = {
   trigger: string
   recipientAlias?: string | null
   recheckConditions?: boolean | null
+  category?: string | null
   maxAttempts?: number | null
   retryPolicy?: Pick<ResolvedRetryPolicy, 'backoff' | 'jitter'> | null
 } & FallbackSource
@@ -188,7 +190,15 @@ export const sendDelivery = async ({
     user = found as Record<string, unknown>
   }
 
-  const policy = await evaluateNotificationPolicy({ user, input: sendInput, options })
+  const category = deliveryCategory(delivery.category, delivery.classification)
+  const policy = await evaluateDeliveryPolicy({
+    payload,
+    options,
+    user,
+    input: sendInput,
+    destination: delivery.destination ?? undefined,
+    category,
+  })
   if (!policy.allow) {
     return stop('skipped', policy.reason || 'Notification blocked by policy', 'policy')
   }
@@ -214,6 +224,16 @@ export const sendDelivery = async ({
     context = recheck.context
   }
 
+  // Opt-out-able deliveries carry a signed one-click unsubscribe link.
+  const unsubscribeUrl =
+    delivery.recipientId && !isMandatory(options, category, sendInput.classification)
+      ? await buildUnsubscribeUrl(payload, options, {
+          u: delivery.recipientId,
+          c: category,
+        })
+      : undefined
+  if (unsubscribeUrl) context = { ...context, unsubscribeUrl }
+
   const renderStarted = Date.now()
   const rendered = renderDefinition(definition, context)
   const renderDurationMs = Date.now() - renderStarted
@@ -236,6 +256,14 @@ export const sendDelivery = async ({
       channel: delivery.channel,
       content: provider.capabilities.html ? rendered : { ...rendered, html: '' },
       idempotencyKey: delivery.idempotencyKey,
+      ...(unsubscribeUrl && delivery.channel === 'email'
+        ? {
+            headers: {
+              'List-Unsubscribe': `<${unsubscribeUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
+          }
+        : {}),
       payload,
       options,
       meta: { deliveryId, eventPayload: delivery.context?.payload },

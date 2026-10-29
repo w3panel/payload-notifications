@@ -61,6 +61,10 @@ export type NotificationsPluginOptions = {
     triggers?: string
     /** Published admin trigger snapshots. */
     triggerVersions?: string
+    /** User preferences (with `preferences.mode: 'collection'`). */
+    preferences?: string
+    /** Suppressed destinations (bounces, STOP replies). */
+    suppressions?: string
     /** Event inbox slug (only with `eventsInbox: true`). */
     events?: string
   }
@@ -87,6 +91,25 @@ export type NotificationsPluginOptions = {
   }
   preferences?: {
     fields?: PreferenceFieldMapping
+    /**
+     * `userFields` (default): opt-outs come from fields on the user (`fields`).
+     * `collection`: per user × channel × category records in `notification-preferences`.
+     */
+    mode?: 'userFields' | 'collection'
+    /**
+     * Categories that ignore opt-outs in collection mode (suppressions still
+     * apply). `transactional` covers every non-marketing delivery. Default ['transactional'].
+     */
+    mandatoryCategories?: string[]
+    /** Collection mode: marketing needs an explicit opt-in record. Default false. */
+    marketingRequiresOptIn?: boolean
+    /** Signed one-click unsubscribe links (collection mode). */
+    unsubscribe?: {
+      /** HMAC secret for unsubscribe tokens. */
+      secret: string
+      /** Public origin of the API, e.g. https://shop.example.com. Defaults to `serverURL`. */
+      baseUrl?: string
+    }
   }
   policy?: {
     canSend?: (
@@ -193,6 +216,8 @@ export type NormalizedNotificationsPluginOptions = {
     events: string
     triggers: string
     triggerVersions: string
+    preferences: string
+    suppressions: string
   }
   jobs: {
     queue: string
@@ -216,6 +241,10 @@ export type NormalizedNotificationsPluginOptions = {
       channels: string
       marketingConsent: string
     }
+    mode: 'userFields' | 'collection'
+    mandatoryCategories: string[]
+    marketingRequiresOptIn: boolean
+    unsubscribe?: { secret: string; baseUrl?: string }
   }
   policy: {
     canSend?: (

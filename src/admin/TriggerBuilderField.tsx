@@ -139,6 +139,7 @@ type InnerProps = {
     dedupe?: [NotificationDedupe | undefined, (value: unknown) => void]
     reliability?: [NotificationTriggerReliability | undefined, (value: unknown) => void]
     classification: [string | undefined, (value: unknown) => void]
+    category?: [string | undefined, (value: unknown) => void]
     overrides: [string | undefined, (value: unknown) => void]
   }
 }
@@ -162,6 +163,7 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
   const [deliveries, setDeliveries] = fields.deliveries
   const [schedule, setSchedule] = fields.schedule
   const [classification, setClassification] = fields.classification
+  const [category, setCategory] = fields.category ?? [undefined, () => undefined]
   const [dedupe, setDedupe] = fields.dedupe ?? [undefined, () => undefined]
   const [reliability, setReliability] = fields.reliability ?? [undefined, () => undefined]
   const [overrides] = fields.overrides
@@ -777,6 +779,13 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
                 }
               />
             </Labeled>
+            <Labeled label="Preference category (users can opt out of it)">
+              <input
+                value={category ?? ''}
+                placeholder="e.g. order-updates"
+                onChange={(event) => setCategory(event.target.value || null)}
+              />
+            </Labeled>
             <Labeled label="Classification">
               <select
                 value={classification ?? ''}
@@ -902,6 +911,7 @@ export const TriggerBuilderField: React.FC<TriggerBuilderFieldProps> = (props) =
   const dedupe = useField<NotificationDedupe | undefined>({ path: 'dedupe' })
   const reliability = useField<NotificationTriggerReliability | undefined>({ path: 'reliability' })
   const classification = useField<string | undefined>({ path: 'classification' })
+  const category = useField<string | undefined>({ path: 'category' })
   const overrides = useField<string | undefined>({ path: 'overrides' })
 
   const [registry, setRegistry] = useState<BuilderRegistry>(EMPTY_REGISTRY)
@@ -949,6 +959,7 @@ export const TriggerBuilderField: React.FC<TriggerBuilderFieldProps> = (props) =
           dedupe: [dedupe.value, dedupe.setValue],
           reliability: [reliability.value, reliability.setValue],
           classification: [classification.value, classification.setValue],
+          category: [category.value, category.setValue],
           overrides: [overrides.value, overrides.setValue],
         }}
       />

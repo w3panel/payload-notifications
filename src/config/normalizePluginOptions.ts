@@ -75,6 +75,34 @@ const normalizeEventRegistry = (
   return { ...events }
 }
 
+const normalizePreferenceMode = (preferences: NotificationsPluginOptions['preferences']) => {
+  const mode = preferences?.mode ?? 'userFields'
+  if (mode !== 'userFields' && mode !== 'collection') {
+    throw new Error("payload-notifications: preferences.mode must be 'userFields' or 'collection'")
+  }
+  const unsubscribe = preferences?.unsubscribe
+  if (unsubscribe) {
+    if (typeof unsubscribe.secret !== 'string' || unsubscribe.secret.length < 16) {
+      throw new Error(
+        'payload-notifications: preferences.unsubscribe.secret must be at least 16 characters',
+      )
+    }
+    if (mode !== 'collection') {
+      throw new Error(
+        "payload-notifications: preferences.unsubscribe needs preferences.mode: 'collection'",
+      )
+    }
+  }
+  return {
+    mode,
+    mandatoryCategories: preferences?.mandatoryCategories ?? ['transactional'],
+    marketingRequiresOptIn: preferences?.marketingRequiresOptIn === true,
+    ...(unsubscribe
+      ? { unsubscribe: { secret: unsubscribe.secret, baseUrl: unsubscribe.baseUrl } }
+      : {}),
+  } as const
+}
+
 const normalizeCustomProviders = (
   custom: NonNullable<NotificationsPluginOptions['providers']>['custom'],
 ): NormalizedNotificationsPluginOptions['providers']['custom'] => {
@@ -260,6 +288,8 @@ export const normalizePluginOptions = (
   const triggersSlug = options.collections?.triggers || 'notification-triggers'
   const triggerVersionsSlug =
     options.collections?.triggerVersions || 'notification-trigger-versions'
+  const preferencesSlug = options.collections?.preferences || 'notification-preferences'
+  const suppressionsSlug = options.collections?.suppressions || 'notification-suppressions'
 
   const allSlugs = [
     notificationsSlug,
@@ -269,6 +299,8 @@ export const normalizePluginOptions = (
     eventsSlug,
     triggersSlug,
     triggerVersionsSlug,
+    preferencesSlug,
+    suppressionsSlug,
   ]
   if (new Set(allSlugs).size !== allSlugs.length) {
     throw new Error(
@@ -382,6 +414,8 @@ export const normalizePluginOptions = (
       events: eventsSlug,
       triggers: triggersSlug,
       triggerVersions: triggerVersionsSlug,
+      preferences: preferencesSlug,
+      suppressions: suppressionsSlug,
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
@@ -400,6 +434,7 @@ export const normalizePluginOptions = (
         marketingConsent:
           options.preferences?.fields?.marketingConsent || 'notificationPreferences.marketing',
       },
+      ...normalizePreferenceMode(options.preferences),
     },
     policy: {
       canSend: options.policy?.canSend,

@@ -13,6 +13,7 @@ export const DEFINITION_FIELDS = [
   'dedupe',
   'reliability',
   'classification',
+  'category',
   'overrides',
 ] as const
 
