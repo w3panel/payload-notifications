@@ -7,7 +7,7 @@ import { STUDIO_CSS } from './studio/styles'
 import { useDesignerLists } from './studio/useDesignerLists'
 import { useTemplateVariables } from './studio/useTemplateVariables'
 import { VisualEmailEditor } from './studio/VisualEmailEditor'
-import { buildTemplateApiPath, parsePreviewContext } from './previewHelpers'
+import { buildPreviewBody, buildTemplateApiPath, type PreviewSampleChoice } from './previewHelpers'
 import { CodeVariablesPanel } from './studio/CodeVariablesPanel'
 import { EditorModeBar } from './studio/EditorModeBar'
 import { useMonacoVariableCompletion } from './studio/monacoVariables'
@@ -21,55 +21,47 @@ type TestSendProps = {
   collectionSlug: string
   apiRoute: string
   channel: NotificationChannel
+  sample: PreviewSampleChoice
   contextJson: string
 }
 
-/** Sends the current form values once to a user (marked as a test). */
+/** Sends the current form values once to the signed-in admin, marked as a test. */
 const TestSend: React.FC<TestSendProps> = ({
   getDoc,
   collectionSlug,
   apiRoute,
   channel,
+  sample,
   contextJson,
 }) => {
-  const [userId, setUserId] = useState('')
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
 
   const run = async () => {
-    const parsed = parsePreviewContext(contextJson)
-    if (!parsed.ok) {
-      setStatus(parsed.error)
-      return
-    }
-    if (!userId.trim()) {
-      setStatus('Enter a userId for test send')
+    const doc = getDoc()
+    const request = buildPreviewBody({ channel, doc, contextJson, sample })
+    if (!request.ok) {
+      setStatus(request.error)
       return
     }
     setBusy(true)
     setStatus('')
     try {
-      const doc = getDoc()
       const res = await fetch(buildTemplateApiPath(collectionSlug, 'test-send', apiRoute), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel,
-          userId: userId.trim(),
-          doc,
-          id: doc.id,
-          context: parsed.value.payload || parsed.value,
-        }),
+        body: JSON.stringify({ ...request.body, id: doc.id }),
       })
       const data = (await res.json()) as {
         error?: string
+        errors?: string[]
         result?: { status?: string; reason?: string }
       }
       setStatus(
         res.ok
-          ? `Test send: ${data.result?.status || 'ok'}${data.result?.reason ? ` — ${data.result.reason}` : ''}`
-          : data.error || `Test send failed (${res.status})`,
+          ? `Test ${channel} ${data.result?.status || 'sent'}${data.result?.reason ? ` — ${data.result.reason}` : ''}`
+          : [data.error || `Test send failed (${res.status})`, ...(data.errors ?? [])].join(' — '),
       )
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Test send request failed')
@@ -80,17 +72,12 @@ const TestSend: React.FC<TestSendProps> = ({
 
   return (
     <div className="pn-row">
-      <label className="pn-field" style={{ flex: 1 }}>
-        <span className="pn-label">Test-send userId</span>
-        <input
-          value={userId}
-          onChange={(event) => setUserId(event.target.value)}
-          placeholder="user id"
-        />
-      </label>
       <button type="button" disabled={busy} onClick={() => void run()}>
-        Send test
+        {busy ? 'Sending…' : `Send test ${channel} to me`}
       </button>
+      <span className="pn-hint">
+        Uses the preview&apos;s sample data; sent only to your account and marked [Test].
+      </span>
       {status ? (
         <span className="pn-hint" role="status">
           {status}
@@ -236,12 +223,13 @@ export const TemplateStudioField: React.FC<TemplateStudioFieldProps> = (props) =
         </>
       ) : null}
       <PreviewPanel getDoc={getDoc} collectionSlug={collectionSlug} apiRoute={apiRoute}>
-        {({ channel, contextJson }) => (
+        {({ channel, sample, contextJson }) => (
           <TestSend
             getDoc={getDoc}
             collectionSlug={collectionSlug}
             apiRoute={apiRoute}
             channel={channel}
+            sample={sample}
             contextJson={contextJson}
           />
         )}

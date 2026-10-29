@@ -230,7 +230,7 @@ const resolvePreviewSample = async (
 }
 
 /** Compiles an unsaved visual design (form values) for preview. */
-const compileVisualPreview = async (
+export const compileVisualPreview = async (
   req: PayloadRequest,
   options: NormalizedNotificationsPluginOptions,
   doc: Record<string, unknown>,
@@ -252,6 +252,73 @@ const compileVisualPreview = async (
     doc: { ...doc, email: { ...email, htmlBody: compiled.html, textBody: compiled.text } },
     design: parsed.design,
     theme: resources.theme,
+  }
+}
+
+/**
+ * The render context for previews and test sends: the JSON `context`, or the
+ * chosen `sample` / `sampleEvent` + `sources` resolved like a real send.
+ */
+export const buildPreviewContext = async (
+  req: PayloadRequest,
+  body: Record<string, unknown>,
+  doc: Record<string, unknown>,
+  getOptions?: () => NormalizedNotificationsPluginOptions,
+): Promise<
+  | { ok: true; context: NotificationTemplateContext; data?: DataPreview }
+  | { ok: false; response: Response }
+> => {
+  const fail = (error: string, status = 400) => ({
+    ok: false as const,
+    response: Response.json({ error }, { status }),
+  })
+  const contextInput = isObject(body.context) ? body.context : {}
+  const context: NotificationTemplateContext = {
+    event:
+      typeof contextInput.event === 'string'
+        ? contextInput.event
+        : typeof doc.slug === 'string'
+          ? doc.slug
+          : 'preview',
+    userId: typeof contextInput.userId === 'string' ? contextInput.userId : 'preview-user',
+    // `{ payload: {...} }`, or the shorthand `{ orderId: '1' }` → payload.orderId
+    payload: isObject(contextInput.payload)
+      ? contextInput.payload
+      : (Object.fromEntries(
+          Object.entries(contextInput).filter(
+            ([key]) => !['event', 'userId', 'payload'].includes(key),
+          ),
+        ) as Record<string, unknown>),
+  }
+
+  let preparedEvent: NotificationEvent | undefined
+  let sampleEvent = body.sampleEvent
+  let sources = body.sources
+  if (isObject(body.sample)) {
+    if (!getOptions) return fail('Sample data requires plugin options')
+    const sample = await resolvePreviewSample(req, getOptions(), body.sample, context.event)
+    if ('error' in sample) return fail(sample.error, sample.status)
+    sampleEvent = sample.sampleEvent ?? {}
+    sources = sample.sources ?? []
+    preparedEvent = sample.event
+    // The chosen sample replaces the JSON context's payload.
+    context.payload = {}
+  }
+
+  if (sampleEvent === undefined && sources === undefined) return { ok: true, context }
+  if (!getOptions) return fail('Data source preview requires plugin options')
+  try {
+    const resolved = await resolvePreviewData(
+      req,
+      { ...body, sampleEvent, sources },
+      context,
+      getOptions(),
+      preparedEvent,
+    )
+    if (!resolved.ok) return { ok: false, response: resolved.response }
+    return { ok: true, context: resolved.context, data: resolved.preview }
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : 'Data resolution failed')
   }
 }
 
@@ -284,73 +351,9 @@ export const createTemplatePreviewHandler = (
       return Response.json({ error: 'doc (template field values) is required' }, { status: 400 })
     }
 
-    const contextInput = isObject(body.context) ? body.context : {}
-    const context: NotificationTemplateContext = {
-      event:
-        typeof contextInput.event === 'string'
-          ? contextInput.event
-          : typeof doc.slug === 'string'
-            ? doc.slug
-            : 'preview',
-      userId: typeof contextInput.userId === 'string' ? contextInput.userId : 'preview-user',
-      payload: isObject(contextInput.payload)
-        ? contextInput.payload
-        : isObject(contextInput)
-          ? (Object.fromEntries(
-              Object.entries(contextInput).filter(
-                ([key]) => !['event', 'userId', 'payload'].includes(key),
-              ),
-            ) as Record<string, unknown>)
-          : {},
-    }
-
-    // Prefer nested payload when provided as context.payload
-    if (isObject(contextInput.payload)) {
-      context.payload = contextInput.payload
-    } else if (!context.payload || !Object.keys(context.payload).length) {
-      // Allow shorthand: { context: { orderId: '1' } } → payload.orderId
-      const rest = { ...contextInput }
-      delete rest.event
-      delete rest.userId
-      delete rest.payload
-      context.payload = rest
-    }
-
-    let renderContext: NotificationTemplateContext = context
-    let data: DataPreview | undefined
-    let preparedEvent: NotificationEvent | undefined
-
-    if (isObject(body.sample)) {
-      if (!getOptions) {
-        return Response.json({ error: 'Sample data requires plugin options' }, { status: 400 })
-      }
-      const sample = await resolvePreviewSample(req, getOptions(), body.sample, context.event)
-      if ('error' in sample)
-        return Response.json({ error: sample.error }, { status: sample.status })
-      body.sampleEvent = sample.sampleEvent ?? {}
-      body.sources = sample.sources ?? []
-      preparedEvent = sample.event
-      // The chosen sample replaces the JSON context's payload.
-      context.payload = {}
-    }
-
-    if (body.sampleEvent !== undefined || body.sources !== undefined) {
-      if (!getOptions) {
-        return Response.json(
-          { error: 'Data source preview requires plugin options' },
-          { status: 400 },
-        )
-      }
-      try {
-        const resolved = await resolvePreviewData(req, body, context, getOptions(), preparedEvent)
-        if (!resolved.ok) return resolved.response
-        renderContext = resolved.context
-        data = resolved.preview
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Data resolution failed'
-        return Response.json({ error: message }, { status: 400 })
-      }
-    }
+    const built = await buildPreviewContext(req, body, doc, getOptions)
+    if (!built.ok) return built.response
+    const { context: renderContext, data } = built
 
     // Visual designs are compiled from the unsaved form values.
     let design: EmailDesign | undefined

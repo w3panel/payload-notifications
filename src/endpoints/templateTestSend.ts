@@ -3,13 +3,16 @@ import type {
   NormalizedNotificationsPluginOptions,
   NotificationChannel,
   NotificationSendInput,
+  RenderedNotificationContent,
 } from '../types'
 import { sendEmailNotification } from '../channels/email'
 import { sendInAppNotification } from '../channels/inapp'
 import { sendSMSNotification } from '../channels/sms'
 import { sendWhatsAppNotification } from '../channels/whatsapp'
 import { writeNotificationLog } from '../jobs/writeLog'
+import { finalizeForChannel } from '../templates/channelContent'
 import { buildDefinitionFromTemplateDoc } from '../templates/fromDoc'
+import { buildPreviewContext, compileVisualPreview } from './templatePreview'
 import { renderDefinition } from '../templates/renderDefinition'
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
@@ -17,6 +20,36 @@ const isObject = (value: unknown): value is Record<string, unknown> => {
 }
 
 const VALID_CHANNELS = new Set(['email', 'whatsapp', 'sms', 'inapp'])
+
+/** Prefix that marks test sends. */
+export const TEST_SEND_PREFIX = '[Test] '
+
+/**
+ * Marks rendered content as a test: subject / title, and the text of SMS and
+ * plain WhatsApp messages (approved WhatsApp templates cannot be changed).
+ */
+export const markAsTest = <T extends RenderedNotificationContent>(
+  rendered: T,
+  channel: NotificationChannel,
+): T => {
+  const prefix = (value: string | undefined) =>
+    value && !value.startsWith(TEST_SEND_PREFIX) ? `${TEST_SEND_PREFIX}${value}` : value
+  switch (channel) {
+    case 'email':
+      return { ...rendered, subject: prefix(rendered.subject) ?? TEST_SEND_PREFIX.trim() }
+    case 'inapp':
+      return rendered.title
+        ? { ...rendered, title: prefix(rendered.title) }
+        : { ...rendered, body: prefix(rendered.body) ?? '', text: prefix(rendered.text) ?? '' }
+    case 'sms':
+    case 'whatsapp':
+      return rendered.whatsappTemplate
+        ? rendered
+        : { ...rendered, body: prefix(rendered.body) ?? '', text: prefix(rendered.text) ?? '' }
+    default:
+      return rendered
+  }
+}
 
 export const createTemplateTestSendHandler = (
   getOptions: () => NormalizedNotificationsPluginOptions,
@@ -64,32 +97,46 @@ export const createTemplateTestSendHandler = (
       return Response.json({ error: 'doc or template id is required' }, { status: 400 })
     }
 
+    // Test sends only go to the signed-in admin.
     const userId =
-      typeof body.userId === 'string' && body.userId.trim()
-        ? body.userId.trim()
-        : typeof req.user?.id === 'string' || typeof req.user?.id === 'number'
-          ? String(req.user.id)
-          : ''
-
+      typeof req.user.id === 'string' || typeof req.user.id === 'number' ? String(req.user.id) : ''
     if (!userId) {
-      return Response.json({ error: 'userId is required for test send' }, { status: 400 })
+      return Response.json({ error: 'Test sends need a signed-in user' }, { status: 400 })
+    }
+    if (body.userId !== undefined && body.userId !== null && String(body.userId) !== userId) {
+      return Response.json({ error: 'Test sends go to your own account only' }, { status: 400 })
     }
 
     const slug = typeof doc.slug === 'string' ? doc.slug : 'test-template'
-    const definition = buildDefinitionFromTemplateDoc(doc, channel as NotificationChannel)
-    const context = {
-      event: slug,
-      userId,
-      payload: isObject(body.context) ? body.context : {},
+    // Same content as the preview: unsaved visual designs and the chosen sample data.
+    let sendDoc = doc
+    if (channel === 'email') {
+      const visual = await compileVisualPreview(req, options, doc)
+      if ('error' in visual) {
+        return Response.json({ error: visual.error, errors: visual.errors }, { status: 400 })
+      }
+      if (visual.doc) sendDoc = visual.doc
     }
-    const rendered = renderDefinition(definition, context)
+    const built = await buildPreviewContext(req, body, doc, () => options)
+    if (!built.ok) return built.response
+    const context = { ...built.context, event: built.context.event || slug, userId }
+    const definition = buildDefinitionFromTemplateDoc(sendDoc, channel as NotificationChannel)
+    // Finished like a real send (links, preheader, layout, SMS link shortening).
+    const rendered = markAsTest(
+      await finalizeForChannel(
+        renderDefinition(definition, context),
+        channel as NotificationChannel,
+        options,
+      ),
+      channel as NotificationChannel,
+    )
 
     const input: NotificationSendInput = {
       userId,
       channel: channel as NotificationChannel,
       template: slug,
       event: slug,
-      eventPayload: context.payload,
+      eventPayload: context.payload ?? {},
       classification: 'transactional',
       idempotencyKey: `test-send:${slug}:${channel}:${userId}:${Date.now()}`,
     }
