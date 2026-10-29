@@ -78,6 +78,7 @@ export type {
   FieldCondition,
   NotificationCondition,
   NotificationDuration,
+  NotificationDedupe,
   NotificationSchedule,
   NotificationScheduleOptions,
   ContextRecipient,
@@ -151,7 +152,7 @@ export {
   triggerRegistryEndpoint,
   triggerTestEndpoint,
 } from './admin-triggers/endpoints'
-export { evaluateTriggerPlan, recipientScopeOf } from './deliveries/evaluate'
+export { evaluateTriggerPlan, recipientScopeOf, renderDedupeKey } from './deliveries/evaluate'
 export type { RecipientScope, TriggerPlan, TriggerPlanItem } from './deliveries/evaluate'
 export type { AdminTriggerCache } from './admin-triggers/store'
 export type { NotificationTemplatesCollectionOverrides } from './collections/NotificationTemplates'
@@ -217,6 +218,7 @@ export {
   resolveEffectiveTriggers,
   snapshotTrigger,
   collectTriggerWarnings,
+  findOverlappingTriggers,
   validateTrigger,
   collectConditionRefs,
   CONDITION_OPERATORS,
@@ -243,7 +245,7 @@ export {
   validateRecipientDefinitions,
 } from './recipients'
 export type { ResolveRecipientsArgs, ResolveRecipientsResult } from './recipients'
-export { buildDeliveryKey, planDeliveries } from './deliveries/plan'
+export { buildDeliveryKey, findDedupeMatch, planDeliveries } from './deliveries/plan'
 export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
 export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
 export { dispatchToChannel } from './channels/dispatch'

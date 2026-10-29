@@ -51,6 +51,8 @@ export type TriggerOverridableField =
   | 'data'
   | 'conditions'
   | 'schedule'
+  | 'dedupe'
+  | 'reliability'
 
 export type ConditionOperator =
   | 'equals'
@@ -102,6 +104,13 @@ export type ConditionDefinition = {
   handler: ConditionHandler
   label?: string
   description?: string
+}
+
+export type NotificationDedupe = {
+  /** Template rendered against the trigger context, e.g. `order.paid:{{ order.id }}`. */
+  key: string
+  /** Only deliveries created within this many seconds count. Default: any age. */
+  windowSeconds?: number
 }
 
 /** A duration in milliseconds, or a string such as `30m`, `24h`, `2d`, `-24h`. */
@@ -156,6 +165,13 @@ export type NotificationTrigger = {
   classification?: NotificationClassification
   /** When deliveries are sent. Default: immediately. */
   schedule?: NotificationSchedule & NotificationScheduleOptions
+  /**
+   * Cross-trigger duplicate protection: deliveries with the same rendered `key`,
+   * recipient and channel (within `windowSeconds`, if set) are skipped as
+   * duplicates — e.g. `order.paid:{{ order.id }}` on both an `order.paid` event
+   * trigger and an `orders` update trigger.
+   */
+  dedupe?: NotificationDedupe
   admin?: {
     policy?: TriggerAdminPolicy
     /** Fields a `managed` override may replace. Default: all overridable fields. */

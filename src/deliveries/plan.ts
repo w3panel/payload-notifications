@@ -20,7 +20,7 @@ export type PlannedDelivery = {
   trigger: string
   channel: string
   recipientKey: string
-  status: 'queued' | 'skipped' | 'existing'
+  status: 'queued' | 'skipped' | 'existing' | 'duplicate'
   reason?: string
 }
 
@@ -69,6 +69,55 @@ const findDeliveryByKey = async (
   })
   const doc = existing.docs?.[0] as { id: string | number; status?: string } | undefined
   return doc ? { id: String(doc.id), status: doc.status } : undefined
+}
+
+/** Statuses that make a delivery count for dedupe (failed / skipped / cancelled ones do not). */
+const DEDUPE_STATUSES = ['planned', 'queued', 'sending', 'sent', 'delivered', 'unknown']
+
+/** An earlier delivery with the same dedupe key, recipient and channel (within the window). */
+export const findDedupeMatch = async (
+  payload: Payload,
+  options: NormalizedNotificationsPluginOptions,
+  {
+    dedupeKey,
+    recipientKey,
+    channel,
+    windowSeconds,
+    now = new Date(),
+  }: {
+    dedupeKey: string
+    recipientKey: string
+    channel: string
+    windowSeconds?: number
+    now?: Date
+  },
+): Promise<string | undefined> => {
+  const result = await payload.find({
+    collection: options.collections.deliveries as never,
+    where: {
+      and: [
+        { dedupeKey: { equals: dedupeKey } },
+        { recipientKey: { equals: recipientKey } },
+        { channel: { equals: channel } },
+        { status: { in: DEDUPE_STATUSES } },
+        ...(windowSeconds
+          ? [
+              {
+                createdAt: {
+                  greater_than: new Date(now.getTime() - windowSeconds * 1000).toISOString(),
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+    pagination: false,
+  })
+  const doc = result.docs?.[0] as { id: string | number } | undefined
+  return doc ? String(doc.id) : undefined
 }
 
 /**
@@ -196,7 +245,21 @@ const planTrigger = async ({
       continue
     }
 
-    const skipReason = destination ? undefined : `No ${delivery.channel} destination for recipient`
+    const duplicateOf = plan.dedupeKey
+      ? await findDedupeMatch(payload, options, {
+          dedupeKey: plan.dedupeKey,
+          recipientKey: recipient.key,
+          channel: delivery.channel,
+          windowSeconds: trigger.dedupe?.windowSeconds,
+          now,
+        })
+      : undefined
+
+    const skipReason = duplicateOf
+      ? `Duplicate of delivery ${duplicateOf} (dedupe key)`
+      : destination
+        ? undefined
+        : `No ${delivery.channel} destination for recipient`
     const record = {
       event: event.name,
       eventId: event.eventId,
@@ -215,6 +278,7 @@ const planTrigger = async ({
       destinationMasked: maskDestination(destination),
       classification,
       idempotencyKey,
+      dedupeKey: plan.dedupeKey,
       skipReason,
       scheduledFor: sendAt?.toISOString(),
       recheckConditions: trigger.schedule?.recheckConditions === true,
@@ -258,7 +322,12 @@ const planTrigger = async ({
         fingerprint: idempotencyKey,
         failureClassification: 'terminal',
       })
-      result.deliveries.push({ ...planned, deliveryId, status: 'skipped', reason: skipReason })
+      result.deliveries.push({
+        ...planned,
+        deliveryId,
+        status: duplicateOf ? 'duplicate' : 'skipped',
+        reason: skipReason,
+      })
       continue
     }
 

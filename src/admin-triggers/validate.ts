@@ -10,8 +10,9 @@ import { buildDefinitionFromTemplateDoc } from '../templates/fromDoc'
 import { checkTriggerShape } from '../triggers/define'
 import { eventMatchesPattern } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
-import { validateTrigger } from '../triggers/validate'
+import { findOverlappingTriggers, validateTrigger } from '../triggers/validate'
 import { definitionOf, toAdminTriggerRecord } from './record'
+import { loadPublishedAdminTriggers } from './store'
 
 export type TriggerValidationReport = {
   ok: boolean
@@ -176,6 +177,18 @@ export const validateAdminTrigger = async ({
       }
     }
   })
+
+  const others = [
+    ...options.triggers.filter((code) => code.slug !== trigger.slug),
+    ...(await loadPublishedAdminTriggers(payload, options))
+      .filter((record) => !record.overrides && record.slug !== String(doc.slug) && record.source)
+      .map((record) => ({ enabled: true, ...record }) as unknown as NotificationTrigger),
+  ]
+  warnings.push(
+    ...findOverlappingTriggers([trigger, ...others]).filter((warning) =>
+      warning.includes(`"${trigger.slug}"`),
+    ),
+  )
 
   const eventClassification =
     trigger.source.type === 'event'

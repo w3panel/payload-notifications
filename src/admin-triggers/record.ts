@@ -10,6 +10,7 @@ export const DEFINITION_FIELDS = [
   'recipients',
   'deliveries',
   'schedule',
+  'dedupe',
   'classification',
   'overrides',
 ] as const
@@ -17,7 +18,14 @@ export const DEFINITION_FIELDS = [
 export type TriggerDefinitionFields = Partial<
   Pick<
     NotificationTrigger,
-    'source' | 'conditions' | 'data' | 'recipients' | 'deliveries' | 'schedule' | 'classification'
+    | 'source'
+    | 'conditions'
+    | 'data'
+    | 'recipients'
+    | 'deliveries'
+    | 'schedule'
+    | 'dedupe'
+    | 'classification'
   >
 > & { overrides?: string | null }
 

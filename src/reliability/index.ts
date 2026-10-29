@@ -16,7 +16,8 @@ export const buildDeliveryFingerprint = (input: NotificationSendInput): string =
     input.channel,
     input.event,
     input.template,
-    input.idempotencyKey || 'no-idempotency-key',
+    // Without a caller key, the event occurrence keeps distinct events apart.
+    input.idempotencyKey || (input.eventId ? `event:${input.eventId}` : 'no-idempotency-key'),
   ]
 
   return parts.join('::')

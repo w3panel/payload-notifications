@@ -10,7 +10,7 @@ export { eventMatchesPattern, matchTriggers, snapshotTrigger } from './match'
 export type { TriggerMatchInput, TriggerSnapshot } from './match'
 export { OVERRIDABLE_FIELDS, resolveEffectiveTriggers } from './registry'
 export type { EffectiveTriggersResult } from './registry'
-export { collectTriggerWarnings, validateTrigger } from './validate'
+export { collectTriggerWarnings, findOverlappingTriggers, validateTrigger } from './validate'
 export type { TriggerValidationResult } from './validate'
 export {
   collectConditionRefs,

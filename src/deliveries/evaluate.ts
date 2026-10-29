@@ -5,10 +5,12 @@ import type {
   NotificationDataContext,
   NotificationDeliveryDefinition,
   NotificationEvent,
+  NotificationTemplateContext,
   NotificationTrigger,
   ResolvedRecipient,
 } from '../types'
 import { buildDataContext } from '../data/buildContext'
+import { renderDefinition } from '../templates/renderDefinition'
 import { createSensitiveFieldMatcher, type SensitiveFieldMatcher } from '../data/sensitive'
 import { resolveRecipients } from '../recipients/resolve'
 import { conditionNeedsData, evaluateCondition } from '../triggers/conditions'
@@ -47,7 +49,18 @@ export type TriggerPlan =
       /** Optional data sources that resolved to nothing. */
       missing: string[]
       warnings: string[]
+      /** Rendered `dedupe.key`, when the trigger has one. */
+      dedupeKey?: string
     }
+
+/** Renders a dedupe key template against the condition scope (unescaped, trimmed). */
+export const renderDedupeKey = (
+  key: string,
+  scope: Record<string, unknown>,
+): string | undefined => {
+  const rendered = renderDefinition({ body: key }, scope as NotificationTemplateContext).body.trim()
+  return rendered || undefined
+}
 
 export const recipientScopeOf = (recipient: ResolvedRecipient): RecipientScope => ({
   id: recipient.recipientId,
@@ -242,8 +255,16 @@ export const evaluateTriggerPlan = async ({
     }
   }
 
+  let dedupeKey: string | undefined
+  if (trigger.dedupe?.key) {
+    dedupeKey = renderDedupeKey(trigger.dedupe.key, scope)
+    if (!dedupeKey)
+      warnings.push(`${owner}: dedupe key rendered empty; duplicate protection skipped`)
+  }
+
   return {
     ok: true,
+    dedupeKey,
     context: dataContext.context,
     scope,
     classification,

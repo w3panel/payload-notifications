@@ -47,6 +47,7 @@ const definitionFields: Field[] = [
   { name: 'recipients', type: 'json', validate: jsonOf('array', 'recipients') },
   { name: 'deliveries', type: 'json', validate: jsonOf('array', 'deliveries') },
   { name: 'schedule', type: 'json', validate: jsonOf('object', 'schedule') },
+  { name: 'dedupe', type: 'json', validate: jsonOf('object', 'dedupe') },
 ]
 
 const baseFields = (collectionSlug: string, userCollectionSlug: string): Field[] => [

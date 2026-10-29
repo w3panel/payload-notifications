@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDocumentInfo, useField, useForm } from '@payloadcms/ui'
 import type {
   NotificationCondition,
+  NotificationDedupe,
   NotificationDataSource,
   NotificationDeliveryDefinition,
   NotificationRecipientDefinition,
@@ -134,6 +135,7 @@ type InnerProps = {
     recipients: [NotificationRecipientDefinition[] | undefined, (value: unknown) => void]
     deliveries: [NotificationDeliveryDefinition[] | undefined, (value: unknown) => void]
     schedule: [BuilderSchedule | undefined, (value: unknown) => void]
+    dedupe?: [NotificationDedupe | undefined, (value: unknown) => void]
     classification: [string | undefined, (value: unknown) => void]
     overrides: [string | undefined, (value: unknown) => void]
   }
@@ -158,6 +160,7 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
   const [deliveries, setDeliveries] = fields.deliveries
   const [schedule, setSchedule] = fields.schedule
   const [classification, setClassification] = fields.classification
+  const [dedupe, setDedupe] = fields.dedupe ?? [undefined, () => undefined]
   const [overrides] = fields.overrides
 
   const collectionSource = source?.type === 'collection'
@@ -684,6 +687,31 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
                 </label>
               </div>
             ) : null}
+            <div style={row}>
+              <Labeled label="Dedupe key (skip duplicates across triggers)">
+                <input
+                  value={dedupe?.key ?? ''}
+                  placeholder="order.paid:{{ order.id }}"
+                  onChange={(event) =>
+                    setDedupe(event.target.value ? { ...dedupe, key: event.target.value } : null)
+                  }
+                />
+              </Labeled>
+              {dedupe?.key ? (
+                <Labeled label="Within seconds (empty = any age)">
+                  <input
+                    type="number"
+                    value={dedupe.windowSeconds ?? ''}
+                    onChange={(event) =>
+                      setDedupe({
+                        ...dedupe,
+                        windowSeconds: event.target.value ? Number(event.target.value) : undefined,
+                      })
+                    }
+                  />
+                </Labeled>
+              ) : null}
+            </div>
             <Labeled label="Classification">
               <select
                 value={classification ?? ''}
@@ -806,6 +834,7 @@ export const TriggerBuilderField: React.FC<TriggerBuilderFieldProps> = (props) =
   const recipients = useField<NotificationRecipientDefinition[] | undefined>({ path: 'recipients' })
   const deliveries = useField<NotificationDeliveryDefinition[] | undefined>({ path: 'deliveries' })
   const schedule = useField<BuilderSchedule | undefined>({ path: 'schedule' })
+  const dedupe = useField<NotificationDedupe | undefined>({ path: 'dedupe' })
   const classification = useField<string | undefined>({ path: 'classification' })
   const overrides = useField<string | undefined>({ path: 'overrides' })
 
@@ -851,6 +880,7 @@ export const TriggerBuilderField: React.FC<TriggerBuilderFieldProps> = (props) =
           recipients: [recipients.value, recipients.setValue],
           deliveries: [deliveries.value, deliveries.setValue],
           schedule: [schedule.value, schedule.setValue],
+          dedupe: [dedupe.value, dedupe.setValue],
           classification: [classification.value, classification.setValue],
           overrides: [overrides.value, overrides.setValue],
         }}
