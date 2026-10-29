@@ -32,14 +32,15 @@ flowchart LR
 |-------|----------|
 | Template body in DB | Yes — admin editable without deploy |
 | Tokens / conditionals | Yes — engine at send time |
-| Channels per rule | Yes — rule config |
+| Channels and recipients | Yes — triggers (code or admin-created) |
 | Recipient prefs / marketing | Yes — user fields + policy |
-| Retries | Yes — Payload job retries on retriable errors |
+| Retries | Yes — per-delivery retry policy, fallbacks, admin retry |
+
+## Worked examples
+
+See [examples.md](./examples.md) for complete e-commerce and booking workflows (tested on a real Payload instance).
 
 ## Not included yet
 
-- Visual block/WYSIWYG builder  
-- Campaigns / scheduled blasts / A/B  
-- Automatic open/click tracking  
-
-Those remain RFC phases 2–3.
+- Campaigns, scheduled blasts and A/B tests
+- Automatic open and click tracking
