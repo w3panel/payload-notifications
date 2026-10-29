@@ -1,6 +1,7 @@
 import type { Config, Payload } from 'payload'
 import type { CollectionConfig } from 'payload'
 import type {
+  AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationQueueTask,
   NotificationsPluginOptions,
@@ -42,6 +43,7 @@ import {
   sendNotificationOutputSchema,
 } from './jobs/taskSchemas'
 import { writeNotificationLog } from './jobs/writeLog'
+import { markDeliveryFailed } from './deliveries/send'
 import { buildDeliveryFingerprint, createObservabilityEvent } from './reliability'
 import { seedTemplatesFromRegistry } from './templates/seed'
 import { collectTriggerWarnings } from './triggers/validate'
@@ -69,6 +71,8 @@ const getExistingTaskSlugs = (config: Config): string[] => {
 type RuntimeRef = {
   payload: Payload | null
   options: NormalizedNotificationsPluginOptions
+  /** Published admin-created triggers, loaded from `notification-triggers` (Phase 4). */
+  adminTriggers: AdminTriggerRecord[]
 }
 
 const createSendOnFail =
@@ -85,6 +89,15 @@ const createSendOnFail =
         typeof job.error === 'object' && job.error && 'message' in job.error
           ? String((job.error as { message?: unknown }).message || 'Notification send failed')
           : 'Notification send failed after retries'
+
+      if (sendInput.deliveryId) {
+        await markDeliveryFailed({
+          payload,
+          options,
+          deliveryId: sendInput.deliveryId,
+          reason,
+        })
+      }
 
       await writeNotificationLog({
         payload,
@@ -129,7 +142,12 @@ const createLiveTaskHandler = (
 
     if (taskSlug === NOTIFICATION_PROCESS_EVENT_TASK) {
       const event = assertNotificationEvent(input)
-      await processEvent({ payload, event, options: runtime.options })
+      await processEvent({
+        payload,
+        event,
+        options: runtime.options,
+        adminTriggers: runtime.adminTriggers,
+      })
       return { output: {} } as TaskHandlerResult<any>
     }
 
@@ -166,6 +184,9 @@ const buildSendTask = (runtime: RuntimeRef): TaskConfig<any> => ({
     backoff: { type: 'exponential', delay: 5000 },
   },
   concurrency: ({ input, queue }) => {
+    if (typeof input?.deliveryId === 'string' && input.deliveryId) {
+      return `${queue}::delivery::${input.deliveryId}`
+    }
     const userId = typeof input?.userId === 'string' ? input.userId : 'unknown'
     const channel = typeof input?.channel === 'string' ? input.channel : 'unknown'
     const event = typeof input?.event === 'string' ? input.event : 'unknown'
@@ -212,7 +233,7 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
   const normalizedOptions = normalizePluginOptions(options)
   validateNormalizedOptions(normalizedOptions)
 
-  const runtime: RuntimeRef = { payload: null, options: normalizedOptions }
+  const runtime: RuntimeRef = { payload: null, options: normalizedOptions, adminTriggers: [] }
 
   return (config: Config): Config => {
     if (normalizedOptions.enabled === false) {
@@ -354,6 +375,7 @@ export const registerNotificationTasks = (
   const standaloneRuntime: RuntimeRef = {
     payload: null,
     options: normalizePluginOptions(),
+    adminTriggers: [],
   }
   return registerTaskDefinitions(config, tasks, standaloneRuntime)
 }

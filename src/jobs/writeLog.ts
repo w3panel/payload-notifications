@@ -10,7 +10,14 @@ export type WriteNotificationLogInput = {
   options: NormalizedNotificationsPluginOptions
   input: Pick<
     NotificationSendInput,
-    'userId' | 'event' | 'channel' | 'template' | 'idempotencyKey' | 'attempt' | 'jobId'
+    | 'userId'
+    | 'event'
+    | 'channel'
+    | 'template'
+    | 'idempotencyKey'
+    | 'attempt'
+    | 'jobId'
+    | 'deliveryId'
   >
   status: NotificationDispatchStatus
   error?: string
@@ -54,9 +61,10 @@ export const writeNotificationLog = async ({
       : undefined
 
   const jobMeta =
-    input.jobId !== undefined
+    input.jobId !== undefined || input.deliveryId !== undefined
       ? {
-          jobId: input.jobId,
+          ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
+          ...(input.deliveryId !== undefined ? { deliveryId: input.deliveryId } : {}),
           ...meta,
         }
       : meta

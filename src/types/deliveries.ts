@@ -45,6 +45,10 @@ export type NotificationSendInput = {
   occurredAt?: string
   /** Data sources resolved into the template context before rendering. */
   dataSources?: NotificationDataSource[]
+  /** `notification-deliveries` record this send processes (delivery-based pipeline). */
+  deliveryId?: string
+  /** Resolved channel destination (email address / E.164 phone); skips the user lookup. */
+  destination?: string
 }
 
 export type NotificationDispatchStatus = 'queued' | 'sent' | 'stored' | 'failed' | 'skipped'

@@ -1,17 +1,14 @@
 import type { Payload } from 'payload'
 import type {
+  AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
   NotificationEvent,
   NotificationRule,
 } from '../types'
 import { getRuntimeOptions } from '../config/runtime'
+import { planDeliveries, type DeliveryPlanResult } from '../deliveries/plan'
 import { prepareNotificationEvent } from '../events/registry'
-import {
-  NOTIFICATION_PROCESS_EVENT_TASK,
-  NOTIFICATION_SEND_TASK,
-  NOTIFICATIONS_JOB_QUEUE,
-} from './constants'
-import { writeNotificationLog } from './writeLog'
+import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATIONS_JOB_QUEUE } from './constants'
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -95,61 +92,23 @@ export const emitNotificationEvent = async ({
   return preparedEvent
 }
 
+/**
+ * Plans deliveries for an event: matches code (and published admin) triggers,
+ * resolves data and recipients, creates `notification-deliveries` records and
+ * queues one send job per delivery.
+ */
 export const processEvent = async ({
   payload,
   event,
   options,
+  adminTriggers,
 }: {
   payload: Payload
   event: NotificationEvent
   options: NormalizedNotificationsPluginOptions
-}) => {
+  /** Published admin-created triggers (Phase 4); defaults to none. */
+  adminTriggers?: AdminTriggerRecord[]
+}): Promise<DeliveryPlanResult> => {
   const validatedEvent = assertNotificationEvent(event)
-  const rules = resolveRulesForEvent(validatedEvent.name, options.rules)
-  const queue = options.jobs.queue
-
-  for (const rule of rules) {
-    const shouldRun = rule.condition ? await rule.condition(validatedEvent.payload ?? {}) : true
-    if (!shouldRun) continue
-
-    if (!validatedEvent.userId) {
-      await writeNotificationLog({
-        payload,
-        options,
-        input: {
-          userId: '',
-          event: validatedEvent.name,
-          channel: 'inapp',
-          template: rule.template,
-        },
-        status: 'failed',
-        error: 'Notification event userId is required to queue sends',
-        failureClassification: 'terminal',
-      })
-      continue
-    }
-
-    for (const channel of rule.channels) {
-      if (options.channels.length && !options.channels.includes(channel)) continue
-
-      await payload.jobs.queue({
-        overrideAccess: true,
-        task: NOTIFICATION_SEND_TASK,
-        queue,
-        input: {
-          userId: validatedEvent.userId,
-          channel,
-          template: rule.template,
-          event: validatedEvent.name,
-          eventPayload: validatedEvent.payload,
-          classification: validatedEvent.classification,
-          idempotencyKey: validatedEvent.idempotencyKey,
-          templateOverrides: rule.templateOverrides?.[channel],
-          eventId: validatedEvent.eventId,
-          occurredAt: validatedEvent.occurredAt,
-          dataSources: rule.data?.sources,
-        },
-      })
-    }
-  }
+  return planDeliveries({ payload, event: validatedEvent, options, adminTriggers })
 }

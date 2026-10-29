@@ -188,6 +188,10 @@ export {
   validateRecipientDefinitions,
 } from './recipients'
 export type { ResolveRecipientsArgs, ResolveRecipientsResult } from './recipients'
+export { buildDeliveryKey, planDeliveries } from './deliveries/plan'
+export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
+export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
+export { dispatchToChannel } from './channels/dispatch'
 export {
   collectFieldPaths,
   listRegisteredEvents,

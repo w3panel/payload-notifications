@@ -5,11 +5,9 @@ import type {
   NotificationSendInput,
   NotificationTemplateContext,
 } from '../types'
-import { sendEmailNotification } from '../channels/email'
-import { sendInAppNotification } from '../channels/inapp'
-import { sendSMSNotification } from '../channels/sms'
-import { sendWhatsAppNotification } from '../channels/whatsapp'
+import { dispatchToChannel } from '../channels/dispatch'
 import { buildDataContext } from '../data/buildContext'
+import { sendDelivery } from '../deliveries/send'
 import { createSensitiveFieldMatcher } from '../data/sensitive'
 import { evaluateNotificationPolicy } from '../policy/evaluatePolicy'
 import {
@@ -56,7 +54,13 @@ export const assertNotificationSendInput = (value: unknown): NotificationSendInp
     throw new Error('payload-notifications: notification send input must be an object')
   }
 
-  if (typeof value.userId !== 'string' || !value.userId.trim()) {
+  const deliveryId =
+    typeof value.deliveryId === 'string' || typeof value.deliveryId === 'number'
+      ? String(value.deliveryId)
+      : undefined
+
+  // Delivery sends to static recipients have no user; legacy sends always need one.
+  if (typeof value.userId !== 'string' || (!deliveryId && !value.userId.trim())) {
     throw new Error('payload-notifications: notification send input requires a userId')
   }
 
@@ -103,6 +107,8 @@ export const assertNotificationSendInput = (value: unknown): NotificationSendInp
     eventId: typeof value.eventId === 'string' ? value.eventId : undefined,
     occurredAt: typeof value.occurredAt === 'string' ? value.occurredAt : undefined,
     dataSources: value.dataSources as NotificationSendInput['dataSources'],
+    deliveryId,
+    destination: typeof value.destination === 'string' ? value.destination : undefined,
   }
 }
 
@@ -135,6 +141,9 @@ export const sendNotification = async ({
   options: NormalizedNotificationsPluginOptions
 }): Promise<NotificationDispatchResult | void> => {
   const validatedInput = assertNotificationSendInput(input)
+  if (validatedInput.deliveryId) {
+    return sendDelivery({ payload, input: validatedInput, options })
+  }
   const fingerprint = buildDeliveryFingerprint(validatedInput)
 
   const existingLogs =
@@ -296,64 +305,17 @@ export const sendNotification = async ({
   const rendered = renderDefinition(definition, context)
   const renderDurationMs = Date.now() - renderStarted
 
-  let result: NotificationDispatchResult | void
-
-  switch (validatedInput.channel) {
-    case 'email': {
-      result = await sendEmailNotification({
-        payload,
-        input: validatedInput,
-        options,
-        rendered,
-        fingerprint,
-        templateSlug: resolved.templateSlug,
-        templateVersion: resolved.templateVersion,
-        renderDurationMs,
-      })
-      break
-    }
-    case 'whatsapp': {
-      result = await sendWhatsAppNotification({
-        payload,
-        input: validatedInput,
-        options,
-        rendered,
-        fingerprint,
-        templateSlug: resolved.templateSlug,
-        templateVersion: resolved.templateVersion,
-        renderDurationMs,
-      })
-      break
-    }
-    case 'sms': {
-      result = await sendSMSNotification({
-        payload,
-        input: validatedInput,
-        options,
-        rendered,
-        fingerprint,
-        templateSlug: resolved.templateSlug,
-        templateVersion: resolved.templateVersion,
-        renderDurationMs,
-      })
-      break
-    }
-    case 'inapp':
-      result = await sendInAppNotification({
-        payload,
-        input: validatedInput,
-        options,
-        rendered,
-        fingerprint,
-        templateSlug: resolved.templateSlug,
-        templateVersion: resolved.templateVersion,
-        renderDurationMs,
-        context,
-      })
-      break
-    default:
-      throw new Error(`Unsupported notification channel: ${validatedInput.channel}`)
-  }
+  const result = await dispatchToChannel({
+    payload,
+    input: validatedInput,
+    options,
+    rendered,
+    fingerprint,
+    templateSlug: resolved.templateSlug,
+    templateVersion: resolved.templateVersion,
+    renderDurationMs,
+    context,
+  })
 
   const finalResult =
     result ||

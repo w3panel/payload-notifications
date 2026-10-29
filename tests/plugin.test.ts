@@ -6,6 +6,7 @@ import {
   registerNotificationTasks,
 } from '../src/plugin'
 import { normalizePluginOptions } from '../src/config/normalizePluginOptions'
+import { createMemoryPayload } from './helpers/memoryPayload'
 
 describe('payload-notifications', () => {
   it('exports notificationsPlugin function', () => {
@@ -99,19 +100,15 @@ describe('payload-notifications', () => {
 
   it('creates runnable task handlers for process-event and send', async () => {
     const queue = mock(async () => undefined)
-    const create = mock(async () => undefined)
-    const findByID = mock(async () => ({ id: 'user_1', email: 'demo@example.com' }))
     const sendEmail = mock(async () => undefined)
 
-    const payload = {
-      jobs: { queue },
-      create,
-      findByID,
-      sendEmail,
-    }
+    const { payload } = createMemoryPayload(
+      { users: [{ id: 'user_1', email: 'demo@example.com' }] },
+      { queue, sendEmail },
+    )
 
     const handlers = createTaskHandlers(
-      payload as never,
+      payload,
       normalizePluginOptions({
         rules: [
           {
@@ -145,16 +142,12 @@ describe('payload-notifications', () => {
 
   it('registers live task handlers that work after onInit', async () => {
     const queue = mock(async () => undefined)
-    const create = mock(async () => undefined)
-    const findByID = mock(async () => ({ id: 'user_1', email: 'demo@example.com' }))
     const sendEmail = mock(async () => undefined)
 
-    const mockPayload = {
-      jobs: { queue },
-      create,
-      findByID,
-      sendEmail,
-    }
+    const { payload: mockPayload } = createMemoryPayload(
+      { users: [{ id: 'user_1', email: 'demo@example.com' }] },
+      { queue, sendEmail },
+    )
 
     const plugin = notificationsPlugin({
       rules: [
@@ -176,7 +169,7 @@ describe('payload-notifications', () => {
     expect(sendTask).toBeTruthy()
 
     // Simulate Payload calling onInit
-    await config.onInit?.(mockPayload as never)
+    await config.onInit?.(mockPayload)
 
     // Task handlers should now work without the deferred error
     await processEventTask.handler({
