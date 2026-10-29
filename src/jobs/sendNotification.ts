@@ -9,6 +9,8 @@ import { sendEmailNotification } from '../channels/email'
 import { sendInAppNotification } from '../channels/inapp'
 import { sendSMSNotification } from '../channels/sms'
 import { sendWhatsAppNotification } from '../channels/whatsapp'
+import { buildDataContext } from '../data/buildContext'
+import { createSensitiveFieldMatcher } from '../data/sensitive'
 import { evaluateNotificationPolicy } from '../policy/evaluatePolicy'
 import {
   buildDeliveryFingerprint,
@@ -74,6 +76,10 @@ export const assertNotificationSendInput = (value: unknown): NotificationSendInp
     throw new Error('payload-notifications: notification send eventPayload must be an object')
   }
 
+  if (value.dataSources !== undefined && !Array.isArray(value.dataSources)) {
+    throw new Error('payload-notifications: notification send dataSources must be an array')
+  }
+
   const templateOverrides =
     value.templateOverrides !== undefined && isObject(value.templateOverrides)
       ? (value.templateOverrides as NotificationSendInput['templateOverrides'])
@@ -94,6 +100,9 @@ export const assertNotificationSendInput = (value: unknown): NotificationSendInp
     templateOverrides,
     jobId:
       typeof value.jobId === 'string' || typeof value.jobId === 'number' ? value.jobId : undefined,
+    eventId: typeof value.eventId === 'string' ? value.eventId : undefined,
+    occurredAt: typeof value.occurredAt === 'string' ? value.occurredAt : undefined,
+    dataSources: value.dataSources as NotificationSendInput['dataSources'],
   }
 }
 
@@ -227,6 +236,51 @@ export const sendNotification = async ({
     return result
   }
 
+  const dataContext = await buildDataContext({
+    payload,
+    event: {
+      name: validatedInput.event,
+      eventId: validatedInput.eventId,
+      occurredAt: validatedInput.occurredAt,
+      userId: validatedInput.userId,
+      classification: validatedInput.classification,
+      payload: validatedInput.eventPayload,
+    },
+    userId: validatedInput.userId,
+    sources: validatedInput.dataSources,
+    dataResolvers: options.dataResolvers,
+    computed: options.computed,
+    isSensitive: createSensitiveFieldMatcher(options.data.sensitiveFields),
+    owner: `${validatedInput.event} → ${validatedInput.channel}`,
+  })
+
+  if (!dataContext.ok) {
+    const result = {
+      channel: validatedInput.channel,
+      status: 'skipped' as const,
+      reason: `${dataContext.reason} (${dataContext.source}): ${dataContext.message}`,
+    }
+
+    await writeNotificationLog({
+      payload,
+      options,
+      input: validatedInput,
+      status: 'skipped',
+      error: result.reason,
+      fingerprint,
+      failureClassification: 'terminal',
+    })
+
+    await emitObservability({
+      options,
+      input: validatedInput,
+      result,
+      fingerprint,
+    })
+
+    return result
+  }
+
   const resolved = await resolveTemplate({
     event: validatedInput.event,
     channel: validatedInput.channel,
@@ -236,11 +290,7 @@ export const sendNotification = async ({
   })
 
   const definition = mergeTemplateDefinition(resolved.definition, validatedInput.templateOverrides)
-  const context: NotificationTemplateContext = {
-    event: validatedInput.event,
-    userId: validatedInput.userId,
-    payload: validatedInput.eventPayload,
-  }
+  const context: NotificationTemplateContext = dataContext.context
 
   const renderStarted = Date.now()
   const rendered = renderDefinition(definition, context)
@@ -298,6 +348,7 @@ export const sendNotification = async ({
         templateSlug: resolved.templateSlug,
         templateVersion: resolved.templateVersion,
         renderDurationMs,
+        context,
       })
       break
     default:

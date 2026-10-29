@@ -20,6 +20,7 @@ export const sendInAppNotification = async ({
   templateSlug,
   templateVersion,
   renderDurationMs,
+  context: resolvedContext,
 }: {
   payload: Payload
   input: NotificationSendInput
@@ -30,9 +31,11 @@ export const sendInAppNotification = async ({
   templateSlug?: string
   templateVersion?: number
   renderDurationMs?: number
+  /** Resolved template context (data sources); defaults to the legacy event context. */
+  context?: NotificationTemplateContext
 }): Promise<NotificationDispatchResult> => {
   try {
-    const context: NotificationTemplateContext = {
+    const context: NotificationTemplateContext = resolvedContext ?? {
       event: input.event,
       userId: input.userId,
       payload: input.eventPayload,

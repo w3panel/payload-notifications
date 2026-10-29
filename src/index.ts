@@ -7,6 +7,26 @@ export {
 export { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
 export type {
   ChannelProviderResult,
+  CollectionDataSource,
+  ComputedDataSource,
+  DataCollectionAllowlist,
+  DataContextResult,
+  DataSourceLookup,
+  DocumentDataSource,
+  EventDataSource,
+  NotificationDataConfig,
+  NotificationDataContext,
+  NotificationComputedDefinition,
+  NotificationComputedHandler,
+  NotificationComputedRegistry,
+  NotificationDataResolverDefinition,
+  NotificationDataResolverHandler,
+  NotificationDataResolverRegistry,
+  NotificationResolverArgs,
+  RegisteredDataFunction,
+  NotificationDataSource,
+  NotificationsDataOptions,
+  ResolverDataSource,
   EmailProviderConfig,
   NormalizedNotificationsPluginOptions,
   NotificationChannel,
@@ -14,7 +34,11 @@ export type {
   NotificationDispatchResult,
   NotificationDispatchStatus,
   NotificationEvent,
+  NotificationEventDefinition,
   NotificationEventPayload,
+  NotificationEventRegistry,
+  NotificationEventSchema,
+  NotificationEventValidator,
   NotificationPolicyContext,
   NotificationPolicyDecision,
   NotificationProcessEventJobInput,
@@ -32,11 +56,14 @@ export type {
   NotificationTemplateResolver,
   NotificationTemplateSet,
   NotificationTriggerDefinition,
+  NotificationTriggerInfo,
   NotificationsJobsOptions,
   PreferenceFieldMapping,
   RenderedNotificationContent,
+  RegisteredNotificationEvent,
   RenderedTemplate,
   SMSProviderAdapter,
+  StandardSchemaV1Like,
   SMSProviderConfig,
   SMSProviderSendInput,
   WhatsAppProviderAdapter,
@@ -100,3 +127,43 @@ export {
 } from './templates/engine'
 export type { CompiledTemplate, CompileOptions, TemplateNode } from './templates/engine'
 export { defineTrigger } from './triggers'
+export {
+  collectFieldPaths,
+  listRegisteredEvents,
+  prepareNotificationEvent,
+  validateEventPayload,
+} from './events/registry'
+export { EVENT_NAME_PATTERN, isValidEventName } from './events/names'
+export { getRuntimeOptions } from './config/runtime'
+export { eventsListEndpoint } from './endpoints/events'
+export {
+  assertValidDataSources,
+  collectCollectionFieldPaths,
+  orderDataSources,
+  RESERVED_ALIASES,
+  validateDataAllowlist,
+  validateDataSources,
+} from './data/sources'
+export type { DataSourceValidationContext } from './data/sources'
+export { buildDataContext } from './data/buildContext'
+export type { BuildDataContextArgs } from './data/buildContext'
+export { getPath, pickPaths, toRelationId, toSelect } from './data/paths'
+export {
+  DEFAULT_RESOLVER_TIMEOUT_MS,
+  listDataFunctions,
+  ResolverError,
+  runComputed,
+  runDataResolver,
+} from './data/resolvers'
+export type { ResolverErrorKind } from './data/resolvers'
+export { dataSourcesListEndpoint } from './endpoints/dataSources'
+export {
+  createSensitiveFieldMatcher,
+  isSensitivePath,
+  REDACTED,
+  redactContext,
+  SENSITIVE_FIELD_NAMES,
+  SENSITIVE_FIELD_PATTERNS,
+  stripSensitiveFields,
+} from './data/sensitive'
+export type { SensitiveFieldMatcher } from './data/sensitive'

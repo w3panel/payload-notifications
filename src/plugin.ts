@@ -25,6 +25,10 @@ import {
   type NotificationTemplatesCollectionOverrides,
 } from './collections/NotificationTemplates'
 import { normalizePluginOptions, validateNormalizedOptions } from './config/normalizePluginOptions'
+import { PLUGIN_CUSTOM_KEY, type PluginCustomConfig } from './config/runtime'
+import { dataSourcesListEndpoint } from './endpoints/dataSources'
+import { eventsListEndpoint } from './endpoints/events'
+import { validateDataAllowlist } from './data/sources'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
 import { assertNotificationEvent, processEvent } from './jobs/processEvent'
 import { assertNotificationSendInput, sendNotification } from './jobs/sendNotification'
@@ -217,6 +221,16 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       undefined,
       () => runtime.options,
     )
+    const allowlistErrors = validateDataAllowlist(
+      withCollections,
+      normalizedOptions.data.collections,
+    )
+    if (allowlistErrors.length) {
+      throw new Error(
+        `payload-notifications: invalid configuration\n  - ${allowlistErrors.join('\n  - ')}`,
+      )
+    }
+
     const tasks = registerTaskDefinitions(
       config,
       [{ slug: NOTIFICATION_PROCESS_EVENT_TASK }, { slug: NOTIFICATION_SEND_TASK }],
@@ -225,8 +239,19 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
 
     const existingOnInit = config.onInit
 
+    const custom: PluginCustomConfig = { getOptions: () => runtime.options }
+
     return {
       ...config,
+      custom: {
+        ...config.custom,
+        [PLUGIN_CUSTOM_KEY]: custom,
+      },
+      endpoints: [
+        ...(config.endpoints || []),
+        eventsListEndpoint(() => runtime.options),
+        dataSourcesListEndpoint(() => runtime.options),
+      ],
       collections: withCollections,
       jobs: {
         ...config.jobs,

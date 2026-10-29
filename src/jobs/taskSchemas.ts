@@ -7,6 +7,14 @@ export const processEventInputSchema: Field[] = [
     required: true,
   },
   {
+    name: 'eventId',
+    type: 'text',
+  },
+  {
+    name: 'occurredAt',
+    type: 'text',
+  },
+  {
     name: 'userId',
     type: 'text',
   },
@@ -62,6 +70,18 @@ export const sendNotificationInputSchema: Field[] = [
   },
   {
     name: 'templateOverrides',
+    type: 'json',
+  },
+  {
+    name: 'eventId',
+    type: 'text',
+  },
+  {
+    name: 'occurredAt',
+    type: 'text',
+  },
+  {
+    name: 'dataSources',
     type: 'json',
   },
 ]

@@ -1,4 +1,8 @@
 import type { NotificationsPluginOptions, NormalizedNotificationsPluginOptions } from '../types'
+import { normalizeComputedRegistry, normalizeResolverRegistry } from '../data/resolvers'
+import { createSensitiveFieldMatcher, isSensitivePath } from '../data/sensitive'
+import { validateDataSources } from '../data/sources'
+import { isValidEventName } from '../events/names'
 import { NOTIFICATIONS_JOB_QUEUE } from '../jobs/constants'
 import { getDefaultTemplateRegistry } from '../templates/context'
 
@@ -13,6 +17,87 @@ import { getDefaultTemplateRegistry } from '../templates/context'
 const DEFAULT_CHANNELS: NormalizedNotificationsPluginOptions['channels'] = ['email', 'inapp']
 
 const VALID_CHANNELS = new Set(['email', 'whatsapp', 'sms', 'inapp', 'push'])
+
+const VALID_CLASSIFICATIONS = new Set(['transactional', 'marketing'])
+
+const normalizeEventRegistry = (
+  events: NotificationsPluginOptions['events'],
+): NormalizedNotificationsPluginOptions['events'] => {
+  if (events === undefined) return {}
+  if (typeof events !== 'object' || events === null || Array.isArray(events)) {
+    throw new Error('payload-notifications: events must be an object keyed by event name')
+  }
+
+  for (const [name, definition] of Object.entries(events)) {
+    if (!isValidEventName(name)) {
+      throw new Error(
+        `payload-notifications: invalid event name "${name}" (use letters, numbers and single . _ : - separators, e.g. order.paid)`,
+      )
+    }
+    if (typeof definition !== 'object' || definition === null) {
+      throw new Error(`payload-notifications: events["${name}"] must be an object`)
+    }
+    if (
+      definition.classification !== undefined &&
+      !VALID_CLASSIFICATIONS.has(definition.classification)
+    ) {
+      throw new Error(
+        `payload-notifications: events["${name}"].classification must be "transactional" or "marketing"`,
+      )
+    }
+    const schema = definition.schema as unknown
+    if (
+      schema !== undefined &&
+      typeof schema !== 'function' &&
+      !(typeof schema === 'object' && schema !== null && '~standard' in schema)
+    ) {
+      throw new Error(
+        `payload-notifications: events["${name}"].schema must be a Standard Schema (Zod, Valibot, …) or a validator function`,
+      )
+    }
+  }
+
+  return { ...events }
+}
+
+const normalizeDataOptions = (
+  data: NotificationsPluginOptions['data'],
+): NormalizedNotificationsPluginOptions['data'] => {
+  const sensitiveFields = data?.sensitiveFields ?? []
+  if (!Array.isArray(sensitiveFields) || sensitiveFields.some((name) => typeof name !== 'string')) {
+    throw new Error('payload-notifications: data.sensitiveFields must be an array of field names')
+  }
+  const isSensitive = createSensitiveFieldMatcher(sensitiveFields)
+
+  const collections: NormalizedNotificationsPluginOptions['data']['collections'] = {}
+
+  for (const [slug, entry] of Object.entries(data?.collections ?? {})) {
+    if (
+      !entry ||
+      !Array.isArray(entry.fields) ||
+      entry.fields.some((field) => typeof field !== 'string' || !field)
+    ) {
+      throw new Error(
+        `payload-notifications: data.collections["${slug}"].fields must be an array of field names`,
+      )
+    }
+    for (const field of entry.fields) {
+      if (isSensitivePath(field, isSensitive)) {
+        throw new Error(
+          `payload-notifications: data.collections["${slug}"] field "${field}" is sensitive and cannot be exposed to notifications`,
+        )
+      }
+    }
+    collections[slug] = { ...entry, fields: [...new Set(entry.fields)] }
+  }
+
+  const redact = data?.redact ?? []
+  if (!Array.isArray(redact) || redact.some((path) => typeof path !== 'string')) {
+    throw new Error('payload-notifications: data.redact must be an array of dot paths')
+  }
+
+  return { collections, redact: [...redact], sensitiveFields: [...sensitiveFields] }
+}
 
 export const normalizePluginOptions = (
   options: NotificationsPluginOptions = {},
@@ -92,6 +177,29 @@ export const normalizePluginOptions = (
     throw new Error('payload-notifications: at least one channel must be enabled')
   }
 
+  const data = normalizeDataOptions(options.data)
+  const dataResolvers = normalizeResolverRegistry(options.dataResolvers)
+  const computed = normalizeComputedRegistry(options.computed)
+  const rules = options.rules || []
+
+  const isSensitive = createSensitiveFieldMatcher(data.sensitiveFields)
+  const ruleErrors = rules.flatMap((rule, index) =>
+    rule.data
+      ? validateDataSources(rule.data.sources, {
+          allowlist: data.collections,
+          resolvers: Object.keys(dataResolvers),
+          computed: Object.keys(computed),
+          isSensitive,
+          owner: `rules[${index}] ("${rule.event}")`,
+        })
+      : [],
+  )
+  if (ruleErrors.length) {
+    throw new Error(
+      `payload-notifications: invalid rule data sources\n  - ${ruleErrors.join('\n  - ')}`,
+    )
+  }
+
   return {
     enabled: options.enabled ?? true,
     channels,
@@ -132,7 +240,12 @@ export const normalizePluginOptions = (
     observability: {
       onDispatch: options.observability?.onDispatch,
     },
-    rules: options.rules || [],
+    rules,
+    events: normalizeEventRegistry(options.events),
+    eventsStrict: options.eventsStrict === true,
+    data,
+    dataResolvers,
+    computed,
   }
 }
 

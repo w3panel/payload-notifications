@@ -2,6 +2,7 @@ import type { Access, CollectionConfig, Endpoint, Field } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
 import { templatePreviewEndpoint } from '../endpoints/templatePreview'
 import { templateTestSendEndpoint } from '../endpoints/templateTestSend'
+import { EVENT_NAME_PATTERN } from '../events/names'
 
 export type NotificationTemplatesCollectionOverrides = {
   access?: Partial<CollectionConfig['access']>
@@ -22,7 +23,7 @@ const defaultWriteAccess: Access = ({ req }) => Boolean(req.user)
 const denyAccess: Access = () => false
 
 /** Template keys match event names, e.g. `order.paid`, `user:signup`, `welcome-email`. */
-export const TEMPLATE_SLUG_PATTERN = /^[A-Za-z0-9]+(?:[._:-][A-Za-z0-9]+)*$/
+export const TEMPLATE_SLUG_PATTERN = EVENT_NAME_PATTERN
 
 export const validateTemplateSlug = (value: unknown): string | true => {
   if (typeof value !== 'string' || !value) return true
@@ -242,7 +243,7 @@ export const NotificationTemplatesCollection = ({
   }
 
   const endpoints: Endpoint[] = [
-    templatePreviewEndpoint('/preview'),
+    templatePreviewEndpoint('/preview', getOptions || defaultOptionsGetter),
     templateTestSendEndpoint(getOptions || defaultOptionsGetter, '/test-send'),
     ...(overrides?.endpoints || []),
   ]
