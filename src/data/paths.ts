@@ -2,9 +2,17 @@ const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** Keys that reach object prototypes; paths containing them are ignored. */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
+/** False for paths with a prototype key (`__proto__.x`, `a.constructor`). */
+export const isSafePath = (path: string): boolean =>
+  !path.split('.').some((key) => UNSAFE_KEYS.has(key))
+
 /** Reads a dot path (`order.customer.id`, `items.0.sku`) from a value. */
 export const getPath = (value: unknown, path: string): unknown => {
   if (!path) return value
+  if (!isSafePath(path)) return undefined
   return path.split('.').reduce<unknown>((current, key) => {
     if (current === null || current === undefined) return undefined
     if (Array.isArray(current)) {
@@ -17,6 +25,8 @@ export const getPath = (value: unknown, path: string): unknown => {
 }
 
 const setPath = (target: Record<string, unknown>, path: string, value: unknown) => {
+  // Never write through a prototype key (prototype pollution).
+  if (!isSafePath(path)) return
   const keys = path.split('.')
   let cursor = target
   for (const key of keys.slice(0, -1)) {
