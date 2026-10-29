@@ -34,8 +34,9 @@ import { PLUGIN_CUSTOM_KEY, type PluginCustomConfig } from './config/runtime'
 import { dataSourcesListEndpoint } from './endpoints/dataSources'
 import { eventsListEndpoint } from './endpoints/events'
 import { validateDataAllowlist } from './data/sources'
+import { injectCollectionEventHooks, validateCollectionEvents } from './events/collectionEvents'
 import { NOTIFICATION_PROCESS_EVENT_TASK, NOTIFICATION_SEND_TASK } from './jobs/constants'
-import { assertNotificationEvent, processEvent } from './jobs/processEvent'
+import { assertNotificationEvent, emitNotificationEvent, processEvent } from './jobs/processEvent'
 import { assertNotificationSendInput, sendNotification } from './jobs/sendNotification'
 import {
   processEventInputSchema,
@@ -247,10 +248,10 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
       undefined,
       () => runtime.options,
     )
-    const allowlistErrors = validateDataAllowlist(
-      withCollections,
-      normalizedOptions.data.collections,
-    )
+    const allowlistErrors = [
+      ...validateDataAllowlist(withCollections, normalizedOptions.data.collections),
+      ...validateCollectionEvents(withCollections, normalizedOptions),
+    ]
     if (allowlistErrors.length) {
       throw new Error(
         `payload-notifications: invalid configuration\n  - ${allowlistErrors.join('\n  - ')}`,
@@ -278,7 +279,17 @@ export const notificationsPlugin = (options: NotificationsPluginOptions = {}) =>
         eventsListEndpoint(() => runtime.options),
         dataSourcesListEndpoint(() => runtime.options),
       ],
-      collections: withCollections,
+      collections: injectCollectionEventHooks(
+        withCollections,
+        () => runtime.options,
+        ({ event, req }) =>
+          emitNotificationEvent({
+            payload: req.payload,
+            event,
+            req,
+            options: runtime.options,
+          }).then(() => undefined),
+      ),
       jobs: {
         ...config.jobs,
         tasks,

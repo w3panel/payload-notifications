@@ -31,6 +31,18 @@ export const processEventInputSchema: Field[] = [
     name: 'idempotencyKey',
     type: 'text',
   },
+  {
+    name: 'source',
+    type: 'json',
+  },
+  {
+    name: 'doc',
+    type: 'json',
+  },
+  {
+    name: 'previous',
+    type: 'json',
+  },
 ]
 
 export const sendNotificationInputSchema: Field[] = [

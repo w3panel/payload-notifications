@@ -27,6 +27,7 @@ export const validateTrigger = (
     | 'events'
     | 'conditions'
     | 'dataResolvers'
+    | 'collectionEvents'
   >,
   owner = `trigger "${trigger.slug}"`,
 ): TriggerValidationResult => {
@@ -37,6 +38,30 @@ export const validateTrigger = (
   const aliases = new Map(
     definitions.map((definition, index) => [recipientAlias(definition, index), definition]),
   )
+
+  if (trigger.source.type === 'collection') {
+    const { collection, operation } = trigger.source
+    const config = options.collectionEvents[collection]
+    if (!config) {
+      errors.push(`${owner}: collection "${collection}" is not configured in collectionEvents`)
+    } else {
+      if (!config.operations.includes(operation)) {
+        errors.push(`${owner}: collectionEvents["${collection}"] does not emit ${operation} events`)
+      }
+      for (const source of trigger.data?.sources ?? []) {
+        if (source.type !== 'document') continue
+        for (const field of source.fields ?? []) {
+          if (field !== 'id' && !config.capture.includes(field.split('.')[0])) {
+            errors.push(
+              `${owner} source "${source.alias}": field "${field}" is not captured for "${collection}"`,
+            )
+          }
+        }
+      }
+    }
+  } else if (trigger.data?.sources?.some((source) => source.type === 'document')) {
+    errors.push(`${owner}: document sources need a collection event source`)
+  }
 
   const conditionContext = conditionContextFor(trigger, options, owner)
   const collect = (result: { errors: string[]; warnings: string[] }) => {
@@ -92,7 +117,10 @@ export const validateTrigger = (
 /** What a trigger's conditions may reference: event payload, doc/previous, source aliases. */
 export const conditionContextFor = (
   trigger: NotificationTrigger,
-  options: Pick<NormalizedNotificationsPluginOptions, 'events' | 'conditions' | 'dataResolvers'>,
+  options: Pick<
+    NormalizedNotificationsPluginOptions,
+    'events' | 'conditions' | 'dataResolvers' | 'collectionEvents'
+  >,
   owner = `trigger "${trigger.slug}"`,
 ): ConditionValidationContext => {
   const sources = trigger.data?.sources ?? []
@@ -119,6 +147,10 @@ export const conditionContextFor = (
     documentAliases,
     custom: Object.keys(options.conditions),
     collectionSource: trigger.source.type === 'collection',
+    capturedFields:
+      trigger.source.type === 'collection'
+        ? options.collectionEvents[trigger.source.collection]?.capture
+        : undefined,
     payloadFields: sample ? collectFieldPaths(sample) : undefined,
   }
 }

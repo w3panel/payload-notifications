@@ -82,3 +82,26 @@ export type RegisteredNotificationEvent = {
   docsUrl?: string
   hasSchema: boolean
 }
+
+export type CollectionEventOperation = 'create' | 'update' | 'delete'
+
+/** A collection admins and developers may build collection-event triggers on. */
+export type CollectionEventConfig = {
+  /** Default `['create', 'update']`. `delete` captures fields from the deleted document. */
+  operations?: CollectionEventOperation[]
+  /** Fields copied into `doc` / `previous` on the event (and usable in conditions). */
+  capture: string[]
+  label?: string
+  /** Relationship / ID field whose value becomes `event.userId` (e.g. `customer`). */
+  userField?: string
+  /**
+   * For updates, emit only when a captured field changed (default true), so
+   * unrelated edits (e.g. notes) do not queue jobs.
+   */
+  onlyWhenCaptureChanges?: boolean
+}
+
+export type NormalizedCollectionEventConfig = Required<
+  Pick<CollectionEventConfig, 'operations' | 'capture' | 'onlyWhenCaptureChanges'>
+> &
+  Pick<CollectionEventConfig, 'label' | 'userField'>

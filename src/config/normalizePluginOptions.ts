@@ -7,6 +7,7 @@ import {
   normalizeRecipientResolvers,
   normalizeRecipientsOptions,
 } from '../recipients/options'
+import { normalizeCollectionEvents } from '../events/collectionEvents'
 import { compileCodeTriggers } from '../triggers/compile'
 import { validateTrigger } from '../triggers/validate'
 import { isValidEventName } from '../events/names'
@@ -284,6 +285,7 @@ export const normalizePluginOptions = (
     recipientResolvers,
     recipientQueries,
     conditions: normalizeConditionRegistry(options.conditions),
+    collectionEvents: normalizeCollectionEvents(options.collectionEvents),
   }
 
   // Compiled rules keep their legacy behaviour (disabled channels are skipped silently).

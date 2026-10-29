@@ -34,6 +34,9 @@ export type {
   NotificationDispatchResult,
   NotificationDispatchStatus,
   NotificationEvent,
+  CollectionEventConfig,
+  CollectionEventOperation,
+  NormalizedCollectionEventConfig,
   NotificationEventDefinition,
   NotificationEventPayload,
   NotificationEventRegistry,
@@ -216,6 +219,14 @@ export {
   validateEventPayload,
 } from './events/registry'
 export { EVENT_NAME_PATTERN, isValidEventName } from './events/names'
+export {
+  buildCollectionEvent,
+  collectionEventName,
+  createCollectionEventHooks,
+  injectCollectionEventHooks,
+  validateCollectionEvents,
+} from './events/collectionEvents'
+export type { QueueCollectionEvent } from './events/collectionEvents'
 export { getRuntimeOptions } from './config/runtime'
 export { eventsListEndpoint } from './endpoints/events'
 export {

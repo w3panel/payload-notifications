@@ -52,9 +52,10 @@ export const prepareNotificationEvent = async (
   event: NotificationEvent,
   options?: Pick<NormalizedNotificationsPluginOptions, 'events' | 'eventsStrict'>,
 ): Promise<NotificationEvent> => {
-  const definition = options?.events[event.name]
+  // Collection events are defined by collectionEvents, not the application event registry.
+  const definition = event.source ? undefined : options?.events[event.name]
 
-  if (!definition && options?.eventsStrict) {
+  if (!definition && !event.source && options?.eventsStrict) {
     throw new Error(
       `payload-notifications: event "${event.name}" is not registered (eventsStrict is enabled)`,
     )

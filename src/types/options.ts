@@ -8,7 +8,11 @@ import type {
   NotificationsDataOptions,
 } from './data-sources'
 import type { NotificationObservabilityHook } from './deliveries'
-import type { NotificationEventRegistry } from './events'
+import type {
+  CollectionEventConfig,
+  NormalizedCollectionEventConfig,
+  NotificationEventRegistry,
+} from './events'
 import type {
   NotificationPolicyContext,
   NotificationPolicyDecision,
@@ -96,6 +100,11 @@ export type NotificationsPluginOptions = {
   recipientQueries?: Record<string, NotificationRecipientQueryDefinition>
   /** Developer-registered conditions, referenced from JSON as `{ custom: name }`. */
   conditions?: Record<string, ConditionHandler | ConditionDefinition>
+  /**
+   * Collections whose changes emit `collection.<slug>.<operation>` events. Hooks
+   * are added only to these collections, once, when the config is built.
+   */
+  collectionEvents?: Record<string, CollectionEventConfig>
 }
 
 export type NormalizedNotificationsPluginOptions = {
@@ -165,4 +174,5 @@ export type NormalizedNotificationsPluginOptions = {
   recipientResolvers: Record<string, NotificationRecipientResolverDefinition>
   recipientQueries: Record<string, NotificationRecipientQueryDefinition>
   conditions: Record<string, ConditionDefinition>
+  collectionEvents: Record<string, NormalizedCollectionEventConfig>
 }

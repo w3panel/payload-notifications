@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import type {
   AdminTriggerRecord,
   NormalizedNotificationsPluginOptions,
@@ -57,8 +57,19 @@ export const assertNotificationEvent = (value: unknown): NotificationEvent => {
         ? value.classification
         : undefined,
     idempotencyKey: typeof value.idempotencyKey === 'string' ? value.idempotencyKey : undefined,
+    ...(isCollectionSource(value.source) ? { source: value.source } : {}),
+    ...(value.doc !== undefined ? { doc: isObject(value.doc) ? value.doc : null } : {}),
+    ...(value.previous !== undefined
+      ? { previous: isObject(value.previous) ? value.previous : null }
+      : {}),
   }
 }
+
+const isCollectionSource = (value: unknown): value is NonNullable<NotificationEvent['source']> =>
+  isObject(value) &&
+  value.type === 'collection' &&
+  typeof value.collection === 'string' &&
+  (value.operation === 'create' || value.operation === 'update' || value.operation === 'delete')
 
 /**
  * Validates an event against the registry and queues it for processing.
@@ -71,12 +82,18 @@ export const emitNotificationEvent = async ({
   event,
   queue,
   options,
+  req,
 }: {
   payload: Payload
   event: NotificationEvent
   queue?: string
   /** Defaults to the options of the installed plugin. */
   options?: NormalizedNotificationsPluginOptions
+  /**
+   * Request to queue the job with. Inside a hook or transaction, pass `req` so the
+   * job is only created if the surrounding write commits.
+   */
+  req?: PayloadRequest
 }): Promise<NotificationEvent> => {
   const validatedEvent = assertNotificationEvent(event)
   const pluginOptions = options ?? getRuntimeOptions(payload)
@@ -87,6 +104,7 @@ export const emitNotificationEvent = async ({
     task: NOTIFICATION_PROCESS_EVENT_TASK,
     queue: queue ?? pluginOptions?.jobs.queue ?? NOTIFICATIONS_JOB_QUEUE,
     input: preparedEvent,
+    ...(req ? { req } : {}),
   })
 
   return preparedEvent

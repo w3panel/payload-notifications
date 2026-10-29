@@ -101,7 +101,15 @@ export const planDeliveries = async ({
     payload.logger?.warn?.(`payload-notifications: ${error}`)
   }
 
-  const matched = matchTriggers(registry.triggers, { type: 'event', name: event.name })
+  const byName = matchTriggers(registry.triggers, { type: 'event', name: event.name })
+  const bySource = event.source
+    ? matchTriggers(registry.triggers, {
+        type: 'collection',
+        collection: event.source.collection,
+        operation: event.source.operation,
+      })
+    : []
+  const matched = [...bySource, ...byName.filter((entry) => !bySource.includes(entry))]
   const result: DeliveryPlanResult = {
     eventId,
     matched: matched.map(snapshotTrigger),
