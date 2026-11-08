@@ -18,7 +18,7 @@ export type CodeTriggerSummary = {
 
 const cell: React.CSSProperties = {
   padding: '6px 8px',
-  borderBottom: '1px solid var(--theme-elevation-100, #eee)',
+  borderBottom: '1px solid var(--color-border, var(--theme-elevation-100, #eee))',
   textAlign: 'left',
   fontSize: 13,
 }
@@ -144,7 +144,9 @@ export const CodeTriggersList: React.FC<{ apiRoute?: string }> = ({ apiRoute = '
       <summary style={{ fontWeight: 600, cursor: 'pointer' }}>
         Triggers defined in code ({triggers.length})
       </summary>
-      {error ? <p style={{ color: 'var(--theme-error-500, #c00)' }}>{error}</p> : null}
+      {error ? (
+        <p style={{ color: 'var(--color-text-danger, var(--theme-error-500, #c00))' }}>{error}</p>
+      ) : null}
       <CodeTriggersTable
         triggers={triggers}
         onCustomize={customize}

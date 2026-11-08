@@ -35,7 +35,7 @@ const card: React.CSSProperties = {
   display: 'grid',
   gap: 6,
   padding: 8,
-  border: '1px solid var(--theme-elevation-150, #ddd)',
+  border: '1px solid var(--color-border, var(--theme-elevation-150, #ddd))',
   borderRadius: 4,
 }
 const mono: React.CSSProperties = {
@@ -46,7 +46,7 @@ const pre: React.CSSProperties = {
   ...mono,
   margin: 0,
   padding: 8,
-  background: 'var(--theme-elevation-50, #f6f6f6)',
+  background: 'var(--color-bg-secondary, var(--theme-elevation-50, #f6f6f6))',
   borderRadius: 4,
   whiteSpace: 'pre-wrap',
   maxHeight: 360,
@@ -865,7 +865,9 @@ export const TriggerBuilderInner: React.FC<InnerProps> = ({
   return (
     <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
       {registryError ? (
-        <p style={{ margin: 0, color: 'var(--theme-error-500, #c00)' }}>{registryError}</p>
+        <p style={{ margin: 0, color: 'var(--color-text-danger, var(--theme-error-500, #c00))' }}>
+          {registryError}
+        </p>
       ) : null}
       <nav style={row} aria-label="Trigger builder steps">
         {BUILDER_STEPS.map((entry, index) => (

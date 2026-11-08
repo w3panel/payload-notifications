@@ -6,7 +6,7 @@ export const TemplateEngineHelp: React.FC = () => {
       style={{
         marginTop: '0.75rem',
         padding: '0.75rem 1rem',
-        border: '1px solid var(--theme-elevation-150, #ddd)',
+        border: '1px solid var(--color-border, var(--theme-elevation-150, #ddd))',
         borderRadius: 4,
         fontSize: 13,
         lineHeight: 1.45,

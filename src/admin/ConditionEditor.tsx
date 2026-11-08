@@ -25,7 +25,7 @@ const box: React.CSSProperties = {
   display: 'grid',
   gap: 6,
   padding: 8,
-  border: '1px solid var(--theme-elevation-150, #ddd)',
+  border: '1px solid var(--color-border, var(--theme-elevation-150, #ddd))',
   borderRadius: 4,
 }
 
