@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        payload: ['3.92.1', '4.0.0-beta.4']
+        payload: ['3.92.1', '4.0.0-beta.7']
     name: payload@${{ matrix.payload }}
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        payload: ['3.92.1', '4.0.0-beta.4']
+        payload: ['3.92.1', '4.0.0-beta.7']
         db: [postgres, mongodb]
     name: integration ${{ matrix.db }} / payload@${{ matrix.payload }}
     services:

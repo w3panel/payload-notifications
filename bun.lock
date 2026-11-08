@@ -5,7 +5,7 @@
     "": {
       "name": "@wtree/payload-notifications",
       "devDependencies": {
-        "@payloadcms/db-sqlite": "4.0.0-beta.4",
+        "@payloadcms/db-sqlite": "4.0.0-beta.7",
         "@types/bun": "^1.3.10",
         "@types/node": "^25.3.5",
         "@types/react": "19",
@@ -14,7 +14,7 @@
         "lint-staged": "^16.3.2",
         "oxfmt": "^0.41.0",
         "oxlint": "^1.51.0",
-        "payload": "4.0.0-beta.4",
+        "payload": "4.0.0-beta.7",
         "prettier": "^3.8.1",
         "react": "19",
         "react-dom": "19",
@@ -23,7 +23,7 @@
       },
       "peerDependencies": {
         "@payloadcms/ui": ">=3.0.0",
-        "payload": "^3.92.0 || >=4.0.0-beta.4 <5",
+        "payload": "^3.92.0 || >=4.0.0-beta.7 <5",
         "react": ">=18 <20",
       },
       "optionalPeers": [
@@ -211,11 +211,11 @@
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.51.0", "", { "os": "win32", "cpu": "x64" }, "sha512-Q14+fOGb9T28nWF/0EUsYqERiRA7cl1oy4TJrGmLaqhm+aO2cV+JttboHI3CbdeMCAyDI1+NoSlrM7Melhp/cw=="],
 
-    "@payloadcms/db-sqlite": ["@payloadcms/db-sqlite@4.0.0-beta.4", "", { "dependencies": { "@libsql/client": "0.14.0", "@payloadcms/drizzle": "4.0.0-beta.4", "console-table-printer": "2.15.0", "drizzle-kit": "0.31.7", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.4" } }, "sha512-wBYg3izzaG8AmIquo3yX0tGJgrLQNmkC/YMPHAZa2mPzVGnjnuc2b+8sHhXJm02MKf7LHd/d3pIuDYYoLfL8Ig=="],
+    "@payloadcms/db-sqlite": ["@payloadcms/db-sqlite@4.0.0-beta.7", "", { "dependencies": { "@libsql/client": "0.14.0", "@payloadcms/drizzle": "4.0.0-beta.7", "console-table-printer": "2.15.0", "drizzle-kit": "0.31.7", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.7" } }, "sha512-1sZJkDLm8WOZEo68PzFQKfaPjLarqQcPZjTfV28wcEvlyvTwUoqWYPvF0YnaooEOg6nUaOO7EH/oozXllV9V1A=="],
 
-    "@payloadcms/drizzle": ["@payloadcms/drizzle@4.0.0-beta.4", "", { "dependencies": { "console-table-printer": "2.15.0", "dequal": "2.0.3", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.4" } }, "sha512-1UxpG+3vEAbZ4CXCQ+cOxXKUT8c4gT6fjnAKhQWt6ZltZn8SnYedLpYiVyZYCltkOkLX8THX6DTV3k7utsynCQ=="],
+    "@payloadcms/drizzle": ["@payloadcms/drizzle@4.0.0-beta.7", "", { "dependencies": { "console-table-printer": "2.15.0", "dequal": "2.0.3", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.7" } }, "sha512-HCqOhm9u5FJyl6j2FIaH2Cl7YeV/BB28B2LZh9w5DFW3utH5r0RM1O2+/YCoI1CG6Ivr4yeBO+8oCkJa5VTczw=="],
 
-    "@payloadcms/translations": ["@payloadcms/translations@4.0.0-beta.4", "", { "dependencies": { "date-fns": "4.4.0" } }, "sha512-cGdzSMUFOjVxnlyFXe3ty01b0/ZOdxOYdWQRAa/FkeV6a/Iw1GyuEN0Vx5TYQGHhL3yVM2fg+EK2KxVqYsgzUA=="],
+    "@payloadcms/translations": ["@payloadcms/translations@4.0.0-beta.7", "", { "dependencies": { "date-fns": "4.4.0" } }, "sha512-6tBxIF7ijA/M+sK1Mj3F9aArO3BIdvMqtgn3GHRxTALO6fj8tMngpdIYbOnx4+vqg6KYwyFt9bNV4HkhMqdLwA=="],
 
     "@pinojs/redact": ["@pinojs/redact@0.4.0", "", {}, "sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg=="],
 
@@ -433,7 +433,7 @@
 
     "path-to-regexp": ["path-to-regexp@6.3.0", "", {}, "sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ=="],
 
-    "payload": ["payload@4.0.0-beta.4", "", { "dependencies": { "@next/env": "16.4.2", "@payloadcms/translations": "4.0.0-beta.4", "@standard-schema/spec": "1.1.0", "@types/busboy": "1.5.4", "bson-objectid": "2.0.4", "busboy": "^1.6.0", "ci-info": "4.4.0", "commander": "15.0.0", "console-table-printer": "2.15.0", "croner": "10.0.1", "dataloader": "2.2.3", "deepmerge": "4.3.1", "dotenv": "16.4.5", "dotenv-expand": "11.0.6", "file-type": "22.0.1", "get-tsconfig": "4.14.0", "image-dimensions": "2.5.1", "ipaddr.js": "2.3.0", "jose": "6.2.12", "json-schema-to-typescript": "15.0.3", "path-to-regexp": "6.3.0", "pino": "10.3.1", "pino-pretty": "13.1.3", "pluralize": "8.0.0", "qs-esm": "8.0.1", "range-parser": "1.2.1", "sanitize-filename": "1.6.4", "sax": "1.6.1", "ts-essentials": "10.0.3", "tsx": "4.23.15", "undici": "7.30.1", "uuid": "14.0.0", "ws": "^8.16.0", "zod": "^4.6.0" }, "peerDependencies": { "graphql": "^16.8.1" }, "bin": { "payload": "bin.js" } }, "sha512-dBQY7gAQsQWMLnh3HabHkTHb+8KFn1LcQJh+mLUQfNcbWUU6NDl77Q8U/sNz05QmUBwkEhkLvc7MgnFKkWK5Ow=="],
+    "payload": ["payload@4.0.0-beta.7", "", { "dependencies": { "@next/env": "16.4.2", "@payloadcms/translations": "4.0.0-beta.7", "@standard-schema/spec": "1.1.0", "@types/busboy": "1.5.4", "bson-objectid": "2.0.4", "busboy": "^1.6.0", "ci-info": "4.4.0", "commander": "15.0.0", "console-table-printer": "2.15.0", "croner": "10.0.1", "dataloader": "2.2.3", "deepmerge": "4.3.1", "dotenv": "16.4.5", "dotenv-expand": "11.0.6", "file-type": "22.0.1", "get-tsconfig": "4.14.0", "image-dimensions": "2.5.1", "ipaddr.js": "2.3.0", "jose": "6.2.12", "json-schema-to-typescript": "15.0.3", "path-to-regexp": "6.3.0", "pino": "10.3.1", "pino-pretty": "13.1.3", "pluralize": "8.0.0", "qs-esm": "8.0.1", "range-parser": "1.2.1", "sanitize-filename": "1.6.4", "sax": "1.6.1", "ts-essentials": "10.0.3", "tsx": "4.23.15", "undici": "7.30.1", "uuid": "14.0.0", "ws": "^8.16.0", "zod": "^4.6.0" }, "peerDependencies": { "graphql": "^16.8.1" }, "bin": { "payload": "bin.js" } }, "sha512-yDkINgE8hw7/yqmwEPCClO6IYML0yWje+Qd0TjBnRqkOEwnw0PoGY0YSPUPx08s8wyP5gdr03YlUNuDFRP8XyA=="],
 
     "picomatch": ["picomatch@2.3.1", "", {}, "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA=="],
 

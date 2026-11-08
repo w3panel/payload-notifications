@@ -85,7 +85,7 @@ First beta of the notification automation release (roadmap Phases 1–9). 0.3.x 
 - New collection (`notification-template-partials`) and global (`notification-theme`): SQL hosts need a migration
 
 ### Added
-- Payload 3 support alongside Payload 4: peer range is now `^3.92.0 || >=4.0.0-beta.4 <5`. `authorship: false` is set only on Payload 4, and the `notification:send` concurrency key only where the host supports it (always on Payload 4; on Payload 3 when `jobs.enableConcurrencyControl` is on)
+- Payload 3 support alongside Payload 4: peer range is now `^3.92.0 || >=4.0.0-beta.7 <5`. `authorship: false` is set only on Payload 4, and the `notification:send` concurrency key only where the host supports it (always on Payload 4; on Payload 3 when `jobs.enableConcurrencyControl` is on)
 - CI matrix runs typecheck and tests on Payload 3.92 and Payload 4 beta
 - Release channels: prerelease tags publish to npm `next`, other tags to `latest`
 
@@ -140,7 +140,7 @@ First beta of the notification automation release (roadmap Phases 1–9). 0.3.x 
 - **BREAKING:** In-app notifications now persist resolved template `title` and `message` with token replacement instead of generic placeholder text.
 - Task handlers are now wired as live handlers via `onInit` and work out of the box without host-app overrides. The deferred handler pattern has been removed.
 - All validation error messages now use a consistent `payload-notifications:` prefix.
-- Peer dependency updated to `payload >=4.0.0-beta.4 <5`.
+- Peer dependency updated to `payload >=4.0.0-beta.7 <5`.
 - WhatsApp and SMS provider factories now create real HTTP-based provider adapters instead of returning mock results.
 
 ### Added

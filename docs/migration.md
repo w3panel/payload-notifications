@@ -8,7 +8,7 @@
 bun add @wtree/payload-notifications@latest
 ```
 
-- **Payload:** `^3.92.0`, or `>=4.0.0-beta.4 <5` (`@wtree/payload-notifications@next` tracks Payload 4 betas first). See [COMPATIBILITY.md](../COMPATIBILITY.md).
+- **Payload:** `^3.92.0`, or `>=4.0.0-beta.7 <5` (`@wtree/payload-notifications@next` tracks Payload 4 betas first). See [COMPATIBILITY.md](../COMPATIBILITY.md).
 - **Node:** see `engines` in `package.json`.
 - **Admin import map:** regenerate it so the new admin components resolve (`TemplateStudioField`, `PartialDesignerField`, `TriggerBuilderField`, `CodeTriggersList`, `DeliveryInspectorField`, `NotificationsDashboard`, `NotificationsNavLinks`).
 
