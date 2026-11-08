@@ -4,7 +4,7 @@ This page describes the plugin's security model and the review done before 1.0 (
 
 ## Model
 
-- **Admin endpoints** need a signed-in user plus one of the `access.*` checks (see [operations-admin.md](./operations-admin.md#permissions)). Each check defaults to `access.isAdmin`, which defaults to *any logged-in user*. Production apps should pass role checks.
+- **Admin endpoints** need a signed-in user plus one of the `access.*` checks (see [operations-admin.md](./operations-admin.md#permissions)). Each check defaults to `access.isAdmin`, which defaults to _any logged-in user_. Production apps should pass role checks.
 - **Public endpoints** are limited to these two:
   - **One-click unsubscribe** (`/api/payload-notifications/unsubscribe`): HMAC-signed tokens checked in constant time, and only when `preferences.unsubscribe.secret` is set.
   - **Provider webhooks** (`/api/payload-notifications/webhooks/*`):
@@ -18,7 +18,7 @@ This page describes the plugin's security model and the review done before 1.0 (
 
 - **Hidden fields:** delivery context, raw destinations, retry policy, template overrides and the stored event in the inbox are server-only fields. The API and admin never return them.
 - **Redaction:** previews, the trigger test runner, the delivery inspector and attempt-log provider responses go through `data.redact` and the sensitive-field denylist (passwords, tokens, secrets, keys, …). Data sources cannot load sensitive fields. `logs.storeRendered` is off by default.
-- **Provider settings:** the settings view and API report which credentials are *set* and never their values. Connection tests return only status and safe metadata.
+- **Provider settings:** the settings view and API report which credentials are _set_ and never their values. Connection tests return only status and safe metadata.
 - **Destinations:** masked (`a***@example.com`, `+91******3210`) in deliveries, logs and lifecycle events.
 
 ## Admin input never becomes code
@@ -48,11 +48,13 @@ Template and trigger test sends go only to the signed-in user, are marked `[Test
 ## Review (Phase 9.3)
 
 **Checked:**
+
 - Every endpoint's access check. A regression test calls each non-public endpoint without a user and expects 401/403.
 - Redaction paths, webhook signature verification, unsubscribe tokens and the raw HTML policy.
 - Code paths reachable from admin input, and tenant filters.
 
 **Fixed:**
+
 - **Prototype pollution:** an admin-defined data-source field such as `__proto__.x`, together with an event payload containing a `__proto__` key, could write to `Object.prototype`. Path helpers now refuse prototype keys, and such fields are rejected on validation.
 - **Auth before input:** the trigger lifecycle endpoint read and validated the body before checking for a user. It now refuses anonymous calls first.
 - **Missing permission checks:** the preview, compile, variables, event and data-source endpoints checked only for a signed-in user. They now require `manageTemplates` or `manageTriggers` (Phase 8).

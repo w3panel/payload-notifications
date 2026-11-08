@@ -13,18 +13,18 @@ Related: #30 (template engine + campaigns), #28 (real-Payload integration tests)
 
 ## 0. Baseline — what exists today
 
-| Area | Current state (0.3.2) | Gap vs. target |
-| --- | --- | --- |
-| Events | `emitNotificationEvent({ name, userId, payload, classification, idempotencyKey })` | No event ID, no event registry (label, schema, sample), no collection-hook events |
-| Triggers | `rules: [{ event, channels, template, condition?, templateOverrides? }]` in config; `defineTrigger` is an alias | No slug, data sources, recipients, deliveries, versioning, admin-created triggers, precedence policy |
-| Data | Template context is `{ event, userId, payload }` only | No collection lookups, relationships, resolvers |
-| Recipients | Always `event.userId`, user loaded from `userCollectionSlug` | No multi-recipient, static/role/resolver recipients |
-| Templates | DB-first (`active`, highest `version`) → code registry; Handlebars-subset engine with escaping; template studio preview/test-send (code mode only); seeding | No locale, no immutable published versions, **no visual editor**, no variable autocomplete from data sources |
-| Jobs | `notification:process-event` → `notification:send` (2 retries, backoff) | No delivery records; send input carries everything |
-| Idempotency | Fingerprint = `user::channel::event::template::idempotencyKey`, checked against logs | No event ID → repeated legit events can collide when no key is given; no DB uniqueness; no cross-source dedupe |
-| Policy | Preference field mapping on user doc + `canSend` hook | No preferences collection, categories, suppression, quiet hours |
-| Providers | Email (Payload), in-app, Twilio SMS, Meta/Twilio WhatsApp (text) | No provider interface with capabilities, no HSM templates, no webhooks |
-| Observability | `onDispatch` hook + `notification-logs` | No delivery status lifecycle, metrics, dashboard |
+| Area          | Current state (0.3.2)                                                                                                                                       | Gap vs. target                                                                                                 |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Events        | `emitNotificationEvent({ name, userId, payload, classification, idempotencyKey })`                                                                          | No event ID, no event registry (label, schema, sample), no collection-hook events                              |
+| Triggers      | `rules: [{ event, channels, template, condition?, templateOverrides? }]` in config; `defineTrigger` is an alias                                             | No slug, data sources, recipients, deliveries, versioning, admin-created triggers, precedence policy           |
+| Data          | Template context is `{ event, userId, payload }` only                                                                                                       | No collection lookups, relationships, resolvers                                                                |
+| Recipients    | Always `event.userId`, user loaded from `userCollectionSlug`                                                                                                | No multi-recipient, static/role/resolver recipients                                                            |
+| Templates     | DB-first (`active`, highest `version`) → code registry; Handlebars-subset engine with escaping; template studio preview/test-send (code mode only); seeding | No locale, no immutable published versions, **no visual editor**, no variable autocomplete from data sources   |
+| Jobs          | `notification:process-event` → `notification:send` (2 retries, backoff)                                                                                     | No delivery records; send input carries everything                                                             |
+| Idempotency   | Fingerprint = `user::channel::event::template::idempotencyKey`, checked against logs                                                                        | No event ID → repeated legit events can collide when no key is given; no DB uniqueness; no cross-source dedupe |
+| Policy        | Preference field mapping on user doc + `canSend` hook                                                                                                       | No preferences collection, categories, suppression, quiet hours                                                |
+| Providers     | Email (Payload), in-app, Twilio SMS, Meta/Twilio WhatsApp (text)                                                                                            | No provider interface with capabilities, no HSM templates, no webhooks                                         |
+| Observability | `onDispatch` hook + `notification-logs`                                                                                                                     | No delivery status lifecycle, metrics, dashboard                                                               |
 
 Out of scope: campaigns / audiences / A/B tests (#30 phase 2) and the push channel. Both should
 be built **on top of** the delivery engine below, not alongside it.
@@ -43,11 +43,11 @@ be built **on top of** the delivery engine below, not alongside it.
 3. **Rules become a shorthand for triggers.** Every existing `NotificationRule` compiles to a
    code `TriggerDefinition` (one delivery per channel, recipient `event.userId`, template
    `rule.template`). Existing configs keep working unchanged.
-4. **No executable admin input.** Admins pick from *registered* events, collections, fields,
+4. **No executable admin input.** Admins pick from _registered_ events, collections, fields,
    resolvers, recipient resolvers and condition functions. Conditions are a JSON operator tree.
 5. **Explicit precedence, never silent merging.** Code and admin triggers are independent by
-   default; an admin record may *manage* (override) a code trigger only via its stable slug and
-   only for fields the developer marked overridable; code triggers can be *enforced*.
+   default; an admin record may _manage_ (override) a code trigger only via its stable slug and
+   only for fields the developer marked overridable; code triggers can be _enforced_.
 6. **Delivery records are the unit of work.** `process-event` plans deliveries; `send`
    processes exactly one delivery by ID. Legacy send input stays accepted.
 7. **Context stays backward compatible.** `{{ event }}`, `{{ userId }}`, `{{ payload.x }}` keep
@@ -326,15 +326,15 @@ compiles to the existing template engine.
 
 ## Release slicing
 
-| Release | Includes | User-visible value |
-| --- | --- | --- |
-| 0.4.0 | Phase 1 + 2 | Event registry, multi-collection data in templates, multiple recipients, delivery records, precedence policy |
-| 0.5.0 | Phase 3 + 5.1–5.4 | Collection-hook triggers, change detection, scheduling, safe idempotency and dedupe |
-| 0.6.0 | Phase 4 | Admin-created triggers, Trigger Builder, test runner |
-| 0.7.0 | 5.5–5.9 + Phase 6 | Preferences, fallback, webhooks, locales, pinned versions, starter pack |
-| 0.8.0 | Phase 7 | Visual Template Studio |
-| 0.9.0 | Phase 8 | Deliveries dashboard, permissions |
-| 1.0.0 | Phase 9 | Stable API, migration guide, integration-tested |
+| Release | Includes          | User-visible value                                                                                           |
+| ------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| 0.4.0   | Phase 1 + 2       | Event registry, multi-collection data in templates, multiple recipients, delivery records, precedence policy |
+| 0.5.0   | Phase 3 + 5.1–5.4 | Collection-hook triggers, change detection, scheduling, safe idempotency and dedupe                          |
+| 0.6.0   | Phase 4           | Admin-created triggers, Trigger Builder, test runner                                                         |
+| 0.7.0   | 5.5–5.9 + Phase 6 | Preferences, fallback, webhooks, locales, pinned versions, starter pack                                      |
+| 0.8.0   | Phase 7           | Visual Template Studio                                                                                       |
+| 0.9.0   | Phase 8           | Deliveries dashboard, permissions                                                                            |
+| 1.0.0   | Phase 9           | Stable API, migration guide, integration-tested                                                              |
 
 ## Dependencies
 
@@ -347,34 +347,34 @@ Phases 4, 5, 7 ──▶ Phase 8 ──▶ Phase 9
 
 ## Coverage checklist
 
-| Source requirement | Item(s) |
-| --- | --- |
-| Event sources: domain, collection, custom | 1.2, 3.2 |
-| Event registry with label, schema, classification, sample | 1.2 |
-| Trigger lifecycle & immutable versions | 4.2 |
-| Code-defined triggers, `defineTrigger` compatibility | 2.1, 2.2 |
-| Admin-created triggers + Trigger Builder steps | 4.1, 4.4 |
-| Code vs admin precedence (independent / managed / enforced) | 2.3, 4.5 |
-| Data sources: event, document, collection, relationship, resolver | 1.3–1.5, 3.2 |
-| Field allowlists, sensitive data, redaction | 1.3, 1.6 |
-| Recipients (all types, canonical, dedupe, locale/timezone) | 2.5 |
-| Multiple deliveries per trigger | 2.6 |
-| Conditions + change detection | 3.1, 3.2 |
-| Recursion prevention, deterministic hooks, tenancy | 3.2, 3.3, 8.4 |
-| Scheduling, quiet hours, cancellation | 3.5 |
-| Publish validation, test & preview, safe test sends | 4.3, 4.6, 7.12 |
-| Cross-source duplicate prevention | 5.2 |
-| Idempotency, retries, failure taxonomy, fallback | 5.1, 5.3, 5.5 |
-| Trigger / event / delivery / attempt separation | 2.7, 3.4, 5.4 |
-| Consent, preferences, suppression, unsubscribe | 5.6 |
-| Provider interface, webhooks, reconciliation, retention | 5.7, 5.8 |
-| Observability | 5.9, 8.2 |
-| Template authoring modes: visual, code, channel-native | 7.x, 6.4 |
-| Template record (locale, version, variables, provider IDs) | 6.1–6.4 |
-| Starter template library | 6.5 |
-| Admin navigation | 8.5 |
-| Testing & release criteria, compatibility | 9.1–9.3 |
-| Docs, migration | 9.4, 9.5 |
+| Source requirement                                                | Item(s)        |
+| ----------------------------------------------------------------- | -------------- |
+| Event sources: domain, collection, custom                         | 1.2, 3.2       |
+| Event registry with label, schema, classification, sample         | 1.2            |
+| Trigger lifecycle & immutable versions                            | 4.2            |
+| Code-defined triggers, `defineTrigger` compatibility              | 2.1, 2.2       |
+| Admin-created triggers + Trigger Builder steps                    | 4.1, 4.4       |
+| Code vs admin precedence (independent / managed / enforced)       | 2.3, 4.5       |
+| Data sources: event, document, collection, relationship, resolver | 1.3–1.5, 3.2   |
+| Field allowlists, sensitive data, redaction                       | 1.3, 1.6       |
+| Recipients (all types, canonical, dedupe, locale/timezone)        | 2.5            |
+| Multiple deliveries per trigger                                   | 2.6            |
+| Conditions + change detection                                     | 3.1, 3.2       |
+| Recursion prevention, deterministic hooks, tenancy                | 3.2, 3.3, 8.4  |
+| Scheduling, quiet hours, cancellation                             | 3.5            |
+| Publish validation, test & preview, safe test sends               | 4.3, 4.6, 7.12 |
+| Cross-source duplicate prevention                                 | 5.2            |
+| Idempotency, retries, failure taxonomy, fallback                  | 5.1, 5.3, 5.5  |
+| Trigger / event / delivery / attempt separation                   | 2.7, 3.4, 5.4  |
+| Consent, preferences, suppression, unsubscribe                    | 5.6            |
+| Provider interface, webhooks, reconciliation, retention           | 5.7, 5.8       |
+| Observability                                                     | 5.9, 8.2       |
+| Template authoring modes: visual, code, channel-native            | 7.x, 6.4       |
+| Template record (locale, version, variables, provider IDs)        | 6.1–6.4        |
+| Starter template library                                          | 6.5            |
+| Admin navigation                                                  | 8.5            |
+| Testing & release criteria, compatibility                         | 9.1–9.3        |
+| Docs, migration                                                   | 9.4, 9.5       |
 
 ## Open questions
 
@@ -385,14 +385,14 @@ Phases 4, 5, 7 ──▶ Phase 8 ──▶ Phase 9
 
 ## Tracking
 
-| Phase | Issue |
-| --- | --- |
-| Phase 1 — Contracts, event registry and data context builder | [#71](https://github.com/w3panel/payload-notifications/issues/71) |
-| Phase 2 — Unified trigger engine, recipients and deliveries | [#72](https://github.com/w3panel/payload-notifications/issues/72) |
-| Phase 3 — Conditions, collection events and scheduling | [#73](https://github.com/w3panel/payload-notifications/issues/73) |
-| Phase 4 — Admin-created triggers and Trigger Builder | [#74](https://github.com/w3panel/payload-notifications/issues/74) |
-| Phase 5 — Reliability, consent and providers | [#75](https://github.com/w3panel/payload-notifications/issues/75) |
-| Phase 6 — Templates v2 and multi-channel content | [#76](https://github.com/w3panel/payload-notifications/issues/76) |
-| Phase 7 — Visual Template Studio | [#77](https://github.com/w3panel/payload-notifications/issues/77) |
+| Phase                                                             | Issue                                                             |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Phase 1 — Contracts, event registry and data context builder      | [#71](https://github.com/w3panel/payload-notifications/issues/71) |
+| Phase 2 — Unified trigger engine, recipients and deliveries       | [#72](https://github.com/w3panel/payload-notifications/issues/72) |
+| Phase 3 — Conditions, collection events and scheduling            | [#73](https://github.com/w3panel/payload-notifications/issues/73) |
+| Phase 4 — Admin-created triggers and Trigger Builder              | [#74](https://github.com/w3panel/payload-notifications/issues/74) |
+| Phase 5 — Reliability, consent and providers                      | [#75](https://github.com/w3panel/payload-notifications/issues/75) |
+| Phase 6 — Templates v2 and multi-channel content                  | [#76](https://github.com/w3panel/payload-notifications/issues/76) |
+| Phase 7 — Visual Template Studio                                  | [#77](https://github.com/w3panel/payload-notifications/issues/77) |
 | Phase 8 — Operations admin: deliveries, dashboard and permissions | [#78](https://github.com/w3panel/payload-notifications/issues/78) |
-| Phase 9 — Hardening, docs and release | [#79](https://github.com/w3panel/payload-notifications/issues/79) |
+| Phase 9 — Hardening, docs and release                             | [#79](https://github.com/w3panel/payload-notifications/issues/79) |

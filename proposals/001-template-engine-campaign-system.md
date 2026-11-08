@@ -1,15 +1,15 @@
 # RFC 001: Unified Template Engine + Campaign System
 
-| Field       | Value |
-|-------------|-------|
-| **Status**  | Proposed |
-| **Authors** | — |
+| Field       | Value                                                                  |
+| ----------- | ---------------------------------------------------------------------- |
+| **Status**  | Proposed                                                               |
+| **Authors** | —                                                                      |
 | **Issue**   | [#30](https://github.com/technewwings/payload-notifications/issues/30) |
-| **Created** | 2026-03-26 |
+| **Created** | 2026-03-26                                                             |
 
 ---
 
-## 1  Problem Statement
+## 1 Problem Statement
 
 The current notification system in `@wtree/payload-notifications` uses a **code-defined template registry** with simple `{{ token }}` interpolation. This architecture creates several gaps:
 
@@ -22,7 +22,7 @@ This RFC proposes a phased upgrade that adds an admin-managed template engine an
 
 ---
 
-## 2  Goals & Non-Goals
+## 2 Goals & Non-Goals
 
 ### Goals
 
@@ -43,9 +43,9 @@ This RFC proposes a phased upgrade that adds an admin-managed template engine an
 
 ---
 
-## 3  Architecture
+## 3 Architecture
 
-### 3.1  High-Level View
+### 3.1 High-Level View
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -86,7 +86,7 @@ This RFC proposes a phased upgrade that adds an admin-managed template engine an
 └────────────────────────────────────┘
 ```
 
-### 3.2  Template Resolution Flow
+### 3.2 Template Resolution Flow
 
 ```
 resolveTemplate(slug, channel, context)
@@ -106,7 +106,7 @@ resolveTemplate(slug, channel, context)
 
 This two-tier resolution ensures that existing integrations continue working without changes while new templates authored in the admin panel take precedence.
 
-### 3.3  Campaign Processing Flow
+### 3.3 Campaign Processing Flow
 
 ```
 Campaign (status: 'scheduled', sendAt: T)
@@ -130,9 +130,9 @@ Campaign (status: 'scheduled', sendAt: T)
 
 ---
 
-## 4  Detailed Design
+## 4 Detailed Design
 
-### 4.1  `notification-templates` Collection
+### 4.1 `notification-templates` Collection
 
 **Slug:** `notification-templates`
 
@@ -187,7 +187,7 @@ Campaign (status: 'scheduled', sendAt: T)
 }
 ```
 
-### 4.2  Rendering Engine
+### 4.2 Rendering Engine
 
 **Location:** `src/templates/engine.ts` (new file)
 
@@ -195,14 +195,14 @@ The engine is a **Handlebars-subset** — deliberately limited to keep the bundl
 
 **Supported syntax:**
 
-| Feature | Syntax | Example |
-|---------|--------|---------|
-| Variable | `{{ name }}` | `Hello {{ user.firstName }}` |
-| Conditional | `{{#if expr}}…{{else}}…{{/if}}` | `{{#if order.shipped}}Shipped!{{/if}}` |
-| Loop | `{{#each items}}…{{/each}}` | `{{#each order.items}}{{this.name}}{{/each}}` |
-| Formatter | `{{ fmt value "pattern" }}` | `{{ date createdAt "MMM d, yyyy" }}` |
-| HTML escape | auto (use `{{{ raw }}}` to bypass) | `{{{ htmlContent }}}` |
-| Fallback | `{{ name \| default "Guest" }}` | `{{ user.name \| default "there" }}` |
+| Feature     | Syntax                             | Example                                       |
+| ----------- | ---------------------------------- | --------------------------------------------- |
+| Variable    | `{{ name }}`                       | `Hello {{ user.firstName }}`                  |
+| Conditional | `{{#if expr}}…{{else}}…{{/if}}`    | `{{#if order.shipped}}Shipped!{{/if}}`        |
+| Loop        | `{{#each items}}…{{/each}}`        | `{{#each order.items}}{{this.name}}{{/each}}` |
+| Formatter   | `{{ fmt value "pattern" }}`        | `{{ date createdAt "MMM d, yyyy" }}`          |
+| HTML escape | auto (use `{{{ raw }}}` to bypass) | `{{{ htmlContent }}}`                         |
+| Fallback    | `{{ name \| default "Guest" }}`    | `{{ user.name \| default "there" }}`          |
 
 **Built-in formatters:**
 
@@ -215,22 +215,22 @@ The engine is a **Handlebars-subset** — deliberately limited to keep the bundl
 
 **Implementation strategy:** Compile template string → AST at save time (stored as `compiledAst` JSON field, excluded from admin). Render at send time by walking the AST — avoids repeated parsing and enables validation at authoring time.
 
-### 4.3  Channel Adapter Upgrades
+### 4.3 Channel Adapter Upgrades
 
 Each adapter's `send()` function changes from receiving a raw `body` string to receiving a `RenderedTemplate` object:
 
 ```typescript
 type RenderedTemplate = {
   // Channel-specific fields (only the relevant ones are populated)
-  subject?: string        // email
-  htmlBody?: string       // email
-  textBody?: string       // email, fallback
-  body?: string           // sms, whatsapp, inapp
-  title?: string          // inapp
-  hsmTemplateId?: string  // whatsapp (Meta HSM)
-  hsmParams?: string[]    // whatsapp (Meta HSM)
+  subject?: string // email
+  htmlBody?: string // email
+  textBody?: string // email, fallback
+  body?: string // sms, whatsapp, inapp
+  title?: string // inapp
+  hsmTemplateId?: string // whatsapp (Meta HSM)
+  hsmParams?: string[] // whatsapp (Meta HSM)
   metadata?: {
-    smsSegments?: number  // sms segment count
+    smsSegments?: number // sms segment count
     smsCharCount?: number // sms character count
     templateSlug?: string
     templateVersion?: number
@@ -246,7 +246,7 @@ type RenderedTemplate = {
 
 **In-app adapter** — stores `title` and `body` as rendered strings (already the behavior since v0.1.1).
 
-### 4.4  `campaigns` Collection
+### 4.4 `campaigns` Collection
 
 **Slug:** `campaigns`
 
@@ -298,7 +298,7 @@ type RenderedTemplate = {
 }
 ```
 
-### 4.5  Campaign Processor Job
+### 4.5 Campaign Processor Job
 
 **Task name:** `notification:process-campaign`
 
@@ -324,12 +324,17 @@ Steps:
      - Schedule `notification:evaluate-ab` job after evalWindow hours.
 ```
 
-### 4.6  A/B Testing
+### 4.6 A/B Testing
 
 **Variant assignment** uses a deterministic hash to ensure the same user always gets the same variant, even if the campaign is paused and resumed:
 
 ```typescript
-function assignVariant(campaignId: string, userId: string, variants: Variant[], holdoutPercent: number) {
+function assignVariant(
+  campaignId: string,
+  userId: string,
+  variants: Variant[],
+  holdoutPercent: number,
+) {
   const hash = fnv1a(`${campaignId}:${userId}`) % 100
   if (hash < holdoutPercent) return { type: 'holdout' }
   const adjusted = ((hash - holdoutPercent) / (100 - holdoutPercent)) * 100
@@ -343,13 +348,14 @@ function assignVariant(campaignId: string, userId: string, variants: Variant[], 
 ```
 
 **Winner evaluation** (`notification:evaluate-ab` job):
+
 1. Query `notification-logs` grouped by variant template and campaignId.
 2. Compute metric (delivery rate, open rate, or click rate) per variant.
 3. Select variant with highest metric.
 4. Send holdout users the winning template.
 5. Record winner in campaign document.
 
-### 4.7  Analytics Extension
+### 4.7 Analytics Extension
 
 Extend `notification-logs` with:
 
@@ -372,8 +378,8 @@ Both tracking endpoints are opt-in and disabled by default. They are configured 
 notificationsPlugin({
   campaigns: {
     tracking: {
-      opens: true,   // default: false
-      clicks: true,  // default: false
+      opens: true, // default: false
+      clicks: true, // default: false
       baseUrl: 'https://yourapp.com',
     },
   },
@@ -382,9 +388,9 @@ notificationsPlugin({
 
 ---
 
-## 5  Migration & Backward Compatibility
+## 5 Migration & Backward Compatibility
 
-### 5.1  Template Migration
+### 5.1 Template Migration
 
 On plugin initialization (via `onInit` hook), if the `notification-templates` collection is empty and `templates.registry` is configured:
 
@@ -396,21 +402,21 @@ On plugin initialization (via `onInit` hook), if the `notification-templates` co
 2. Skip if a document with that slug already exists (idempotent).
 3. Log migration results via the observability hook.
 
-### 5.2  API Compatibility
+### 5.2 API Compatibility
 
 - `emitNotificationEvent()` continues to work exactly as before.
 - `resolveTemplate()` gains DB lookup but falls back to code registry.
 - `NotificationRule.template` field accepts both a slug (resolved from DB/registry) and a legacy registry key.
 - No breaking changes to the plugin options schema; `campaigns` is a new optional top-level key.
 
-### 5.3  Collection Compatibility
+### 5.3 Collection Compatibility
 
 - `notification-logs` gains new optional fields (`campaignId`, `abVariant`, `opened`, `clicked`, etc.) — all optional, no impact on existing logs.
 - New collections (`notification-templates`, `campaigns`) are only registered if `templates.collection` or `campaigns` options are enabled (both default to `false` initially, then `true` in a future major version).
 
 ---
 
-## 6  File Structure (Proposed)
+## 6 File Structure (Proposed)
 
 New and modified files:
 
@@ -444,17 +450,19 @@ src/
 
 ---
 
-## 7  Phased Implementation Plan
+## 7 Phased Implementation Plan
 
 ### Phase 1: Unified Template Engine (Estimated: 3 milestones)
 
 **Milestone 1a — Collection + Engine Core**
+
 - Implement `notification-templates` collection
 - Build rendering engine with conditionals, loops, formatters
 - Update `resolveTemplate()` for DB-first resolution
 - Write comprehensive unit tests for the engine
 
 **Milestone 1b — Channel Adapter Upgrades**
+
 - Introduce `RenderedTemplate` type
 - Update email adapter: HTML layout wrapping
 - Update WhatsApp adapter: HSM template support
@@ -462,6 +470,7 @@ src/
 - Update in-app adapter: pass-through (minimal changes)
 
 **Milestone 1c — Admin UI + Migration**
+
 - Template editor view in Payload admin
 - Live preview per channel
 - "Send Test" action
@@ -471,23 +480,27 @@ src/
 ### Phase 2: Campaign System (Estimated: 4 milestones)
 
 **Milestone 2a — Collection + Processor**
+
 - Implement `campaigns` collection
 - Build `processCampaign` job handler
 - Audience resolution (all, filter)
 - Immediate send support
 
 **Milestone 2b — Scheduling + Lifecycle**
+
 - Scheduled send (cron-based trigger)
 - Pause / resume / cancel status transitions
 - Rate limiting awareness per provider
 
 **Milestone 2c — A/B Testing**
+
 - Variant assignment (hash-based)
 - Holdout group management
 - `evaluateAbTest` job handler
 - Auto-winner selection and holdout send
 
 **Milestone 2d — Analytics + Tracking**
+
 - Extend `notification-logs` with campaign fields
 - Open tracking pixel endpoint
 - Click tracking redirect endpoint
@@ -503,7 +516,7 @@ src/
 
 ---
 
-## 8  Open Questions
+## 8 Open Questions
 
 1. **Rendering engine choice:** Custom Handlebars-subset vs. adopting a micro-library like `eta` or `nunjucks`? The custom approach gives full control over security and bundle size but requires more implementation effort.
 
@@ -517,20 +530,20 @@ src/
 
 ---
 
-## 9  Risks & Mitigations
+## 9 Risks & Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Rendering engine security (template injection) | Compile-time AST validation; block function calls, `new`, `import`; configurable depth limit |
-| Large campaign audience causing memory pressure | Paginated audience resolution (default 500 per page); async batch queuing |
-| A/B test variant drift on campaign pause/resume | Deterministic hash-based assignment (same input → same variant) |
-| Breaking changes to existing template API | DB resolution falls back to code registry; `RenderedTemplate` is a superset of current `string` output |
-| Email tracking pixel blocked by clients | Track as best-effort metric; do not gate campaign completion on open data |
-| Increased collection count adding admin noise | Gate new collections behind opt-in config flags |
+| Risk                                            | Mitigation                                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Rendering engine security (template injection)  | Compile-time AST validation; block function calls, `new`, `import`; configurable depth limit           |
+| Large campaign audience causing memory pressure | Paginated audience resolution (default 500 per page); async batch queuing                              |
+| A/B test variant drift on campaign pause/resume | Deterministic hash-based assignment (same input → same variant)                                        |
+| Breaking changes to existing template API       | DB resolution falls back to code registry; `RenderedTemplate` is a superset of current `string` output |
+| Email tracking pixel blocked by clients         | Track as best-effort metric; do not gate campaign completion on open data                              |
+| Increased collection count adding admin noise   | Gate new collections behind opt-in config flags                                                        |
 
 ---
 
-## 10  Acceptance Criteria
+## 10 Acceptance Criteria
 
 See the [GitHub issue #30](https://github.com/technewwings/payload-notifications/issues/30) for the full acceptance checklist organized by phase.
 

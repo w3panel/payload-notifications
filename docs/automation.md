@@ -27,19 +27,23 @@ defineTrigger({
   deliveries: [
     { channel: 'email', template: 'order.vip' },
     // Per-recipient condition: recipient.* is in scope
-    { channel: 'inapp', template: 'order.vip', when: { field: 'recipient.id', operator: 'exists' } },
+    {
+      channel: 'inapp',
+      template: 'order.vip',
+      when: { field: 'recipient.id', operator: 'exists' },
+    },
   ],
 })
 ```
 
-| Operator | Meaning |
-| --- | --- |
-| `equals`, `notEquals` | Loose equality: `'6000'` equals `6000`, and a populated relationship equals its ID |
-| `in`, `notIn` | Value is (not) one of an array |
-| `greaterThan`, `greaterThanOrEqual`, `lessThan`, `lessThanOrEqual` | Numbers, numeric strings or ISO dates |
-| `exists` | Not null, undefined or empty (`value: false` inverts it) |
-| `contains` | Substring or array item |
-| `changed`, `changedTo`, `changedFrom` | Compares `doc.*` (or a `document` source alias) with `previous.*`. Collection triggers only |
+| Operator                                                           | Meaning                                                                                     |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `equals`, `notEquals`                                              | Loose equality: `'6000'` equals `6000`, and a populated relationship equals its ID          |
+| `in`, `notIn`                                                      | Value is (not) one of an array                                                              |
+| `greaterThan`, `greaterThanOrEqual`, `lessThan`, `lessThanOrEqual` | Numbers, numeric strings or ISO dates                                                       |
+| `exists`                                                           | Not null, undefined or empty (`value: false` inverts it)                                    |
+| `contains`                                                         | Substring or array item                                                                     |
+| `changed`, `changedTo`, `changedFrom`                              | Compares `doc.*` (or a `document` source alias) with `previous.*`. Collection triggers only |
 
 - **Field paths** start with one of these roots:
   - `event`: the full event, e.g. `event.payload.total`, `event.userId`
@@ -83,8 +87,8 @@ notificationsPlugin({
   collectionEvents: {
     orders: {
       operations: ['create', 'update'], // default; add 'delete' to capture deleted documents
-      capture: ['status', 'total'],     // fields copied into doc / previous
-      userField: 'customer',            // becomes event.userId
+      capture: ['status', 'total'], // fields copied into doc / previous
+      userField: 'customer', // becomes event.userId
       // onlyWhenCaptureChanges: true   // default: updates that change no captured field emit nothing
     },
   },
@@ -171,18 +175,18 @@ defineTrigger({
     at: 'booking.startsAt',
     offset: '-24h',
     recheckConditions: true, // cancel if the booking is cancelled before the reminder
-    skipIfPast: true,        // booked less than 24h ahead: no reminder
+    skipIfPast: true, // booked less than 24h ahead: no reminder
   },
   deliveries: [{ channel: 'email', template: 'booking.reminder' }],
 })
 ```
 
-| `schedule.type` | Send time |
-| --- | --- |
-| `immediate` (default) | Now |
-| `delay` | `delay` after the event (`30m`, `24h`, `2d`, milliseconds) |
-| `at` | The timestamp at `at` (e.g. `event.payload.sendAt`) |
-| `relative` | `at` plus `offset` (negative for "before") |
+| `schedule.type`       | Send time                                                  |
+| --------------------- | ---------------------------------------------------------- |
+| `immediate` (default) | Now                                                        |
+| `delay`               | `delay` after the event (`30m`, `24h`, `2d`, milliseconds) |
+| `at`                  | The timestamp at `at` (e.g. `event.payload.sendAt`)        |
+| `relative`            | `at` plus `offset` (negative for "before")                 |
 
 - **Queueing:** deliveries store `scheduledFor` and are queued with Payload's `waitUntil`. A job
   runner must be draining the queue.
@@ -193,6 +197,7 @@ defineTrigger({
 
   Otherwise the delivery becomes `cancelled`, logged with the reason. When it still applies, it
   renders from the fresh data.
+
 - **Quiet hours** move sends out of a local time window:
 
   ```ts

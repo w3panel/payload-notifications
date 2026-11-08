@@ -2,10 +2,10 @@
 
 ## Channels
 
-| Line | Branch | Tag | npm dist-tag | For |
-|---|---|---|---|---|
-| 0.4.x betas | `main` | `v0.4.0-beta.N` | `next` | Payload 4 apps (electrofit) |
-| 0.3.x stable | `release/0.3.x` | `v0.3.N` | `latest` | Payload 3 apps (HappenCare) |
+| Line         | Branch          | Tag             | npm dist-tag | For                         |
+| ------------ | --------------- | --------------- | ------------ | --------------------------- |
+| 0.4.x betas  | `main`          | `v0.4.0-beta.N` | `next`       | Payload 4 apps (electrofit) |
+| 0.3.x stable | `release/0.3.x` | `v0.3.N`        | `latest`     | Payload 3 apps (HappenCare) |
 
 Stable tags from `main` would also publish to `latest`; until 0.4 / 1.0 is promoted, release stable versions only from `release/0.3.x` (its publish workflow refuses prerelease tags). Backport fixes that affect Payload 3 apps to `release/0.3.x`.
 

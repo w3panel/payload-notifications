@@ -41,11 +41,13 @@ META_WHATSAPP_PHONE_NUMBER_ID=123456789012345
 ### How it works
 
 The provider sends a POST request to:
+
 ```
 https://graph.facebook.com/v25.0/{phoneNumberId}/messages
 ```
 
 With a JSON body:
+
 ```json
 {
   "messaging_product": "whatsapp",
@@ -101,6 +103,7 @@ TWILIO_SMS_FROM=+15551234567
 ### How it works
 
 The provider sends a POST request to:
+
 ```
 https://api.twilio.com/2010-04-01/Accounts/{accountSid}/Messages.json
 ```

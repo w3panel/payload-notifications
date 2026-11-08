@@ -94,13 +94,13 @@ rules: [
 ]
 ```
 
-| Type | Reads |
-| --- | --- |
-| `event` | The event, or `fields` picked from it, e.g. `payload.orderId` |
-| `document` | The captured fields of the document that triggered a collection event |
+| Type         | Reads                                                                                                                                                      |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event`      | The event, or `fields` picked from it, e.g. `payload.orderId`                                                                                              |
+| `document`   | The captured fields of the document that triggered a collection event                                                                                      |
 | `collection` | `lookup.type: 'id'` finds by the ID at `from`; `'relationship'` follows an ID, populated doc, polymorphic value or `hasMany` list (`maxItems`, default 50) |
-| `resolver` | A registered `dataResolvers` entry, with an optional static `input` |
-| `computed` | A registered `computed` function over the context resolved so far |
+| `resolver`   | A registered `dataResolvers` entry, with an optional static `input`                                                                                        |
+| `computed`   | A registered `computed` function over the context resolved so far                                                                                          |
 
 - **Resolution order:** sources resolve in dependency order, whatever order you list them in.
   Cycles and unknown aliases are configuration errors.

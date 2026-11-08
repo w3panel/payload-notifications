@@ -16,23 +16,25 @@ bun add @wtree/payload-notifications@latest
 
 New collections:
 
-| Collection | Purpose | Created when |
-|---|---|---|
-| `notification-deliveries` | One row per message (recipient × channel × trigger) | always |
-| `notification-triggers`, `notification-trigger-versions` | Admin-created triggers and their published snapshots | always |
-| `notification-template-versions` | Published template snapshots | always |
-| `notification-template-partials` | Reusable sections for visual emails | always |
-| `notification-suppressions` | Bounced, complained and STOP destinations | always |
-| `notification-preferences` | Per user × channel × category preferences | `preferences.mode: 'collection'` |
-| `notification-events` | Event inbox for audit and replay | `eventsInbox: true` |
+| Collection                                               | Purpose                                              | Created when                     |
+| -------------------------------------------------------- | ---------------------------------------------------- | -------------------------------- |
+| `notification-deliveries`                                | One row per message (recipient × channel × trigger)  | always                           |
+| `notification-triggers`, `notification-trigger-versions` | Admin-created triggers and their published snapshots | always                           |
+| `notification-template-versions`                         | Published template snapshots                         | always                           |
+| `notification-template-partials`                         | Reusable sections for visual emails                  | always                           |
+| `notification-suppressions`                              | Bounced, complained and STOP destinations            | always                           |
+| `notification-preferences`                               | Per user × channel × category preferences            | `preferences.mode: 'collection'` |
+| `notification-events`                                    | Event inbox for audit and replay                     | `eventsInbox: true`              |
 
 There is also a new global, `notification-theme` (the brand theme for visual emails).
 
 New fields:
+
 - **`notification-templates`:** `locale`, `version`, `source`, `seedHash`, `hasUnpublishedChanges`, `whatsappTemplateStatus`, `whatsappTemplateCheckedAt`, `email.editor`, `email.design`, `email.preheader`, the `inapp.*` fields (`actionUrl`, `icon`, `priority`) and the `whatsapp.hsm*` fields.
 - **`notification-logs`:** `delivery`, `outcome`, `durationMs`, `attempt`, `failureClassification`, `templateSlug`, `templateVersion`, `renderDurationMs`.
 
 **Migrations:**
+
 - **SQL (Postgres, SQLite, D1):** create and run one after upgrading:
 
   ```bash
@@ -47,24 +49,26 @@ New fields:
   To fix it, edit the `` INSERT INTO `__new_notification_templates`(…) SELECT … FROM `notification_templates` `` statement in the `up` function. Keep only the columns from your previous migration's snapshot (the `.json` next to it); the new columns are nullable or have defaults. Then test the file on a copy of your database, or on a local SQLite database, before `payload migrate` runs against production. Postgres and MongoDB are not affected.
 
   Other tables in the same migration may be rebuilt for reasons unrelated to this plugin, for example a field whose `defaultValue` is computed when the config loads (such as `new Date()`). Those rebuilds copy every row, but they appear in every new migration until the default is made stable.
+
 - **MongoDB:** needs no migration.
 - **Payload 3 with several job workers:** to keep one send per delivery at a time, also set `jobs.enableConcurrencyControl: true`. That needs a migration too.
 
 **No data conversion is needed:**
+
 - Existing templates keep working. Active templates published before snapshots existed render from the document, and the next publish creates their first snapshot.
 - Existing logs stay where they are.
 
 ## 3. What keeps working unchanged
 
-| 0.3.x | 1.0 behaviour |
-|---|---|
+| 0.3.x                                                                        | 1.0 behaviour                                                                                         |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `rules: [{ event, channels, template, condition, templateOverrides, data }]` | Each rule runs as a code trigger `rule-<index>-<event>`: one delivery per channel to the event's user |
-| `defineTrigger({ event, channels, template })` | Same as a rule |
-| `templates.registry` / `templates.localized` | Used when no active DB template matches |
-| `preferences.fields` (`channels`, `marketingConsent`) | Default `preferences.mode: 'userFields'` |
-| `queueNotificationSend` / `sendNotification` | Direct sends without a delivery record (legacy path) |
-| `observability.onDispatch` | Still called for every send |
-| `emitNotificationEvent` | Same API; now also validates registered events and fans out to triggers |
+| `defineTrigger({ event, channels, template })`                               | Same as a rule                                                                                        |
+| `templates.registry` / `templates.localized`                                 | Used when no active DB template matches                                                               |
+| `preferences.fields` (`channels`, `marketingConsent`)                        | Default `preferences.mode: 'userFields'`                                                              |
+| `queueNotificationSend` / `sendNotification`                                 | Direct sends without a delivery record (legacy path)                                                  |
+| `observability.onDispatch`                                                   | Still called for every send                                                                           |
+| `emitNotificationEvent`                                                      | Same API; now also validates registered events and fans out to triggers                               |
 
 ## 4. Recommended moves (opt-in)
 

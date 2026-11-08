@@ -28,6 +28,7 @@ Data: `GET /api/payload-notifications/stats?days=7`. It needs `access.viewDelive
 The **Deliveries** list can be searched by event, trigger, recipient, masked destination and event ID. It can be filtered with Payload's filters by status, channel, trigger, origin (`triggerOrigin`), recipient and date.
 
 Opening a delivery shows the **inspector**:
+
 - Status, skip reason and last error.
 - Every attempt, with the provider, message ID, duration, error and a redacted provider response.
 - Fallback deliveries.
@@ -35,12 +36,13 @@ Opening a delivery shows the **inspector**:
 
 It has two actions:
 
-| Action | Allowed for | Effect |
-|---|---|---|
-| **Retry** | `failed`, and `unknown` after a confirmation | Re-queued on the same record and idempotency key, with one more attempt allowed. An `unknown` outcome may already have been delivered. |
-| **Cancel delivery** | `planned`, `queued` | Set to `cancelled`; the queued send job skips it. |
+| Action              | Allowed for                                  | Effect                                                                                                                                 |
+| ------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Retry**           | `failed`, and `unknown` after a confirmation | Re-queued on the same record and idempotency key, with one more attempt allowed. An `unknown` outcome may already have been delivered. |
+| **Cancel delivery** | `planned`, `queued`                          | Set to `cancelled`; the queued send job skips it.                                                                                      |
 
 API:
+
 - `GET /api/notification-deliveries/:id/inspect` needs `viewDeliveries`.
 - `POST /api/notification-deliveries/:id/retry { confirmUnknown? }` and `POST …/:id/cancel` need `retryDeliveries`.
 
@@ -60,6 +62,7 @@ The tab shows each channel's provider: built-in or custom, its capabilities, con
 Queue, retries, reconcile and retention schedules, events inbox, preferences, quiet hours, tenancy and webhook signature settings are listed read-only, because they are defined in code.
 
 API:
+
 - `GET /api/payload-notifications/settings` needs `viewDeliveries`.
 - `POST /api/payload-notifications/providers/:channel/test` needs `testSend`.
 
@@ -67,17 +70,17 @@ API:
 
 Each check defaults to `access.isAdmin`, which defaults to any logged-in user. Pass role checks for real deployments.
 
-| Check | Guards |
-|---|---|
-| `manageTriggers` | Admin triggers, the event and data-source pickers |
-| `publishTriggers` | Publish, enable, disable, archive and roll back triggers |
-| `manageTemplates` | Create and edit templates and partials; preview, compile-design and variables endpoints |
-| `publishTemplates` | Publish and roll back templates, WhatsApp approval sync, the brand theme |
-| `testSend` | Test sends (to yourself) and provider connection tests |
-| `viewDeliveries` | Deliveries, attempt logs, events, overview and settings |
-| `retryDeliveries` | Retry and cancel deliveries |
-| `managePreferences` | Other users' preferences, and suppressions |
-| `rawHtml` | Raw HTML blocks in visual designs (default: nobody) |
+| Check               | Guards                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `manageTriggers`    | Admin triggers, the event and data-source pickers                                       |
+| `publishTriggers`   | Publish, enable, disable, archive and roll back triggers                                |
+| `manageTemplates`   | Create and edit templates and partials; preview, compile-design and variables endpoints |
+| `publishTemplates`  | Publish and roll back templates, WhatsApp approval sync, the brand theme                |
+| `testSend`          | Test sends (to yourself) and provider connection tests                                  |
+| `viewDeliveries`    | Deliveries, attempt logs, events, overview and settings                                 |
+| `retryDeliveries`   | Retry and cancel deliveries                                                             |
+| `managePreferences` | Other users' preferences, and suppressions                                              |
+| `rawHtml`           | Raw HTML blocks in visual designs (default: nobody)                                     |
 
 ```ts
 notificationsPlugin({
@@ -94,6 +97,7 @@ Access functions passed in a collection override (`overrides.deliveries.access.r
 ### Tenants
 
 With `tenancy: { field, userField }`:
+
 - Deliveries record the event's tenant.
 - A user whose `userField` is set sees only that tenant's deliveries, attempt logs (by `delivery.tenant`), events and overview numbers.
 - Users without a tenant (platform admins) see everything.

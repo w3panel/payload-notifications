@@ -6,11 +6,11 @@ behaviour described in [jobs-and-operations.md](./jobs-and-operations.md).
 
 ## Duplicate protection
 
-| Layer | Key | Stops |
-| --- | --- | --- |
-| Event inbox (`eventsInbox`) | `eventId` | Queueing the same event twice |
-| Delivery record | `<idempotencyKey or eventId>::<trigger>::<recipient>::<channel>::<template>` (unique index) | Re-processing or replaying the same event |
-| Dedupe key | Rendered `dedupe.key` + recipient + channel (+ window) | Two triggers describing the same action |
+| Layer                       | Key                                                                                         | Stops                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Event inbox (`eventsInbox`) | `eventId`                                                                                   | Queueing the same event twice             |
+| Delivery record             | `<idempotencyKey or eventId>::<trigger>::<recipient>::<channel>::<template>` (unique index) | Re-processing or replaying the same event |
+| Dedupe key                  | Rendered `dedupe.key` + recipient + channel (+ window)                                      | Two triggers describing the same action   |
 
 - **Versions aren't part of the key.** Delivery keys deliberately leave out the trigger and template
   versions, so publishing or rolling back a trigger never re-sends for an event that was already
@@ -52,13 +52,13 @@ triggers: [
 
 Every send is classified:
 
-| Outcome | Examples | What happens |
-| --- | --- | --- |
-| `retryable` | 429, 502, 503, connection refused | Re-queued with a back-off, up to the attempt limit |
-| `permanent` | 4xx (invalid number, rejected content) | `failed`; [fallback](#fallback) if configured |
-| `unknown` | Timeout, dropped connection, 500, 504 | `unknown`, **never re-sent automatically**; see reconciliation |
-| `policy` | Opt-out, suppression, `canSend` | `skipped`; fallback if configured |
-| `duplicate`, `cancelled` | Dedupe, re-checked schedule | `skipped` / `cancelled` |
+| Outcome                  | Examples                               | What happens                                                   |
+| ------------------------ | -------------------------------------- | -------------------------------------------------------------- |
+| `retryable`              | 429, 502, 503, connection refused      | Re-queued with a back-off, up to the attempt limit             |
+| `permanent`              | 4xx (invalid number, rejected content) | `failed`; [fallback](#fallback) if configured                  |
+| `unknown`                | Timeout, dropped connection, 500, 504  | `unknown`, **never re-sent automatically**; see reconciliation |
+| `policy`                 | Opt-out, suppression, `canSend`        | `skipped`; fallback if configured                              |
+| `duplicate`, `cancelled` | Dedupe, re-checked schedule            | `skipped` / `cancelled`                                        |
 
 ```ts
 notificationsPlugin({
@@ -107,7 +107,11 @@ deliveries: [
   {
     channel: 'sms',
     template: 'auth.otp',
-    fallback: { channel: 'email', template: 'auth.otp.email', on: ['permanent', 'no-destination', 'policy'] },
+    fallback: {
+      channel: 'email',
+      template: 'auth.otp.email',
+      on: ['permanent', 'no-destination', 'policy'],
+    },
   },
 ]
 ```
@@ -152,16 +156,16 @@ notificationsPlugin({ channels: ['sms'], providers: { custom: { sms: msg91 } } }
 
 ## Webhooks
 
-| Endpoint | Provider |
-| --- | --- |
-| `POST /api/payload-notifications/webhooks/twilio` | Twilio status callback **and** incoming-message URL |
-| `GET` / `POST /api/payload-notifications/webhooks/meta` | Meta WhatsApp webhook (verification + notifications) |
-| `GET` / `POST /api/payload-notifications/webhooks/provider/:channel` | A custom provider's `parseWebhook` |
+| Endpoint                                                             | Provider                                             |
+| -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `POST /api/payload-notifications/webhooks/twilio`                    | Twilio status callback **and** incoming-message URL  |
+| `GET` / `POST /api/payload-notifications/webhooks/meta`              | Meta WhatsApp webhook (verification + notifications) |
+| `GET` / `POST /api/payload-notifications/webhooks/provider/:channel` | A custom provider's `parseWebhook`                   |
 
 ```ts
 notificationsPlugin({
   webhooks: {
-    publicUrl: 'https://shop.example.com',        // the URL providers call, if behind a proxy
+    publicUrl: 'https://shop.example.com', // the URL providers call, if behind a proxy
     twilio: { authToken: process.env.TWILIO_AUTH_TOKEN }, // defaults to the provider's token
     meta: { appSecret: process.env.META_APP_SECRET!, verifyToken: process.env.META_VERIFY_TOKEN! },
   },
@@ -182,10 +186,10 @@ notificationsPlugin({
 
 ## Maintenance
 
-| Task | Does |
-| --- | --- |
+| Task                     | Does                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | `notification:reconcile` | Marks `sending` deliveries older than `staleSendingMinutes` as `unknown`; resolves `unknown` ones via a provider's `getStatus` |
-| `notification:retention` | Deletes logs, final deliveries and processed inbox events older than `maintenance.retention.*Days` |
+| `notification:retention` | Deletes logs, final deliveries and processed inbox events older than `maintenance.retention.*Days`                             |
 
 ```ts
 maintenance: {

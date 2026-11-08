@@ -3,6 +3,7 @@
 Production-ready notifications plugin for Payload CMS with an event-driven, multi-channel architecture for email, WhatsApp, SMS, and in-app delivery.
 
 ## Features
+
 - Event-to-rule notification dispatch through Payload jobs (named `notifications` queue)
 - Deep Payload job tasks with input/output schemas, exponential retries, concurrency keys, and `onFail` hooks
 - Channel implementations for email, WhatsApp, SMS, and in-app notifications
@@ -17,33 +18,34 @@ Production-ready notifications plugin for Payload CMS with an event-driven, mult
 
 ## Documentation
 
-| Guide | Topic |
-|-------|--------|
-| [docs/getting-started.md](docs/getting-started.md) | Install, first emit, jobs queue |
-| [docs/end-to-end.md](docs/end-to-end.md) | Full dynamic checklist |
-| [docs/templates.md](docs/templates.md) | Registry vs DB, engine syntax |
-| [docs/README.md](docs/README.md) | Documentation index |
-| [docs/examples.md](docs/examples.md) | E-commerce and booking workflows, tested end to end |
-| [docs/deployment.md](docs/deployment.md) | Running the jobs queue: servers, workers, serverless, Cloudflare; webhooks; troubleshooting |
-| [docs/migration.md](docs/migration.md) | Upgrading from 0.3.x: database, what keeps working, recommended moves |
-| [docs/security.md](docs/security.md) | Security model and review |
-| [docs/operations-admin.md](docs/operations-admin.md) | Overview dashboard, deliveries (retry / cancel), providers & settings, permissions, tenants |
-| [docs/admin-templates.md](docs/admin-templates.md) | Visual designer, theme, partials, preview, versions, test-send, import map |
-| [docs/events.md](docs/events.md) | Event registry, schemas, emitting |
-| [docs/data-sources.md](docs/data-sources.md) | Collections, relationships, resolvers in templates |
-| [docs/triggers.md](docs/triggers.md) | Triggers, recipients, deliveries, code/admin precedence |
-| [docs/automation.md](docs/automation.md) | Conditions, collection events, scheduling, guards, event inbox |
-| [docs/admin-triggers.md](docs/admin-triggers.md) | Trigger Builder, lifecycle and versions, code triggers in admin, testing |
-| [docs/reliability.md](docs/reliability.md) | Dedupe, retries, fallback, custom providers, webhooks, reconciliation |
-| [docs/rules-and-triggers.md](docs/rules-and-triggers.md) | Legacy rules, `defineTrigger`, domain hooks |
-| [docs/seeding.md](docs/seeding.md) | Seed templates from registry |
-| [docs/jobs-and-operations.md](docs/jobs-and-operations.md) | Queue ops, retries, debugging |
-| [docs/preferences-and-policy.md](docs/preferences-and-policy.md) | Consent + `canSend` |
-| [docs/observability.md](docs/observability.md) | Fingerprints + `onDispatch` |
-| [docs/options-reference.md](docs/options-reference.md) | Full options table |
-| [docs/providers.md](docs/providers.md) | Meta / Twilio providers |
+| Guide                                                            | Topic                                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [docs/getting-started.md](docs/getting-started.md)               | Install, first emit, jobs queue                                                             |
+| [docs/end-to-end.md](docs/end-to-end.md)                         | Full dynamic checklist                                                                      |
+| [docs/templates.md](docs/templates.md)                           | Registry vs DB, engine syntax                                                               |
+| [docs/README.md](docs/README.md)                                 | Documentation index                                                                         |
+| [docs/examples.md](docs/examples.md)                             | E-commerce and booking workflows, tested end to end                                         |
+| [docs/deployment.md](docs/deployment.md)                         | Running the jobs queue: servers, workers, serverless, Cloudflare; webhooks; troubleshooting |
+| [docs/migration.md](docs/migration.md)                           | Upgrading from 0.3.x: database, what keeps working, recommended moves                       |
+| [docs/security.md](docs/security.md)                             | Security model and review                                                                   |
+| [docs/operations-admin.md](docs/operations-admin.md)             | Overview dashboard, deliveries (retry / cancel), providers & settings, permissions, tenants |
+| [docs/admin-templates.md](docs/admin-templates.md)               | Visual designer, theme, partials, preview, versions, test-send, import map                  |
+| [docs/events.md](docs/events.md)                                 | Event registry, schemas, emitting                                                           |
+| [docs/data-sources.md](docs/data-sources.md)                     | Collections, relationships, resolvers in templates                                          |
+| [docs/triggers.md](docs/triggers.md)                             | Triggers, recipients, deliveries, code/admin precedence                                     |
+| [docs/automation.md](docs/automation.md)                         | Conditions, collection events, scheduling, guards, event inbox                              |
+| [docs/admin-triggers.md](docs/admin-triggers.md)                 | Trigger Builder, lifecycle and versions, code triggers in admin, testing                    |
+| [docs/reliability.md](docs/reliability.md)                       | Dedupe, retries, fallback, custom providers, webhooks, reconciliation                       |
+| [docs/rules-and-triggers.md](docs/rules-and-triggers.md)         | Legacy rules, `defineTrigger`, domain hooks                                                 |
+| [docs/seeding.md](docs/seeding.md)                               | Seed templates from registry                                                                |
+| [docs/jobs-and-operations.md](docs/jobs-and-operations.md)       | Queue ops, retries, debugging                                                               |
+| [docs/preferences-and-policy.md](docs/preferences-and-policy.md) | Consent + `canSend`                                                                         |
+| [docs/observability.md](docs/observability.md)                   | Fingerprints + `onDispatch`                                                                 |
+| [docs/options-reference.md](docs/options-reference.md)           | Full options table                                                                          |
+| [docs/providers.md](docs/providers.md)                           | Meta / Twilio providers                                                                     |
 
 ## Installation
+
 ```bash
 bun add @wtree/payload-notifications
 ```
@@ -51,6 +53,7 @@ bun add @wtree/payload-notifications
 After install/upgrade, regenerate the Payload **import map** so the admin components (`@wtree/payload-notifications/admin#TemplateStudioField`, `#PartialDesignerField`, `#TriggerBuilderField`, `#CodeTriggersList`) resolve.
 
 ## Quick start
+
 ```ts
 import { notificationsPlugin } from '@wtree/payload-notifications'
 
@@ -81,6 +84,7 @@ export default buildConfig({
 ```
 
 ## Configuration
+
 ### Channels
 
 Default channels: `['email', 'inapp']`. These work out of the box with Payload's built-in email adapter and the notifications collection.
@@ -102,6 +106,7 @@ notificationsPlugin({
 ```
 
 Available channels:
+
 - `email` — via Payload CMS built-in email
 - `whatsapp` — via Meta Cloud API or Twilio
 - `sms` — via Twilio
@@ -117,11 +122,13 @@ The plugin registers two Payload job tasks automatically on the **`notifications
 Task configs include `inputSchema` / `outputSchema`, per-delivery `concurrency`, and `onFail` handling that marks the delivery failed. Handlers are wired via `onInit` and work out of the box.
 
 **Retry semantics**
+
 - Retriable provider failures **throw** so Payload retries the **same** job (backoff / `waitUntil` / `hasError`).
 - Terminal outcomes (missing user, policy deny, skipped) return succeeded output with `status: 'skipped' | 'failed'` — they are not re-queued.
 - Do not force `state: 'succeeded'` in a host handler override when a send should retry.
 
 **Running the queue**
+
 - Long-lived hosts: configure `jobs.autoRun` for `queue: 'notifications'`.
 - Serverless (Vercel): skip `autoRun`; invoke `/api/payload-jobs/run?queue=notifications` on a cron with `CRON_SECRET` (or equivalent). See Payload's [jobs documentation](https://payloadcms.com/docs/jobs-queue/overview).
 
@@ -132,11 +139,13 @@ Task configs include `inputSchema` / `outputSchema`, per-delivery `concurrency`,
 Send WhatsApp messages through the [Meta Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api). This is the recommended approach for WhatsApp — it uses Meta's official API directly without a third-party intermediary.
 
 **Prerequisites:**
+
 1. A [Meta Business account](https://business.facebook.com/) with a verified WhatsApp Business Profile.
 2. A registered WhatsApp Business phone number and its Phone Number ID (found in the Meta App Dashboard under WhatsApp > API Setup).
 3. A permanent System User access token with the `whatsapp_business_messaging` permission (or a temporary token for testing).
 
 **Configuration:**
+
 ```ts
 notificationsPlugin({
   channels: ['whatsapp'],
@@ -151,12 +160,14 @@ notificationsPlugin({
 ```
 
 **Environment variables:**
-| Variable | Description |
-|---|---|
-| `META_WHATSAPP_ACCESS_TOKEN` | System User access token with `whatsapp_business_messaging` permission |
-| `META_WHATSAPP_PHONE_NUMBER_ID` | Phone Number ID from the Meta App Dashboard |
+
+| Variable                        | Description                                                            |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `META_WHATSAPP_ACCESS_TOKEN`    | System User access token with `whatsapp_business_messaging` permission |
+| `META_WHATSAPP_PHONE_NUMBER_ID` | Phone Number ID from the Meta App Dashboard                            |
 
 **Limitations:**
+
 - Only text messages are supported in this release. Template messages, media, interactive buttons, and list messages are not yet supported.
 - The Meta Cloud API has rate limits that vary by tier. See [Meta's throughput documentation](https://developers.facebook.com/docs/whatsapp/cloud-api/overview#throughput).
 - Messages to users must be initiated within 24 hours of the user's last message, or you must use a pre-approved message template (Meta policy).
@@ -167,6 +178,7 @@ notificationsPlugin({
 Send SMS messages through [Twilio's Programmable Messaging API](https://www.twilio.com/docs/messaging).
 
 **Configuration:**
+
 ```ts
 notificationsPlugin({
   channels: ['sms'],
@@ -182,17 +194,19 @@ notificationsPlugin({
 ```
 
 **Environment variables:**
-| Variable | Description |
-|---|---|
-| `TWILIO_ACCOUNT_SID` | Twilio Account SID (starts with `AC`) |
-| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
-| `TWILIO_SMS_FROM` | Sender phone number in E.164 format (e.g. `+15551234567`) |
+
+| Variable             | Description                                               |
+| -------------------- | --------------------------------------------------------- |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID (starts with `AC`)                     |
+| `TWILIO_AUTH_TOKEN`  | Twilio Auth Token                                         |
+| `TWILIO_SMS_FROM`    | Sender phone number in E.164 format (e.g. `+15551234567`) |
 
 ### Twilio WhatsApp
 
 Send WhatsApp messages through [Twilio's WhatsApp API](https://www.twilio.com/docs/whatsapp).
 
 **Configuration:**
+
 ```ts
 notificationsPlugin({
   channels: ['whatsapp'],
@@ -208,10 +222,11 @@ notificationsPlugin({
 ```
 
 **Environment variables:**
-| Variable | Description |
-|---|---|
-| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
-| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+
+| Variable               | Description                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| `TWILIO_ACCOUNT_SID`   | Twilio Account SID                                                                   |
+| `TWILIO_AUTH_TOKEN`    | Twilio Auth Token                                                                    |
 | `TWILIO_WHATSAPP_FROM` | Twilio WhatsApp sender number with `whatsapp:` prefix (e.g. `whatsapp:+15551234567`) |
 
 ### Email (built-in)
@@ -235,6 +250,7 @@ notificationsPlugin({
 In-app notifications are stored in the `notifications` collection and require no external provider.
 
 ### Template registry
+
 Templates resolve by event key and channel, and can be overridden without modifying core internals. In-app notifications persist the resolved and token-replaced `title` and `body` from the template definition.
 
 ```ts
@@ -260,6 +276,7 @@ const config = {
 Supported tokens: `{{ event }}`, `{{ userId }}`, `{{ payload.key }}` (supports dot-notation for nested values).
 
 ### Preferences, policy, and observability
+
 ```ts
 const config = {
   preferences: {
@@ -284,13 +301,14 @@ const config = {
 
 ## Provider configuration reference
 
-| Provider | Channel | Required fields |
-|---|---|---|
-| `meta` | `whatsapp` | `accessToken`, `phoneNumberId` |
+| Provider | Channel    | Required fields                   |
+| -------- | ---------- | --------------------------------- |
+| `meta`   | `whatsapp` | `accessToken`, `phoneNumberId`    |
 | `twilio` | `whatsapp` | `accountSid`, `authToken`, `from` |
-| `twilio` | `sms` | `accountSid`, `authToken`, `from` |
+| `twilio` | `sms`      | `accountSid`, `authToken`, `from` |
 
 ## Reliability helpers
+
 The package exposes helpers to support retry-safe delivery and structured observability.
 
 - `buildDeliveryFingerprint(input)` creates a deterministic deduplication key stored on `notification-logs.fingerprint`.
@@ -300,6 +318,7 @@ The package exposes helpers to support retry-safe delivery and structured observ
 - Retriable failures throw into Payload job retries (2 additional attempts, exponential backoff from 5s).
 
 ## Testing and CI
+
 ```bash
 bun test
 bun run check
@@ -308,7 +327,9 @@ bun run check
 See `docs/testing-strategy.md` for coverage expectations and CI guidance.
 
 ## Common flows
+
 Starter templates are included for:
+
 - `order.paid`
 - `order.shipped`
 - `auth.magic-link`
@@ -326,6 +347,7 @@ Starter templates are included for:
 ### Migration steps
 
 If you currently send notifications directly from hooks or services, migrate by:
+
 1. Emitting domain events into the plugin job pipeline.
 2. Moving per-channel message text into the template registry.
 3. Applying preference and policy checks centrally instead of inline.
@@ -333,6 +355,7 @@ If you currently send notifications directly from hooks or services, migrate by:
 5. Attaching an observability hook for metrics or external monitoring.
 
 ## Release checklist
+
 - Run tests and fix regressions.
 - Verify provider configuration and published exports.
 - Review README and examples.

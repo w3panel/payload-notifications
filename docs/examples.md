@@ -33,11 +33,11 @@ Test: [`tests/orderPaidWorkflow.test.ts`](../tests/orderPaidWorkflow.test.ts).
 
 Appointments for a clinic (the same pattern fits salons and classes). No code emits events here: the `appointments` collection is a `collectionEvents` source, and triggers react to its status changes.
 
-| Trigger | When | Who | What |
-|---|---|---|---|
-| `appointment-confirmed` | `status` changes to `confirmed` | patient, doctor | Email and in-app to the patient; in-app to the doctor (the `doc.doctor` relationship) |
-| `appointment-reminder` | same change, sent **24 h before `startsAt`** | patient | Email. Re-checked when due, so it is cancelled if the appointment was cancelled; skipped if booked less than 24 h ahead |
-| `appointment-cancelled` | `status` changes to `cancelled` | patient, doctor | Email to the patient, in-app to the doctor |
+| Trigger                 | When                                         | Who             | What                                                                                                                    |
+| ----------------------- | -------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `appointment-confirmed` | `status` changes to `confirmed`              | patient, doctor | Email and in-app to the patient; in-app to the doctor (the `doc.doctor` relationship)                                   |
+| `appointment-reminder`  | same change, sent **24 h before `startsAt`** | patient         | Email. Re-checked when due, so it is cancelled if the appointment was cancelled; skipped if booked less than 24 h ahead |
+| `appointment-cancelled` | `status` changes to `cancelled`              | patient, doctor | Email to the patient, in-app to the doctor                                                                              |
 
 Key parts:
 

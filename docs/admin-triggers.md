@@ -12,16 +12,16 @@ triggers, as described in [triggers.md](./triggers.md) and [automation.md](./aut
 
 Admins can only pick from what the developer registers:
 
-| Admins pick from | Registered with |
-| --- | --- |
-| Application events | `events` (label, schema, `samplePayload`) |
-| Collection changes | `collectionEvents` (collections, operations, captured fields) |
-| Collections and fields for data sources | `data.collections` |
-| Resolvers and computed values | `dataResolvers`, `computed` |
-| Recipient resolvers and named queries | `recipientResolvers`, `recipientQueries` |
-| Custom conditions | `conditions` |
-| Templates | the code registry and `notification-templates` |
-| Channels | `channels` |
+| Admins pick from                        | Registered with                                               |
+| --------------------------------------- | ------------------------------------------------------------- |
+| Application events                      | `events` (label, schema, `samplePayload`)                     |
+| Collection changes                      | `collectionEvents` (collections, operations, captured fields) |
+| Collections and fields for data sources | `data.collections`                                            |
+| Resolvers and computed values           | `dataResolvers`, `computed`                                   |
+| Recipient resolvers and named queries   | `recipientResolvers`, `recipientQueries`                      |
+| Custom conditions                       | `conditions`                                                  |
+| Templates                               | the code registry and `notification-templates`                |
+| Channels                                | `channels`                                                    |
 
 Nothing an admin enters runs as code: conditions are JSON, and resolvers are referenced by name.
 
@@ -67,13 +67,13 @@ for review or bulk edits.
 
 `draft → validated → published → disabled → archived`
 
-| Action | Effect |
-| --- | --- |
-| Validate | Stores a validation report; a clean draft becomes `validated` |
-| Publish | Validates, then saves an **immutable snapshot** as version N+1 in `notification-trigger-versions` and makes it live |
-| Disable / Enable | Stops / resumes matching (same version) |
-| Archive | Retires the trigger |
-| Roll back | Copies version N back into the trigger and publishes it as a new version |
+| Action           | Effect                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Validate         | Stores a validation report; a clean draft becomes `validated`                                                       |
+| Publish          | Validates, then saves an **immutable snapshot** as version N+1 in `notification-trigger-versions` and makes it live |
+| Disable / Enable | Stops / resumes matching (same version)                                                                             |
+| Archive          | Retires the trigger                                                                                                 |
+| Roll back        | Copies version N back into the trigger and publishes it as a new version                                            |
 
 - **What runs:** the engine only runs published snapshots. Editing a published trigger flags
   **unpublished changes**; the live version is unaffected until you publish again.

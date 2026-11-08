@@ -21,15 +21,15 @@ Constraints from this plugin and its hosts:
 
 ## Options
 
-| | Custom React block editor | GrapesJS + MJML preset | Lexical blocks |
-|---|---|---|---|
-| Licence | ours (MIT) | BSD-3 / MIT | MIT |
-| Admin bundle cost | small: plain React, no new deps | large: GrapesJS core plus `mjml-browser`, hundreds of KB | moderate core, plus a custom email layer |
-| Email-safe output | own table-based compiler, snapshot-tested | MJML output is email-safe | none: it is a rich-text editor; layout and email HTML would still be ours |
-| Server compile on Workers | yes (pure TypeScript) | MJML's server package needs Node; the browser build is large | n/a |
-| React 19 / Payload admin fit | native React components, Payload theme variables | separate non-React canvas in an iframe; styling and state bridged by hand | React bindings exist |
-| Engine integration (loops, conditions, variables) | first-class blocks that emit `{{#each}}` / `{{#if}}` / `{{ path }}` | custom components and MJML tags would have to emit engine syntax | custom nodes |
-| Extensibility | block registry in our code | GrapesJS plugin API | node registry |
+|                                                   | Custom React block editor                                           | GrapesJS + MJML preset                                                    | Lexical blocks                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Licence                                           | ours (MIT)                                                          | BSD-3 / MIT                                                               | MIT                                                                       |
+| Admin bundle cost                                 | small: plain React, no new deps                                     | large: GrapesJS core plus `mjml-browser`, hundreds of KB                  | moderate core, plus a custom email layer                                  |
+| Email-safe output                                 | own table-based compiler, snapshot-tested                           | MJML output is email-safe                                                 | none: it is a rich-text editor; layout and email HTML would still be ours |
+| Server compile on Workers                         | yes (pure TypeScript)                                               | MJML's server package needs Node; the browser build is large              | n/a                                                                       |
+| React 19 / Payload admin fit                      | native React components, Payload theme variables                    | separate non-React canvas in an iframe; styling and state bridged by hand | React bindings exist                                                      |
+| Engine integration (loops, conditions, variables) | first-class blocks that emit `{{#each}}` / `{{#if}}` / `{{ path }}` | custom components and MJML tags would have to emit engine syntax          | custom nodes                                                              |
+| Extensibility                                     | block registry in our code                                          | GrapesJS plugin API                                                       | node registry                                                             |
 
 ## Decision
 

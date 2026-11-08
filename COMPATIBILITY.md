@@ -2,12 +2,12 @@
 
 ## Payload CMS Versions
 
-| Plugin Version | Payload Version | npm dist-tag | Status |
-|----------------|-----------------|--------------|--------|
-| 0.4.x betas | `>=4.0.0-beta.7 <5` (also runs on `^3.92.0`) | `next` | Beta: Payload 4 apps (e.g. electrofit) |
-| 0.3.3+ (0.3.x, branch `release/0.3.x`) | `^3.92.0` | `latest` | Stable: Payload 3 apps (e.g. HappenCare) |
-| 0.2.0 – 0.3.2 | `>=4.0.0-beta.7 <5` | — | Superseded |
-| 0.1.x | ^3.79.0 | — | Legacy (unmaintained) |
+| Plugin Version                         | Payload Version                              | npm dist-tag | Status                                   |
+| -------------------------------------- | -------------------------------------------- | ------------ | ---------------------------------------- |
+| 0.4.x betas                            | `>=4.0.0-beta.7 <5` (also runs on `^3.92.0`) | `next`       | Beta: Payload 4 apps (e.g. electrofit)   |
+| 0.3.3+ (0.3.x, branch `release/0.3.x`) | `^3.92.0`                                    | `latest`     | Stable: Payload 3 apps (e.g. HappenCare) |
+| 0.2.0 – 0.3.2                          | `>=4.0.0-beta.7 <5`                          | —            | Superseded                               |
+| 0.1.x                                  | ^3.79.0                                      | —            | Legacy (unmaintained)                    |
 
 Two release lines:
 
@@ -18,10 +18,10 @@ The 0.4.x code also runs on Payload 3.92 (CI tests both majors), so a Payload 3 
 
 ### Payload 3 vs 4 differences handled by the plugin
 
-| Area | Payload 3 | Payload 4 |
-|------|-----------|-----------|
-| Collection `authorship` option | Not available; not set | Set to `false` on plugin collections |
-| `notification:send` job concurrency key (one job per delivery at a time) | Only when the host sets `jobs.enableConcurrencyControl: true` (Payload 3 needs that flag, plus a migration, before tasks can use `concurrency`) | Always on |
+| Area                                                                     | Payload 3                                                                                                                                       | Payload 4                            |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Collection `authorship` option                                           | Not available; not set                                                                                                                          | Set to `false` on plugin collections |
+| `notification:send` job concurrency key (one job per delivery at a time) | Only when the host sets `jobs.enableConcurrencyControl: true` (Payload 3 needs that flag, plus a migration, before tasks can use `concurrency`) | Always on                            |
 
 Without concurrency control on Payload 3, deliveries that are already final are not sent again, but two workers can race on the same delivery. Enable `jobs.enableConcurrencyControl` on hosts that run several workers.
 
@@ -39,6 +39,7 @@ Without concurrency control on Payload 3, deliveries that are already final are 
 ## Database Support
 
 Supports all databases compatible with Payload CMS:
+
 - MongoDB
 - PostgreSQL
 - SQLite

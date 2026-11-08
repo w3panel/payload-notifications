@@ -70,8 +70,8 @@ See [jobs-and-operations.md](./jobs-and-operations.md).
 
 ## Next steps
 
-- [templates.md](./templates.md) — registry vs DB templates  
-- [admin-templates.md](./admin-templates.md) — preview / test-send  
-- [rules-and-triggers.md](./rules-and-triggers.md) — wire domain actions  
-- [end-to-end.md](./end-to-end.md) — full checklist  
-- [options-reference.md](./options-reference.md) — all plugin options  
+- [templates.md](./templates.md) — registry vs DB templates
+- [admin-templates.md](./admin-templates.md) — preview / test-send
+- [rules-and-triggers.md](./rules-and-triggers.md) — wire domain actions
+- [end-to-end.md](./end-to-end.md) — full checklist
+- [options-reference.md](./options-reference.md) — all plugin options

@@ -25,20 +25,20 @@ Set **Email → Editor** to **Visual designer**, or click **Visual designer** in
 
 **Blocks**
 
-| Block | Purpose |
-|---|---|
-| Section | Groups blocks, with a background and padding |
-| Columns | 1–4 columns that stack on mobile (fluid hybrid layout, Outlook-safe) |
-| Heading, Text, List | Text with **bold**, _italic_, links and `{{ variables }}` |
-| Image | From `templates.mediaCollection` or an absolute URL; **alt text is required** |
-| Button | Bulletproof button (`bgcolor` cell, works in Outlook) |
-| Divider, Spacer | Layout |
-| Social links | Text links (no hosted icons) |
-| Footer | Theme footer text and an optional unsubscribe link |
+| Block               | Purpose                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------- |
+| Section             | Groups blocks, with a background and padding                                                         |
+| Columns             | 1–4 columns that stack on mobile (fluid hybrid layout, Outlook-safe)                                 |
+| Heading, Text, List | Text with **bold**, _italic_, links and `{{ variables }}`                                            |
+| Image               | From `templates.mediaCollection` or an absolute URL; **alt text is required**                        |
+| Button              | Bulletproof button (`bgcolor` cell, works in Outlook)                                                |
+| Divider, Spacer     | Layout                                                                                               |
+| Social links        | Text links (no hosted icons)                                                                         |
+| Footer              | Theme footer text and an optional unsubscribe link                                                   |
 | Repeat (line items) | `{{#each list}}`, with optional text for an empty list; item fields are used directly (`{{ name }}`) |
-| Show if | `{{#if path}}` … otherwise … |
-| Saved section | A partial from `notification-template-partials` |
-| Raw HTML | Sent as-is; needs `access.rawHtml` (default: nobody) |
+| Show if             | `{{#if path}}` … otherwise …                                                                         |
+| Saved section       | A partial from `notification-template-partials`                                                      |
+| Raw HTML            | Sent as-is; needs `access.rawHtml` (default: nobody)                                                 |
 
 **Editing**
 
@@ -82,12 +82,12 @@ Click **HTML code** to convert a visual email. The design, with its theme, parti
 
 Choose a channel, or **All template channels**, and the sample data:
 
-| Sample data | Source |
-|---|---|
-| Event sample | The event's registered `samplePayload` |
-| Real document | A document of a `collectionEvents` collection, read with **your** access (captured fields only) |
-| Trigger test data | The trigger's event and data sources (collection triggers also need a document ID) |
-| Custom JSON | `{ "payload": { … } }` |
+| Sample data       | Source                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| Event sample      | The event's registered `samplePayload`                                                          |
+| Real document     | A document of a `collectionEvents` collection, read with **your** access (captured fields only) |
+| Trigger test data | The trigger's event and data sources (collection triggers also need a document ID)              |
+| Custom JSON       | `{ "payload": { … } }`                                                                          |
 
 - **Email:** shows the rendered subject and preheader, desktop and mobile widths, and a dark-mode simulation.
 - **SMS:** shown in a phone with characters, encoding, segments and characters left.
@@ -96,20 +96,23 @@ Choose a channel, or **All template channels**, and the sample data:
 
 **Email checks**
 
-| Check | Level |
-|---|---|
-| Images without alt text | error |
-| Links without text | error |
-| Generic link text ("click here") | warning |
+| Check                                                    | Level   |
+| -------------------------------------------------------- | ------- |
+| Images without alt text                                  | error   |
+| Links without text                                       | error   |
+| Generic link text ("click here")                         | warning |
 | Colour contrast below WCAG AA, from the design and theme | warning |
-| HTML over 102 KB (Gmail clips the message) | warning |
+| HTML over 102 KB (Gmail clips the message)               | warning |
 
 Request shape:
 
 ```json
 {
   "channel": "email",
-  "doc": { "slug": "order.paid", "email": { "editor": "visual", "design": { "version": 1, "blocks": [] } } },
+  "doc": {
+    "slug": "order.paid",
+    "email": { "editor": "visual", "design": { "version": 1, "blocks": [] } }
+  },
   "sample": { "kind": "event" }
 }
 ```

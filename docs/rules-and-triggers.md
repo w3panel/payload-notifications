@@ -28,10 +28,10 @@ notificationsPlugin({
 
 Notes:
 
-- `enabled: false` skips the rule  
-- `condition` receives the event `payload` object  
-- Only channels also listed in plugin `channels` are queued  
-- Event `classification` (`transactional` | `marketing`) is forwarded into each send for consent checks  
+- `enabled: false` skips the rule
+- `condition` receives the event `payload` object
+- Only channels also listed in plugin `channels` are queued
+- Event `classification` (`transactional` | `marketing`) is forwarded into each send for consent checks
 
 ## `defineTrigger`
 
@@ -72,11 +72,11 @@ await emitNotificationEvent({
 
 Checklist for each domain action:
 
-1. Choose a stable **event name** (`order.shipped`, `auth.magic-link`, …)  
-2. Add / seed a **template** (registry and/or DB slug)  
-3. Add a **rule** with channels + template key  
-4. Call **`emitNotificationEvent`** (or `queueNotificationSend` for a single channel) from the action  
-5. Confirm the **jobs queue** runs and inspect `notification-logs`  
+1. Choose a stable **event name** (`order.shipped`, `auth.magic-link`, …)
+2. Add / seed a **template** (registry and/or DB slug)
+3. Add a **rule** with channels + template key
+4. Call **`emitNotificationEvent`** (or `queueNotificationSend` for a single channel) from the action
+5. Confirm the **jobs queue** runs and inspect `notification-logs`
 
 ## Direct single-channel send
 

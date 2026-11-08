@@ -38,34 +38,34 @@ Package starters (always merged unless overridden): `order.paid`, `order.shipped
 
 ## DB templates (`notification-templates`)
 
-| Field | Notes |
-|-------|--------|
-| `slug` + `locale` | Unique together. `slug` matches a delivery's `template`; leave `locale` empty for the default variant |
-| `status` | `draft`, `active` or `archived`; only `active` templates send |
-| `version` | Published version. Becoming `active` or publishing creates an immutable snapshot in `notification-template-versions` |
-| `hasUnpublishedChanges` | Set when an active template's content is edited; publish to make the edits live |
-| `channels` | Controls which channel groups show |
-| `email.subject` / `preheader` / `htmlBody` / `textBody` | HTML for email `html`; text for the MIME text part |
-| `sms.body`, `whatsapp.body` | Text bodies |
-| `whatsapp.hsmTemplateId` / `hsmLanguage` / `hsmParameters` | Pre-approved WhatsApp template, sent instead of `body` |
-| `inapp.title` / `body` / `actionUrl` / `icon` / `priority` | In-app content |
-| `variables` | Documented variables; `required` ones are checked on publish |
+| Field                                                      | Notes                                                                                                                |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `slug` + `locale`                                          | Unique together. `slug` matches a delivery's `template`; leave `locale` empty for the default variant                |
+| `status`                                                   | `draft`, `active` or `archived`; only `active` templates send                                                        |
+| `version`                                                  | Published version. Becoming `active` or publishing creates an immutable snapshot in `notification-template-versions` |
+| `hasUnpublishedChanges`                                    | Set when an active template's content is edited; publish to make the edits live                                      |
+| `channels`                                                 | Controls which channel groups show                                                                                   |
+| `email.subject` / `preheader` / `htmlBody` / `textBody`    | HTML for email `html`; text for the MIME text part                                                                   |
+| `sms.body`, `whatsapp.body`                                | Text bodies                                                                                                          |
+| `whatsapp.hsmTemplateId` / `hsmLanguage` / `hsmParameters` | Pre-approved WhatsApp template, sent instead of `body`                                                               |
+| `inapp.title` / `body` / `actionUrl` / `icon` / `priority` | In-app content                                                                                                       |
+| `variables`                                                | Documented variables; `required` ones are checked on publish                                                         |
 
 Draft templates can still be **previewed** and **test-sent** from admin using the current form
 values.
 
-> **Upgrading:** `slug` is no longer a unique index (it's unique *per locale*). SQL adapters,
+> **Upgrading:** `slug` is no longer a unique index (it's unique _per locale_). SQL adapters,
 > including D1, need a migration to drop the old unique constraint. Active templates created before
 > snapshots existed keep rendering from the document until their next publish.
 
 ### Publishing and rollback
 
-| Endpoint | Does |
-| --- | --- |
-| `POST /api/notification-templates/:id/publish` | Validates, then snapshots the current content as version N+1 and makes it active. Returns `warnings` |
-| `POST /api/notification-templates/:id/rollback` `{ version }` | Republishes an earlier version as a new version |
-| `POST /api/notification-templates/:id/whatsapp-status` | Syncs WhatsApp template approval from Meta |
-| `GET /api/notification-templates/variables?event=…&trigger=…` | Variables available to authors |
+| Endpoint                                                      | Does                                                                                                 |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `POST /api/notification-templates/:id/publish`                | Validates, then snapshots the current content as version N+1 and makes it active. Returns `warnings` |
+| `POST /api/notification-templates/:id/rollback` `{ version }` | Republishes an earlier version as a new version                                                      |
+| `POST /api/notification-templates/:id/whatsapp-status`        | Syncs WhatsApp template approval from Meta                                                           |
+| `GET /api/notification-templates/variables?event=…&trigger=…` | Variables available to authors                                                                       |
 
 Publish and rollback need `access.publishTemplates` (defaults to `access.isAdmin`).
 

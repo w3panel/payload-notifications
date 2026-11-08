@@ -104,11 +104,11 @@ These are scheduled Payload tasks. `autoRun` handles schedules for you. With a s
 
 Delivery status and STOP replies arrive through webhooks. Set `webhooks.publicUrl` (or `serverURL`) and point the providers at:
 
-| Provider | URL | Verification |
-|---|---|---|
-| Twilio SMS / WhatsApp | `/api/payload-notifications/webhooks/twilio` | `webhooks.twilio.authToken` (signature) |
-| Meta WhatsApp | `/api/payload-notifications/webhooks/meta` | `webhooks.meta.appSecret`, `verifyToken` |
-| Custom provider | `/api/payload-notifications/webhooks/provider/<channel>` | the provider's `parseWebhook` |
+| Provider              | URL                                                      | Verification                             |
+| --------------------- | -------------------------------------------------------- | ---------------------------------------- |
+| Twilio SMS / WhatsApp | `/api/payload-notifications/webhooks/twilio`             | `webhooks.twilio.authToken` (signature)  |
+| Meta WhatsApp         | `/api/payload-notifications/webhooks/meta`               | `webhooks.meta.appSecret`, `verifyToken` |
+| Custom provider       | `/api/payload-notifications/webhooks/provider/<channel>` | the provider's `parseWebhook`            |
 
 **Providers & settings** on the admin dashboard shows the exact URLs and whether signatures are configured. See [providers.md](./providers.md) and [reliability.md](./reliability.md#webhooks).
 
@@ -125,18 +125,19 @@ Delivery status and STOP replies arrive through webhooks. Set `webhooks.publicUr
 
 ## Troubleshooting: nothing is sent
 
-| Symptom | Check |
-|---|---|
-| No `notification-deliveries` rows | Is a job runner processing `notification:process-event`? Does a trigger match the event name and its conditions? With `eventsInbox`, look at the event's status and `matched`. |
-| Deliveries stay `queued` | The runner isn't processing `notification:send`, or `waitUntil` is in the future (scheduled, retry backoff or quiet hours). Check `scheduledFor` / `nextAttemptAt`. |
-| Deliveries `skipped` | `skipReason`: no destination, opted out, suppressed, missing consent, dedupe. |
-| Deliveries `failed` / `unknown` | Open the delivery: the attempts show provider errors. Retry from the inspector. |
-| Jobs fail with "concurrency controls" (Payload 3) | Set `jobs.enableConcurrencyControl: true` and migrate, or leave it off: the plugin then skips concurrency keys. |
-| Webhooks return 401 | Signature secret mismatch, or `publicUrl` differs from the URL the provider calls (Twilio signs the exact URL). |
+| Symptom                                           | Check                                                                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No `notification-deliveries` rows                 | Is a job runner processing `notification:process-event`? Does a trigger match the event name and its conditions? With `eventsInbox`, look at the event's status and `matched`. |
+| Deliveries stay `queued`                          | The runner isn't processing `notification:send`, or `waitUntil` is in the future (scheduled, retry backoff or quiet hours). Check `scheduledFor` / `nextAttemptAt`.            |
+| Deliveries `skipped`                              | `skipReason`: no destination, opted out, suppressed, missing consent, dedupe.                                                                                                  |
+| Deliveries `failed` / `unknown`                   | Open the delivery: the attempts show provider errors. Retry from the inspector.                                                                                                |
+| Jobs fail with "concurrency controls" (Payload 3) | Set `jobs.enableConcurrencyControl: true` and migrate, or leave it off: the plugin then skips concurrency keys.                                                                |
+| Webhooks return 401                               | Signature secret mismatch, or `publicUrl` differs from the URL the provider calls (Twilio signs the exact URL).                                                                |
 
 ## Coming from 0.1.x / 0.2.x
 
 Apps that patched deferred send handlers by hand, or called handlers outside the jobs queue, can remove that code:
+
 - The plugin registers its tasks, and its handlers are wired on `onInit`.
 - Use `emitNotificationEvent`, and run the queue as described above.
 

@@ -16,8 +16,8 @@ are compiled into triggers automatically, so existing configs keep working.
 import { defineTrigger, notificationsPlugin } from '@wtree/payload-notifications'
 
 const orderPaid = defineTrigger({
-  slug: 'order-paid-customer',          // stable ID: deliveries and overrides reference it
-  event: 'order.paid',                  // or source: { type: 'event', event: 'order.*' }
+  slug: 'order-paid-customer', // stable ID: deliveries and overrides reference it
+  event: 'order.paid', // or source: { type: 'event', event: 'order.*' }
   data: { sources: [/* see data-sources.md */] },
   recipients: [
     { type: 'context', path: 'customer.id', alias: 'customer' },
@@ -29,7 +29,7 @@ const orderPaid = defineTrigger({
     { channel: 'inapp', template: 'order.paid', recipient: 'customer' },
     { channel: 'email', template: 'ops.order-paid', recipient: 'ops' },
   ],
-  classification: 'transactional',     // optional; defaults to the event's classification
+  classification: 'transactional', // optional; defaults to the event's classification
   admin: { policy: 'managed', overridable: ['enabled', 'deliveries'] },
 })
 
@@ -53,19 +53,19 @@ notificationsPlugin({ triggers: [orderPaid] })
 
 ## Recipients
 
-| Type | Resolves to |
-| --- | --- |
-| `eventUser` (default) | `event.userId` |
+| Type                       | Resolves to                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `eventUser` (default)      | `event.userId`                                                                                                     |
 | `context` / `relationship` | A user ID, user document, polymorphic value or list of them at `path` (e.g. `customer.id`, `order.accountManager`) |
-| `static` | A fixed `email` and/or `phone` (e.g. an ops mailbox) |
-| `role` | Users whose `recipients.roleField` (default `roles`) contains `role` |
-| `resolver` | A registered `recipientResolvers` entry returning user IDs, user docs or `{ email, phone, name }` |
-| `query` | A registered `recipientQueries` entry (`where` object or function of the context) |
+| `static`                   | A fixed `email` and/or `phone` (e.g. an ops mailbox)                                                               |
+| `role`                     | Users whose `recipients.roleField` (default `roles`) contains `role`                                               |
+| `resolver`                 | A registered `recipientResolvers` entry returning user IDs, user docs or `{ email, phone, name }`                  |
+| `query`                    | A registered `recipientQueries` entry (`where` object or function of the context)                                  |
 
 ```ts
 notificationsPlugin({
   recipients: {
-    defaultCountryCode: '+91',          // for phone numbers stored without a country code
+    defaultCountryCode: '+91', // for phone numbers stored without a country code
     destinationFields: { sms: ['mobile', 'phone'] },
     roleField: 'roles',
     maxPerEvent: 100,
@@ -74,7 +74,10 @@ notificationsPlugin({
     accountManager: async ({ payload, context }) => [String((context.order as any).accountManager)],
   },
   recipientQueries: {
-    storeAdmins: { where: (context) => ({ store: { equals: (context.order as any).store } }), maxResults: 20 },
+    storeAdmins: {
+      where: (context) => ({ store: { equals: (context.order as any).store } }),
+      maxResults: 20,
+    },
   },
 })
 ```
@@ -134,11 +137,11 @@ delivery record, with deduplication through `notification-logs` fingerprints.
 Code defines what is possible, and admins configure workflows within those limits. Each code
 trigger declares `admin.policy`:
 
-| Policy | Admin-created triggers |
-| --- | --- |
-| `independent` (default) | Admin triggers on the same event run **in addition**; an admin record may not reuse the code slug |
-| `managed` | One admin record with `overrides: '<code slug>'` replaces only the `overridable` fields (`enabled`, `recipients`, `deliveries`, `data`) |
-| `enforced` | Read-only in admin; cannot be disabled or overridden |
+| Policy                  | Admin-created triggers                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `independent` (default) | Admin triggers on the same event run **in addition**; an admin record may not reuse the code slug                                       |
+| `managed`               | One admin record with `overrides: '<code slug>'` replaces only the `overridable` fields (`enabled`, `recipients`, `deliveries`, `data`) |
+| `enforced`              | Read-only in admin; cannot be disabled or overridden                                                                                    |
 
 Records that break these rules are rejected and logged; they are never merged silently. Deliveries
 record which trigger version and policy produced them (`triggerOrigin`, `triggerVersion`,
