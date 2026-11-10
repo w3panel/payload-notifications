@@ -21,6 +21,7 @@ import { resolveRetryPolicy } from './retry'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
+import { sendDelivery } from './send'
 
 export type PlannedDelivery = {
   deliveryId?: string
@@ -29,6 +30,22 @@ export type PlannedDelivery = {
   recipientKey: string
   status: 'queued' | 'skipped' | 'existing' | 'duplicate'
   reason?: string
+}
+
+/** A delivery ready to send now; sent inline or queued once planning finishes. */
+type PendingSend = {
+  deliveryId: string
+  input: {
+    deliveryId: string
+    userId: string
+    channel: NotificationChannel
+    template: string
+    event: string
+    eventId?: string
+    classification: NotificationEvent['classification']
+    idempotencyKey?: string
+  }
+  waitUntil?: Date
 }
 
 export type DeliveryPlanResult = {
@@ -175,6 +192,7 @@ export const planDeliveries = async ({
     deliveries: [],
   }
   const isSensitive = createSensitiveFieldMatcher(options.data.sensitiveFields)
+  const pending: PendingSend[] = []
 
   for (const entry of matched) {
     await emitLifecycle(payload, options, {
@@ -185,10 +203,62 @@ export const planDeliveries = async ({
       triggerSource: entry.origin,
       triggerVersion: entry.version,
     })
-    await planTrigger({ payload, event, entry, options, isSensitive, result, req })
+    await planTrigger({ payload, event, entry, options, isSensitive, result, req, pending })
   }
 
+  await flushPendingSends({ payload, options, pending, adminTriggers })
   return result
+}
+
+const queueSend = (
+  payload: Payload,
+  options: NormalizedNotificationsPluginOptions,
+  send: PendingSend,
+) =>
+  payload.jobs.queue({
+    overrideAccess: true,
+    task: NOTIFICATION_SEND_TASK,
+    queue: options.jobs.queue,
+    input: send.input,
+    ...(send.waitUntil ? { waitUntil: send.waitUntil } : {}),
+  })
+
+/**
+ * Sends small plans inline (see `jobs.inlineSendLimit`), otherwise queues one
+ * send job per delivery. Scheduled deliveries are always queued.
+ */
+const flushPendingSends = async ({
+  payload,
+  options,
+  pending,
+  adminTriggers,
+}: {
+  payload: Payload
+  options: NormalizedNotificationsPluginOptions
+  pending: PendingSend[]
+  adminTriggers: AdminTriggerRecord[]
+}) => {
+  const immediate = pending.filter((send) => !send.waitUntil)
+  const inline = immediate.length > 0 && immediate.length <= options.jobs.inlineSendLimit
+  for (const send of pending) {
+    if (!inline || send.waitUntil) {
+      await queueSend(payload, options, send)
+      continue
+    }
+    try {
+      await sendDelivery({ payload, input: send.input, options, adminTriggers })
+    } catch (error) {
+      // An unexpected error (not a provider failure, which sendDelivery records itself):
+      // hand the delivery to a send job. That job never re-sends a delivery left in
+      // `sending`, so this cannot double-send.
+      payload.logger?.warn?.(
+        `payload-notifications: inline send of delivery ${send.deliveryId} failed, queued instead: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
+      await queueSend(payload, options, send)
+    }
+  }
 }
 
 const planTrigger = async ({
@@ -199,6 +269,7 @@ const planTrigger = async ({
   isSensitive,
   result,
   req,
+  pending,
 }: {
   payload: Payload
   event: NotificationEvent
@@ -207,6 +278,7 @@ const planTrigger = async ({
   isSensitive: ReturnType<typeof createSensitiveFieldMatcher>
   result: DeliveryPlanResult
   req?: PayloadRequest
+  pending: PendingSend[]
 }) => {
   const { trigger } = entry
   const snapshot = snapshotTrigger(entry)
@@ -410,10 +482,8 @@ const planTrigger = async ({
       continue
     }
 
-    await payload.jobs.queue({
-      overrideAccess: true,
-      task: NOTIFICATION_SEND_TASK,
-      queue: options.jobs.queue,
+    pending.push({
+      deliveryId,
       input: {
         deliveryId,
         userId: recipient.recipientId ?? '',

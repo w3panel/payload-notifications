@@ -12,6 +12,7 @@ import type { NotificationLifecycleHook, NotificationObservabilityHook } from '.
 import type {
   CollectionEventConfig,
   NormalizedCollectionEventConfig,
+  NotificationClassification,
   NotificationEventRegistry,
 } from './events'
 import type {
@@ -43,6 +44,12 @@ import type {
 export type NotificationsJobsOptions = {
   /** Named Payload jobs queue. Defaults to `notifications`. */
   queue?: string
+  /**
+   * When an event plans at most this many immediate deliveries, send them inside the
+   * planning job instead of queuing one send job each. Halves job rows and runner
+   * passes for typical 1-3 recipient events. Retries still use queued jobs. Default 0 (off).
+   */
+  inlineSendLimit?: number
 }
 
 /** Access check used for admin trigger management, publishing and test sends. */
@@ -98,6 +105,12 @@ export type NotificationsPluginOptions = {
     seedOnInit?: boolean
     /** Locale used when a recipient has none (e.g. `en`). Templates without a locale are the last fallback. */
     defaultLocale?: string
+    /**
+     * Cache active template lookups per Payload instance for this many ms (0 = off,
+     * the default). Edits reach other server instances after at most this long.
+     * Published snapshots are immutable and always cached.
+     */
+    cacheTtlMs?: number
     /** Code registry variants per locale, e.g. `{ hi: { 'order.paid': { sms: '…' } } }`. */
     /**
      * Email layout: wraps every HTML email. A template string with
@@ -144,6 +157,12 @@ export type NotificationsPluginOptions = {
      * apply). `transactional` covers every non-marketing delivery. Default ['transactional'].
      */
     mandatoryCategories?: string[]
+    /**
+     * Also apply `mandatoryCategories` in `userFields` mode, so a channel opt-out on
+     * the user does not block order, delivery or refund updates. Default false
+     * (0.3.x behaviour: user-field opt-outs block every send).
+     */
+    mandatoryInUserFields?: boolean
     /** Collection mode: marketing needs an explicit opt-in record. Default false. */
     marketingRequiresOptIn?: boolean
     /** Signed one-click unsubscribe links (collection mode). */
@@ -171,6 +190,12 @@ export type NotificationsPluginOptions = {
   events?: NotificationEventRegistry
   /** Reject emits for events not present in `events`. Default false. */
   eventsStrict?: boolean
+  /**
+   * Reject application events without an `idempotencyKey` for these classifications
+   * (`true` = all). Use for transactional mail so a repeated business action can never
+   * send twice. When set, `eventId` is derived from the key. Default false.
+   */
+  requireIdempotencyKey?: boolean | NotificationClassification[]
   /** Collections/fields data sources may read, and paths to redact. */
   data?: NotificationsDataOptions
   /** Developer-registered data resolvers that data sources can call by name. */
@@ -314,6 +339,7 @@ export type NormalizedNotificationsPluginOptions = {
   }
   jobs: {
     queue: string
+    inlineSendLimit: number
   }
   templates: {
     email?: string
@@ -322,6 +348,7 @@ export type NormalizedNotificationsPluginOptions = {
     registry: NotificationTemplateRegistry
     seedOnInit: boolean
     defaultLocale?: string
+    cacheTtlMs: number
     emailLayout?:
       | string
       | ((args: { html: string; subject?: string; preheader?: string }) => string)
@@ -344,6 +371,7 @@ export type NormalizedNotificationsPluginOptions = {
     }
     mode: 'userFields' | 'collection'
     mandatoryCategories: string[]
+    mandatoryInUserFields: boolean
     marketingRequiresOptIn: boolean
     unsubscribe?: { secret: string; baseUrl?: string }
   }
@@ -360,6 +388,7 @@ export type NormalizedNotificationsPluginOptions = {
   rules: NotificationRule[]
   events: NotificationEventRegistry
   eventsStrict: boolean
+  requireIdempotencyKey: NotificationClassification[]
   data: {
     collections: DataCollectionAllowlist
     redact: string[]

@@ -36,9 +36,15 @@ export const callProvider = async (
     ])
     return { ok: true, result, durationMs: now() - started }
   } catch (error) {
+    const kind = classifySendFailure(error)
     return {
       ok: false,
-      kind: classifySendFailure(error),
+      // An idempotent provider drops a repeat of the same key, so an ambiguous
+      // outcome can be retried without risking a second message.
+      kind:
+        kind === 'unknown' && provider.capabilities.idempotent && input.idempotencyKey
+          ? 'retryable'
+          : kind,
       message: error instanceof Error ? error.message : String(error),
       durationMs: now() - started,
       error,

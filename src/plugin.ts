@@ -199,7 +199,11 @@ const buildProcessEventTask = (runtime: RuntimeRef): TaskConfig<any> => ({
   label: 'Process notification event',
   interfaceName: 'NotificationProcessEventTask',
   inputSchema: processEventInputSchema,
-  retries: 0,
+  // Planning is idempotent per delivery key, so a rerun only creates what is missing.
+  retries: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+  },
   handler: createLiveTaskHandler(NOTIFICATION_PROCESS_EVENT_TASK, runtime),
 })
 

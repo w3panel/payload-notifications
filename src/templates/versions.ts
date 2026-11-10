@@ -61,7 +61,33 @@ export type TemplateSnapshot = {
 }
 
 /** The published snapshot of a template version, if one exists. */
+/** Snapshots never change once written, so they are cached per Payload instance. */
+const snapshotCache = new WeakMap<object, Map<string, TemplateSnapshot>>()
+const SNAPSHOT_CACHE_MAX = 200
+
 export const loadTemplateSnapshot = async (
+  payload: Payload,
+  options: NormalizedNotificationsPluginOptions,
+  templateId: string | number,
+  version: number,
+): Promise<TemplateSnapshot | undefined> => {
+  let cache = snapshotCache.get(payload)
+  if (!cache) {
+    cache = new Map()
+    snapshotCache.set(payload, cache)
+  }
+  const key = `${templateId}|${version}`
+  const cached = cache.get(key)
+  if (cached) return cached
+  const snapshot = await findTemplateSnapshot(payload, options, templateId, version)
+  if (snapshot) {
+    if (cache.size >= SNAPSHOT_CACHE_MAX) cache.delete(cache.keys().next().value as string)
+    cache.set(key, snapshot)
+  }
+  return snapshot
+}
+
+const findTemplateSnapshot = async (
   payload: Payload,
   options: NormalizedNotificationsPluginOptions,
   templateId: string | number,

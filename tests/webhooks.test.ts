@@ -263,6 +263,7 @@ describe('maintenance tasks', () => {
     })
     expect(await reconcileDeliveries(memory.payload, withStatus, now)).toEqual({
       staleMarkedUnknown: 1,
+      requeued: 0,
       reconciled: 1,
     })
     expect(memory.docs('notification-deliveries').map((d) => d.status)).toEqual([
@@ -270,6 +271,44 @@ describe('maintenance tasks', () => {
       'sending',
       'delivered',
     ])
+  })
+
+  it('re-queues queued deliveries whose send job never ran', async () => {
+    const options = normalizePluginOptions({ reliability: { staleSendingMinutes: 10 } })
+    const now = new Date('2026-10-29T12:00:00.000Z')
+    const memory = createMemoryPayload({
+      'notification-deliveries': [
+        {
+          id: 'orphan',
+          channel: 'email',
+          status: 'queued',
+          recipientId: 'u1',
+          templateSlug: 'order-confirmed',
+          event: 'order.confirmed',
+          eventId: 'evt_1',
+          updatedAt: '2026-10-29T11:00:00.000Z',
+        },
+        { id: 'recent', channel: 'email', status: 'queued', updatedAt: '2026-10-29T11:58:00.000Z' },
+        {
+          id: 'scheduled',
+          channel: 'email',
+          status: 'queued',
+          updatedAt: '2026-10-29T11:00:00.000Z',
+          scheduledFor: '2026-10-30T09:00:00.000Z',
+        },
+      ],
+    })
+    const result = await reconcileDeliveries(memory.payload, options, now)
+    expect(result.requeued).toBe(1)
+    expect(memory.queue).toHaveBeenCalledTimes(1)
+    const call = memory.queue.mock.calls[0][0] as { task: string; input: Record<string, unknown> }
+    expect(call.task).toBe('notification:send')
+    expect(call.input).toMatchObject({
+      deliveryId: 'orphan',
+      userId: 'u1',
+      template: 'order-confirmed',
+      event: 'order.confirmed',
+    })
   })
 
   it('prunes old records per retention settings', async () => {

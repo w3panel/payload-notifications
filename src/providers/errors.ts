@@ -50,6 +50,15 @@ export class ProviderTimeoutError extends ProviderError {
   }
 }
 
+const httpStatusOf = (error: unknown): number | undefined => {
+  if (!error || typeof error !== 'object') return undefined
+  const value =
+    (error as { status?: unknown }).status ?? (error as { statusCode?: unknown }).statusCode
+  return typeof value === 'number' && Number.isInteger(value) && value >= 400 && value <= 599
+    ? value
+    : undefined
+}
+
 const UNKNOWN = /timed? ?out|timeout|etimedout|socket hang up|econnreset|aborted|epipe/i
 const RETRYABLE =
   /rate.?limit|too many requests|\b429\b|\b502\b|\b503\b|unavailable|temporar|econnrefused|enotfound|eai_again/i
@@ -57,6 +66,10 @@ const RETRYABLE =
 /** Classifies a send error. Ambiguous failures are `unknown`, never `retryable`. */
 export const classifySendFailure = (error: unknown): SendFailureKind => {
   if (error instanceof ProviderError) return error.kind
+  // Adapter errors that carry an HTTP status (e.g. Payload's APIError from the Resend
+  // adapter) are classified by status rather than by message text.
+  const status = httpStatusOf(error)
+  if (status !== undefined) return kindForStatus(status)
   const message = error instanceof Error ? `${error.name} ${error.message}` : String(error)
   if (UNKNOWN.test(message)) return 'unknown'
   if (RETRYABLE.test(message)) return 'retryable'

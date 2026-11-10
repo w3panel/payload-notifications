@@ -37,6 +37,20 @@ export const recordInboxEvent = async ({
   event: NotificationEvent
   req?: PayloadRequest
 }): Promise<boolean> => {
+  // Inside a transaction a unique violation aborts the caller's whole transaction on
+  // Postgres, so check first; the unique index still guards concurrent emits.
+  if (req?.transactionID && event.eventId) {
+    const existing = await payload.find({
+      collection: options.collections.events as never,
+      where: { eventId: { equals: event.eventId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      pagination: false,
+      req,
+    })
+    if (existing.docs?.length) return false
+  }
   try {
     await payload.create({
       collection: options.collections.events as never,

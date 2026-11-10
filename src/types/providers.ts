@@ -63,6 +63,11 @@ export type ProviderCapabilities = {
   media: boolean
   /** Hard body length limit, if any. */
   maxLength?: number
+  /**
+   * The provider deduplicates by `idempotencyKey` (e.g. Resend's Idempotency-Key),
+   * so an ambiguous failure (timeout, dropped connection, 5xx) is safe to retry.
+   */
+  idempotent?: boolean
 }
 
 export type ProviderSendInput = {

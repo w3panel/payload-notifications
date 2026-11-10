@@ -81,7 +81,7 @@ export const evaluateDeliveryPolicy = async ({
   }
 
   if (options.preferences.mode === 'userFields') {
-    return evaluateNotificationPolicy({ user, input, options })
+    return evaluateNotificationPolicy({ user, input, options, category })
   }
 
   if (input.userId && !isMandatory(options, category, input.classification)) {

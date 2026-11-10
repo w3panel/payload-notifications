@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, Where } from 'payload'
 import type { AdminTriggerRecord, NormalizedNotificationsPluginOptions } from '../types'
 import { toAdminTriggerRecord, type TriggerDefinitionFields } from './record'
 
@@ -27,17 +27,28 @@ export const loadPublishedAdminTriggers = async (
     depth: 0,
     overrideAccess: true,
     pagination: false,
+    select: { slug: true, name: true, version: true } as never,
   })
   const triggers = published.docs as unknown as TriggerDoc[]
   if (!triggers.length) return []
 
+  // Only the current published version of each trigger, never the full history.
+  const current = triggers.filter((trigger) => typeof trigger.version === 'number')
+  if (!current.length) return []
   const versions = await payload.find({
     collection: options.collections.triggerVersions as never,
-    where: { trigger: { in: triggers.map((trigger) => trigger.id) } },
-    limit: 10_000,
+    where: {
+      or: current.map(
+        (trigger): Where => ({
+          and: [{ trigger: { equals: trigger.id } }, { version: { equals: trigger.version } }],
+        }),
+      ),
+    },
+    limit: current.length,
     depth: 0,
     overrideAccess: true,
     pagination: false,
+    select: { trigger: true, version: true, definition: true } as never,
   })
   const snapshots = new Map(
     (versions.docs as unknown as VersionDoc[]).map((doc) => [

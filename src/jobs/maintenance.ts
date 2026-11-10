@@ -2,6 +2,7 @@ import type { Payload, TaskConfig, Where } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
 import { resolveProvider } from '../providers/builtin'
 import { applyStatusUpdate } from '../webhooks/apply'
+import { NOTIFICATION_SEND_TASK } from './constants'
 
 export const NOTIFICATION_RECONCILE_TASK = 'notification:reconcile'
 export const NOTIFICATION_RETENTION_TASK = 'notification:retention'
@@ -11,7 +12,7 @@ const daysAgo = (days: number, now: Date) =>
 
 /**
  * Reconciliation: `sending` deliveries older than `reliability.staleSendingMinutes`
- * become `unknown`; `unknown` deliveries with a provider message ID are looked
+ * become `unknown`; `queued` ones that old get a new send job; `unknown` deliveries with a provider message ID are looked
  * up with the provider's `getStatus` when it has one.
  */
 export const reconcileDeliveries = async (
@@ -29,6 +30,59 @@ export const reconcileDeliveries = async (
     data: { status: 'unknown', lastError: 'Send did not finish; outcome unknown' } as never,
     overrideAccess: true,
   })
+
+  // `queued` deliveries whose send job never got created (planner crashed between the
+  // delivery insert and the job insert) would wait forever. Re-queue them; the send
+  // step skips final statuses, so a late duplicate job is harmless.
+  const orphaned = await payload.find({
+    collection,
+    where: {
+      and: [
+        { status: { equals: 'queued' } },
+        { updatedAt: { less_than: cutoff } },
+        {
+          or: [{ scheduledFor: { exists: false } }, { scheduledFor: { less_than: cutoff } }],
+        },
+      ],
+    },
+    limit: 100,
+    depth: 0,
+    overrideAccess: true,
+    pagination: false,
+    select: {
+      recipientId: true,
+      channel: true,
+      templateSlug: true,
+      event: true,
+      eventId: true,
+      classification: true,
+    } as never,
+  })
+  let requeued = 0
+  for (const doc of orphaned.docs as unknown as Array<Record<string, unknown>>) {
+    const deliveryId = String(doc.id)
+    await payload.update({
+      collection,
+      id: doc.id as string,
+      data: { status: 'queued' } as never,
+      overrideAccess: true,
+    })
+    await payload.jobs.queue({
+      overrideAccess: true,
+      task: NOTIFICATION_SEND_TASK,
+      queue: options.jobs.queue,
+      input: {
+        deliveryId,
+        userId: typeof doc.recipientId === 'string' ? doc.recipientId : '',
+        channel: doc.channel,
+        template: doc.templateSlug,
+        event: doc.event,
+        eventId: doc.eventId,
+        classification: doc.classification,
+      } as never,
+    })
+    requeued++
+  }
 
   const unknown = await payload.find({
     collection,
@@ -53,7 +107,11 @@ export const reconcileDeliveries = async (
       reconciled++
     }
   }
-  return { staleMarkedUnknown: (stale as { docs?: unknown[] }).docs?.length ?? 0, reconciled }
+  return {
+    staleMarkedUnknown: (stale as { docs?: unknown[] }).docs?.length ?? 0,
+    requeued,
+    reconciled,
+  }
 }
 
 /** Retention: deletes old attempt logs, final deliveries and processed inbox events. */

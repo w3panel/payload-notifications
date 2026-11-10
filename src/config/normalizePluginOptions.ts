@@ -97,6 +97,7 @@ const normalizePreferenceMode = (preferences: NotificationsPluginOptions['prefer
   return {
     mode,
     mandatoryCategories: preferences?.mandatoryCategories ?? ['transactional'],
+    mandatoryInUserFields: preferences?.mandatoryInUserFields === true,
     marketingRequiresOptIn: preferences?.marketingRequiresOptIn === true,
     ...(unsubscribe
       ? { unsubscribe: { secret: unsubscribe.secret, baseUrl: unsubscribe.baseUrl } }
@@ -199,6 +200,16 @@ const normalizeAdminTriggers = (
     )
   }
   return { cancelQueuedOnDisable: adminTriggers?.cancelQueuedOnDisable === true, cacheTtlMs }
+}
+
+const normalizeInlineSendLimit = (value: unknown): number => {
+  if (value === undefined) return 0
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 25) {
+    throw new Error(
+      'payload-notifications: jobs.inlineSendLimit must be an integer between 0 and 25',
+    )
+  }
+  return value
 }
 
 const normalizeMaxEventDepth = (value: number | undefined): number => {
@@ -431,6 +442,10 @@ export const normalizePluginOptions = (
     sms: options.templates?.sms,
     seedOnInit: options.templates?.seedOnInit === true,
     defaultLocale: options.templates?.defaultLocale || undefined,
+    cacheTtlMs:
+      typeof options.templates?.cacheTtlMs === 'number' && options.templates.cacheTtlMs > 0
+        ? Math.floor(options.templates.cacheTtlMs)
+        : 0,
     emailLayout: options.templates?.emailLayout,
     shortenLink: options.templates?.shortenLink,
     mediaCollection: options.templates?.mediaCollection,
@@ -480,6 +495,7 @@ export const normalizePluginOptions = (
     },
     jobs: {
       queue: options.jobs?.queue?.trim() || NOTIFICATIONS_JOB_QUEUE,
+      inlineSendLimit: normalizeInlineSendLimit(options.jobs?.inlineSendLimit),
     },
     templates,
     providers: {
@@ -512,6 +528,12 @@ export const normalizePluginOptions = (
         : options.events,
     ),
     eventsStrict: options.eventsStrict === true,
+    requireIdempotencyKey:
+      options.requireIdempotencyKey === true
+        ? ['transactional', 'marketing']
+        : Array.isArray(options.requireIdempotencyKey)
+          ? [...options.requireIdempotencyKey]
+          : [],
     data,
     dataResolvers,
     computed,

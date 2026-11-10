@@ -168,6 +168,12 @@ export const NotificationDeliveriesCollection = ({
     ...overrides?.admin,
   },
   ...(endpoints?.length ? { endpoints } : {}),
+  // Compound indexes for the hot queries: dedupe lookups at planning time, and
+  // the reconcile / failed-list scans by status and age.
+  indexes: [
+    { fields: ['dedupeKey', 'recipientKey', 'channel'] },
+    { fields: ['status', 'updatedAt'] },
+  ],
   fields:
     overrides?.fields ||
     ([

@@ -189,8 +189,19 @@ export {
   sendNotification,
 } from './jobs/sendNotification'
 export { writeNotificationLog } from './jobs/writeLog'
+export {
+  fixSqliteTableRebuilds,
+  type SqliteRebuildFix,
+  type SqliteSnapshot,
+} from './migrations/fixSqliteRebuild'
+export { drainNotificationQueue, type DrainNotificationQueueResult } from './jobs/drain'
 export { evaluateNotificationPolicy } from './policy/evaluatePolicy'
 export { createSMSProvider } from './providers/sms'
+export {
+  createResendEmailProvider,
+  resendIdempotencyKey,
+  type ResendEmailProviderOptions,
+} from './providers/resend'
 export { createWhatsAppProvider } from './providers/whatsapp'
 export { createMetaWhatsAppProvider } from './providers/meta-whatsapp'
 export { createTwilioWhatsAppProvider } from './providers/twilio-whatsapp'

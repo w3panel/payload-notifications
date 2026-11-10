@@ -45,12 +45,20 @@ export const generateEventId = (): string => {
 }
 
 /**
+ * Deterministic eventId for a business idempotency key, so the inbox and
+ * deliveries both dedupe a repeated emit of the same action.
+ */
+export const eventIdFromKey = (idempotencyKey: string | undefined): string | undefined =>
+  idempotencyKey ? `evt_k_${idempotencyKey}` : undefined
+
+/**
  * Applies registry rules to an already shape-checked event: strict-mode lookup,
  * default classification, payload validation, `eventId` and `occurredAt`.
  */
 export const prepareNotificationEvent = async (
   event: NotificationEvent,
-  options?: Pick<NormalizedNotificationsPluginOptions, 'events' | 'eventsStrict'>,
+  options?: Pick<NormalizedNotificationsPluginOptions, 'events' | 'eventsStrict'> &
+    Partial<Pick<NormalizedNotificationsPluginOptions, 'requireIdempotencyKey'>>,
 ): Promise<NotificationEvent> => {
   // Collection events are defined by collectionEvents, not the application event registry.
   const definition = event.source ? undefined : options?.events[event.name]
@@ -65,11 +73,23 @@ export const prepareNotificationEvent = async (
     ? await validateEventPayload(event.name, definition, event.payload ?? {})
     : event.payload
 
+  const classification = event.classification ?? definition?.classification
+  if (
+    !event.source &&
+    !event.idempotencyKey &&
+    options?.requireIdempotencyKey?.length &&
+    options.requireIdempotencyKey.includes(classification ?? 'transactional')
+  ) {
+    throw new Error(
+      `payload-notifications: event "${event.name}" needs an idempotencyKey (requireIdempotencyKey is enabled for ${classification ?? 'transactional'} events)`,
+    )
+  }
+
   return {
     ...event,
-    eventId: event.eventId || generateEventId(),
+    eventId: event.eventId || eventIdFromKey(event.idempotencyKey) || generateEventId(),
     occurredAt: event.occurredAt || new Date().toISOString(),
-    classification: event.classification ?? definition?.classification,
+    classification,
     payload,
   }
 }

@@ -26,6 +26,50 @@ type TemplateDoc = Record<string, unknown> & {
   version?: number
 }
 
+const templateCache = new WeakMap<object, Map<string, { at: number; docs: TemplateDoc[] }>>()
+
+/** Clears cached template lookups for one Payload instance (e.g. after an edit). */
+export const clearTemplateCache = (payload: object) => {
+  templateCache.delete(payload)
+}
+
+/** Active docs for a slug, newest version first; null when the lookup fails. */
+const findActiveTemplates = async (
+  payload: Payload,
+  options: NormalizedNotificationsPluginOptions,
+  templateKey: string,
+): Promise<TemplateDoc[] | null> => {
+  const ttl = options.templates.cacheTtlMs
+  const now = Date.now()
+  let cache = ttl ? templateCache.get(payload) : undefined
+  if (ttl && !cache) {
+    cache = new Map()
+    templateCache.set(payload, cache)
+  }
+  const hit = cache?.get(templateKey)
+  if (hit && now - hit.at < ttl) return hit.docs
+
+  try {
+    const result = await payload.find({
+      overrideAccess: true,
+      collection: options.collections.templates,
+      where: {
+        and: [{ slug: { equals: templateKey } }, { status: { equals: 'active' } }],
+      },
+      sort: '-version',
+      limit: 50,
+      depth: 0,
+      pagination: false,
+    })
+    const docs = (result.docs ?? []) as unknown as TemplateDoc[]
+    cache?.set(templateKey, { at: now, docs })
+    return docs
+  } catch {
+    // DB lookup failed (collection may not exist yet); fall back to code registry
+    return null
+  }
+}
+
 /**
  * Resolves from the notification-templates collection: active documents for
  * the slug, tried in locale order (`hi-IN` → `hi` → default → no locale); a
@@ -50,22 +94,8 @@ const resolveFromDatabase = async ({
 }): Promise<NotificationTemplateResolution | null> => {
   if (!payload || typeof payload.find !== 'function') return null
 
-  let docs: TemplateDoc[]
-  try {
-    const result = await payload.find({
-      overrideAccess: true,
-      collection: options.collections.templates,
-      where: {
-        and: [{ slug: { equals: templateKey } }, { status: { equals: 'active' } }],
-      },
-      sort: '-version',
-      limit: 50,
-    })
-    docs = (result.docs ?? []) as unknown as TemplateDoc[]
-  } catch {
-    // DB lookup failed (collection may not exist yet); fall back to code registry
-    return null
-  }
+  const docs = await findActiveTemplates(payload, options, templateKey)
+  if (!docs) return null
 
   // A pinned version belongs to one locale variant: look only there.
   const candidates =

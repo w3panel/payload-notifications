@@ -16,6 +16,7 @@ import { EVENT_NAME_PATTERN } from '../events/names'
 import { templateLifecycleEndpoints } from '../templates/lifecycle'
 import { templateVariablesEndpoint, validateTemplateDoc } from '../templates/validate'
 import { whatsappStatusEndpoint } from '../templates/whatsappStatus'
+import { clearTemplateCache } from '../templates/resolve'
 import { contentOf, normalizeLocale, sameContent, snapshotTemplate } from '../templates/versions'
 import { versionedCollectionDefaults } from '../compat'
 import { parseDesign } from '../studio/model'
@@ -483,7 +484,13 @@ export const NotificationTemplatesCollection = ({
       beforeValidate: [uniqueSlugPerLocale(slug)],
       // Design edits are content edits for version tracking (email.design is in `email`).
       beforeChange: [trackTemplateVersions, compileVisualEmail(getOptions, loadDesignResources)],
-      afterChange: [snapshotOnActivate(getOptions)],
+      afterChange: [
+        snapshotOnActivate(getOptions),
+        ({ req }) => {
+          // This instance sees edits at once; others within templates.cacheTtlMs.
+          clearTemplateCache(req.payload)
+        },
+      ],
     },
     endpoints,
     fields: overrides?.fields || baseFields(slug, studioSlugs(getOptions)),

@@ -42,16 +42,38 @@ const hasMarketingConsent = ({
   return mapped !== false
 }
 
+/**
+ * With `preferences.mandatoryInUserFields`, channel opt-outs never block mandatory mail (order, delivery, refund updates):
+ * explicitly transactional sends while `transactional` is mandatory, or any send
+ * whose category is listed in `preferences.mandatoryCategories`.
+ */
+const isMandatorySend = (
+  options: NormalizedNotificationsPluginOptions,
+  input: NotificationSendInput,
+  category?: string,
+) => {
+  if (!options.preferences.mandatoryInUserFields) return false
+  const mandatory = options.preferences.mandatoryCategories
+  if (category && mandatory.includes(category)) return true
+  return input.classification === 'transactional' && mandatory.includes('transactional')
+}
+
 export const evaluateNotificationPolicy = async ({
   user,
   input,
   options,
+  category,
 }: {
   user: Record<string, unknown>
   input: NotificationSendInput
   options: NormalizedNotificationsPluginOptions
+  /** Delivery category (trigger category, else classification). */
+  category?: string
 }): Promise<NotificationPolicyDecision> => {
-  if (!isChannelEnabledForUser({ user, channel: input.channel, options })) {
+  if (
+    !isMandatorySend(options, input, category) &&
+    !isChannelEnabledForUser({ user, channel: input.channel, options })
+  ) {
     return {
       allow: false,
       reason: `User opted out of ${input.channel} notifications`,

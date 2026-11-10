@@ -106,7 +106,10 @@ describe('payload-notifications', () => {
     expect(config.jobs?.enableConcurrencyControl).toBe(true)
 
     const processTask = tasks.find((task) => task.slug === 'notification:process-event')
-    expect(processTask?.retries).toBe(0)
+    expect(processTask?.retries).toEqual({
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+    })
     expect(processTask?.inputSchema?.length).toBeGreaterThan(0)
   })
 

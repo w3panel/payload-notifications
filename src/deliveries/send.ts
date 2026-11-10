@@ -232,6 +232,8 @@ export const sendDelivery = async ({
       overrideAccess: true,
       collection: options.userCollectionSlug as never,
       id: delivery.recipientId,
+      // Policy reads the user's own fields only; populating relations costs queries.
+      depth: 0,
       disableErrors: true,
     })
     if (!found) return stop('failed', 'User not found', 'permanent')

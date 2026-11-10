@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.3] - 2026-11-10
+
+Reliability and resource-use release. New behaviour is opt-in unless noted; 0.3.x and beta.2 configurations keep working. SQL databases need a migration for the new delivery indexes.
+
+### Added
+
+- `requireIdempotencyKey` (`true` or a list of classifications): rejects application events without an `idempotencyKey`. When an event has a key and no `eventId`, the `eventId` is now derived from the key (`evt_k_<key>`), so the inbox and deliveries both drop a repeated emit of the same business action
+- `jobs.inlineSendLimit` (default 0): an event that plans at most this many immediate deliveries sends them inside the planning job instead of queuing one send job each. An unexpected error hands the delivery to a send job; retries and scheduled sends stay queued
+- `drainNotificationQueue({ payload, queue?, limit?, maxPasses?, budgetMs? })`: a bounded run of the notifications queue for `waitUntil` / after-response use, with the cron as the safety net
+- `createResendEmailProvider({ apiKey, from })`: Resend over `fetch` (Workers, Vercel, Node). Sends each delivery's key as `Idempotency-Key` (hashed past 256 characters); 429 / 5xx are retried, 409 `concurrent_idempotent_requests` is retried, key reuse with a different body is permanent; `getStatus` maps `last_event` and suppresses bounces and complaints
+- Provider capability `idempotent`: for such providers an ambiguous failure (timeout, dropped connection, 5xx) with an idempotency key is `retryable` instead of `unknown`
+- `templates.cacheTtlMs` (default 0): per-instance cache of active template lookups; saving a template clears it on that instance. Published template snapshots are immutable and always cached
+- `preferences.mandatoryInUserFields` (default false): applies `mandatoryCategories` in `userFields` mode, so a user's channel opt-out no longer blocks transactional sends
+- `fixSqliteTableRebuilds(migrationSource, previousSnapshot)`: rewrites the `INSERT … SELECT` copies in a generated SQLite / D1 migration to the columns of the previous snapshot (see docs/migration.md)
+- Compound indexes on `notification-deliveries`: `(dedupeKey, recipientKey, channel)` and `(status, updatedAt)`. **SQL: create a migration**
+
+### Changed
+
+- `notification:process-event` retries (3 attempts, exponential backoff from 5 s). Planning is idempotent per delivery key, so a retry only creates what is missing
+- Reconcile also re-queues `queued` deliveries older than `reliability.staleSendingMinutes` that never got a send job (scheduled ones once their time has passed)
+- Adapter errors carrying an HTTP `status` / `statusCode` (e.g. Payload's `APIError` from the Resend adapter) are classified by status instead of message text: a Resend 429 is now retried instead of failing permanently
+- Fewer queries per send: the recipient user is loaded with `depth: 0`; template lookups use `depth: 0` without a count query
+- The admin-trigger cache loads only the current published version of each trigger, not every version
+- Emitting with `req` inside a transaction checks the inbox before inserting, so a duplicate `eventId` no longer aborts the caller's Postgres transaction
+
 ## [0.4.0-beta.2] - 2026-10-29
 
 ### Docs

@@ -46,7 +46,19 @@ New fields:
 
 - **SQLite and D1: check the generated migration before deploying.** SQLite can't change a column default in place, so `notification_templates` is rebuilt: a `__new_notification_templates` table, an `INSERT … SELECT` copy, then a rename. Because the same migration also adds new template columns, the copy that Payload's migration generator (drizzle) writes selects columns the old table doesn't have yet (`locale`, `source`, `email_editor`, `email_design`, …). On D1 the migration then fails with "no such column".
 
-  To fix it, edit the `` INSERT INTO `__new_notification_templates`(…) SELECT … FROM `notification_templates` `` statement in the `up` function. Keep only the columns from your previous migration's snapshot (the `.json` next to it); the new columns are nullable or have defaults. Then test the file on a copy of your database, or on a local SQLite database, before `payload migrate` runs against production. Postgres and MongoDB are not affected.
+  To fix it, edit the `` INSERT INTO `__new_notification_templates`(…) SELECT … FROM `notification_templates` `` statement in the `up` function. Keep only the columns from your previous migration's snapshot (the `.json` next to it); the new columns are nullable or have defaults. From 0.4.0-beta.3 `fixSqliteTableRebuilds` does this for every rebuilt table:
+
+  ```ts
+  import { readFileSync, writeFileSync } from 'node:fs'
+  import { fixSqliteTableRebuilds } from '@wtree/payload-notifications'
+
+  const file = 'src/migrations/20261110_000000_notifications.ts'
+  const previous = JSON.parse(readFileSync('src/migrations/20261001_000000_previous.json', 'utf8'))
+  const { source, fixes } = fixSqliteTableRebuilds(readFileSync(file, 'utf8'), previous)
+  writeFileSync(file, source)
+  console.log(fixes) // [{ table: 'notification_templates', dropped: ['locale', 'source', …] }]
+  ```
+ Then test the file on a copy of your database, or on a local SQLite database, before `payload migrate` runs against production. Postgres and MongoDB are not affected.
 
   Other tables in the same migration may be rebuilt for reasons unrelated to this plugin, for example a field whose `defaultValue` is computed when the config loads (such as `new Date()`). Those rebuilds copy every row, but they appear in every new migration until the default is made stable.
 
@@ -148,3 +160,11 @@ Existing templates stay in code mode. To redesign one, set **Email → Editor** 
 - **`templates.emailLayout`** does not wrap visual designs, because they are full documents.
 - **Admin navigation:** the plugin's collections move under a **Notifications** nav group (`admin.group: false` to opt out), and an overview appears on the dashboard (`admin.dashboard: false`).
 - **Payload 4:** the Local API no longer bypasses access by default. Code that reads the plugin's collections must pass `overrideAccess: true` or a `user`.
+
+## 6. 0.4.0-beta.2 → 0.4.0-beta.3
+
+- **SQL databases:** `notification-deliveries` gets two compound indexes, `dedupeKey_recipientKey_channel_idx` and `status_updatedAt_idx`. Run `payload migrate:create` (Postgres, SQLite) or create them by hand on D1. No table is rebuilt.
+- **`notification:process-event` now retries** up to 3 times. Planning reuses existing deliveries by key, so a retry never sends twice.
+- **Events with an `idempotencyKey` and no `eventId`** get `eventId = evt_k_<key>`. With `eventsInbox: true`, a second emit with the same key is now dropped at the inbox instead of being planned again (its deliveries were already deduplicated by key).
+- **Errors with an HTTP status** are classified by that status. A 429 from Payload's Resend adapter is now retried; a 4xx stays permanent.
+- **Recommended for transactional mail:** `requireIdempotencyKey: ['transactional']`, `jobs.inlineSendLimit: 5`, `templates.cacheTtlMs: 30_000`, `preferences.mandatoryInUserFields: true`, the Resend provider, and `drainNotificationQueue` after the response with a one-minute cron as the safety net. See the CHANGELOG for details.
