@@ -9,6 +9,11 @@ type VersionDoc = {
   definition: TriggerDefinitionFields
 }
 
+/** Where clause for one trigger's current published version. */
+const currentVersionOf = (trigger: TriggerDoc): Where => ({
+  and: [{ trigger: { equals: trigger.id } }, { version: { equals: trigger.version } }],
+})
+
 const idOf = (value: VersionDoc['trigger']) =>
   String(typeof value === 'object' && value !== null ? value.id : value)
 
@@ -38,11 +43,7 @@ export const loadPublishedAdminTriggers = async (
   const versions = await payload.find({
     collection: options.collections.triggerVersions as never,
     where: {
-      or: current.map(
-        (trigger): Where => ({
-          and: [{ trigger: { equals: trigger.id } }, { version: { equals: trigger.version } }],
-        }),
-      ),
+      or: current.map(currentVersionOf),
     },
     limit: current.length,
     depth: 0,
