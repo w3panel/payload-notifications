@@ -26,7 +26,10 @@ const toEngineContext = (context: NotificationTemplateContext): Record<string, u
 const toRawInterpolationSource = (source: string): string => {
   return source.replace(/\{\{\{([\s\S]*?)\}\}\}|\{\{([\s\S]*?)\}\}/g, (match, triple, double) => {
     if (triple !== undefined) return match
-    return `{{{ ${String(double).trim()} }}}`
+    const expression = String(double).trim()
+    // Block tags ({{#if}}, {{/each}}, {{else}}) are structure, not output.
+    if (/^[#/]/.test(expression) || expression === 'else') return match
+    return `{{{ ${expression} }}}`
   })
 }
 

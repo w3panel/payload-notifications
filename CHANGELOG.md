@@ -32,6 +32,11 @@ Reliability and resource-use release. New behaviour is opt-in unless noted; 0.3.
 - The admin-trigger cache loads only the current published version of each trigger, not every version
 - Emitting with `req` inside a transaction checks the inbox before inserting, so a duplicate `eventId` no longer aborts the caller's Postgres transaction
 
+### Fixed
+
+- Plain-text rendering (email text part, SMS, WhatsApp, in-app, subjects and titles) turned block tags into output expressions, so `{{#if}}`, `{{else}}` and `{{#each}}` printed nothing and conditional lines always showed. Block tags are now left as structure
+- The template security check scanned literal copy as well as expressions, so ordinary text such as "a new order" was rejected. Only `{{ … }}` expressions are checked now
+
 ## [0.4.0-beta.2] - 2026-10-29
 
 ### Docs

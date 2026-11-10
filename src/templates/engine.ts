@@ -54,9 +54,14 @@ const FORBIDDEN_PATTERNS = [
   /\bprototype\b/,
 ]
 
+/** Only `{{ … }}` expressions are evaluated, so only they are checked; literal copy such as
+ * "a new order" is plain text. */
+const EXPRESSION = /\{\{\{?([\s\S]*?)\}?\}\}/g
+
 const validateSecurity = (source: string): void => {
+  const expressions = Array.from(source.matchAll(EXPRESSION), (match) => match[1]).join('\n')
   for (const pattern of FORBIDDEN_PATTERNS) {
-    if (pattern.test(source)) {
+    if (pattern.test(expressions)) {
       throw new Error(`Template security violation: forbidden pattern detected`)
     }
   }
