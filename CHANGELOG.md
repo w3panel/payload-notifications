@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.4] - 2026-11-11
+
+### Fixed
+
+- Plain-text rendering (email text part, SMS, WhatsApp, in-app, subjects, titles) kept `{{#if}}`, `{{else}}` and `{{#each}}` as structure again; before, they were turned into output expressions and printed nothing.
+- The template security check only inspects `{{ … }}` expressions, so ordinary copy such as "a new order" is no longer rejected.
+
 ## [0.4.0-beta.3] - 2026-11-10
 
 Reliability and resource-use release. New behaviour is opt-in unless noted; 0.3.x and beta.2 configurations keep working. SQL databases need a migration for the new delivery indexes.
