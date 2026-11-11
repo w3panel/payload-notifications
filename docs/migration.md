@@ -58,9 +58,10 @@ New fields:
   writeFileSync(file, source)
   console.log(fixes) // [{ table: 'notification_templates', dropped: ['locale', 'source', …] }]
   ```
- Then test the file on a copy of your database, or on a local SQLite database, before `payload migrate` runs against production. Postgres and MongoDB are not affected.
 
-  Other tables in the same migration may be rebuilt for reasons unrelated to this plugin, for example a field whose `defaultValue` is computed when the config loads (such as `new Date()`). Those rebuilds copy every row, but they appear in every new migration until the default is made stable.
+Then test the file on a copy of your database, or on a local SQLite database, before `payload migrate` runs against production. Postgres and MongoDB are not affected.
+
+Other tables in the same migration may be rebuilt for reasons unrelated to this plugin, for example a field whose `defaultValue` is computed when the config loads (such as `new Date()`). Those rebuilds copy every row, but they appear in every new migration until the default is made stable.
 
 - **MongoDB:** needs no migration.
 - **Payload 3 with several job workers:** to keep one send per delivery at a time, also set `jobs.enableConcurrencyControl: true`. That needs a migration too.
