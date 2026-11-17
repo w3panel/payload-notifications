@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v4-new]
   pull_request:
-    branches: [main]
+    # `v4-new` is the 0.4 (Payload 4 / npm `next`) release branch.
+    branches: [main, v4-new]
 
 jobs:
   lint-and-test:

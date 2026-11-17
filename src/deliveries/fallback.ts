@@ -9,7 +9,7 @@ import type {
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
-import { buildSendOnceKey, sendOnceEventKey } from './keys'
+import { buildSendOnceKey, findDeliveryByKey, sendOnceEventKey } from './keys'
 
 export type FallbackReason = 'permanent' | 'no-destination' | 'policy'
 
@@ -43,7 +43,8 @@ export type FallbackSource = {
 
 /**
  * Creates and queues the fallback delivery for `primary` when its fallback
- * covers `reason`. Never used for unknown outcomes. Returns the new delivery ID.
+ * covers `reason`. Never used for unknown outcomes. Returns the new delivery ID, or the
+ * ID of the delivery that already holds the fallback's key.
  */
 export const createFallbackDelivery = async ({
   payload,
@@ -134,8 +135,15 @@ export const createFallbackDelivery = async ({
       } as never,
     })) as { id: string | number }
   } catch (error) {
-    if (isDuplicateKeyError(error)) return undefined
-    throw error
+    if (!isDuplicateKeyError(error)) throw error
+    // The key is taken: an earlier run created this fallback, or (send-once keys) the
+    // recipient already has a delivery on this channel. Confirm it exists, else rethrow.
+    const existing = await findDeliveryByKey(payload, options, idempotencyKey)
+    if (!existing) throw error
+    payload.logger?.info?.(
+      `payload-notifications: fallback of delivery ${primary.id} to ${fallback.channel} not created: delivery ${existing.id} holds its key`,
+    )
+    return existing.id
   }
 
   await payload.jobs.queue({

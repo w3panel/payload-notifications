@@ -13,7 +13,7 @@ import { generateEventId } from '../events/registry'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
-import { buildSendOnceKey } from './keys'
+import { buildSendOnceKey, findDeliveryByKey } from './keys'
 import { evaluateTriggerPlan } from './evaluate'
 import { resolveTemplate } from '../templates/resolve'
 import { emitLifecycle } from '../observability'
@@ -74,23 +74,6 @@ export const buildDeliveryKey = ({
   template: string
 }): string =>
   [event.idempotencyKey || event.eventId, trigger, recipient.key, channel, template].join('::')
-
-const findDeliveryByKey = async (
-  payload: Payload,
-  options: NormalizedNotificationsPluginOptions,
-  idempotencyKey: string,
-): Promise<{ id: string; status?: string } | undefined> => {
-  const existing = await payload.find({
-    collection: options.collections.deliveries as never,
-    where: { idempotencyKey: { equals: idempotencyKey } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-    pagination: false,
-  })
-  const doc = existing.docs?.[0] as { id: string | number; status?: string } | undefined
-  return doc ? { id: String(doc.id), status: doc.status } : undefined
-}
 
 /** Delivery fields for a resolved retry policy. */
 const retryFields = (policy: ReturnType<typeof resolveRetryPolicy>) => ({
@@ -318,7 +301,7 @@ const planTrigger = async ({
   if (!plan.ok) {
     if (plan.outcome !== 'not-matched') {
       await logTriggerSkip(plan.outcome, plan.reason)
-    } else {
+    } else if (options.observability.planningStages) {
       await emitLifecycle(payload, options, {
         stage: 'conditions-not-met',
         event: event.name,
@@ -386,6 +369,7 @@ const planTrigger = async ({
 
     const holdsKey = async (existing: { id: string }) => {
       result.deliveries.push({ ...planned, deliveryId: existing.id, status: 'existing' })
+      if (!options.observability.planningStages) return
       await emitLifecycle(payload, options, {
         stage: 'duplicate',
         event: event.name,

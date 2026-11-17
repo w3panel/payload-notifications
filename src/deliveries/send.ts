@@ -18,6 +18,7 @@ import { emitLifecycle } from '../observability'
 import { createObservabilityEvent } from '../reliability'
 import { callProvider } from './providerCall'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
+import { claimDeliveryStatus } from './claim'
 import { recheckDelivery } from './recheck'
 import { retryDelayMs, type ResolvedRetryPolicy } from './retry'
 import { finalizeForChannel } from '../templates/channelContent'
@@ -187,12 +188,26 @@ export const sendDelivery = async ({
     return result
   }
 
+  /** Compare-and-set from the status this job read; false when another job moved it on. */
+  const readStatus = delivery.status
+  const claim = (to: string) =>
+    claimDeliveryStatus({ payload, options, deliveryId, from: readStatus, to })
+
+  /** Another send job got there first: stop quietly, it reports the outcome. */
+  const movedOn = (): NotificationDispatchResult => ({
+    channel: delivery.channel,
+    status: 'skipped',
+    reason: 'Delivery was handled by another send job',
+  })
+
   /** Ends the delivery without a provider call (policy, missing user, recheck). */
   const stop = async (
     status: 'failed' | 'skipped' | 'cancelled' | 'unknown',
     reason: string,
     outcome: DeliveryOutcome,
   ) => {
+    // Only the job that moves the delivery out of the status it read may end it.
+    if (!(await claim(status))) return movedOn()
     await writeNotificationLog({
       payload,
       options,
@@ -203,12 +218,12 @@ export const sendDelivery = async ({
       failureClassification: 'terminal',
       outcome,
     })
-    await updateDelivery(payload, options, deliveryId, {
-      status,
-      ...(status === 'failed' || status === 'unknown'
-        ? { lastError: reason }
-        : { skipReason: reason }),
-    })
+    await updateDelivery(
+      payload,
+      options,
+      deliveryId,
+      status === 'failed' || status === 'unknown' ? { lastError: reason } : { skipReason: reason },
+    )
     if (outcome === 'policy' || outcome === 'permanent') {
       await createFallbackDelivery({
         payload,
@@ -230,26 +245,39 @@ export const sendDelivery = async ({
   // The application's veto. Nothing has been sent yet, so an error here is safe to retry.
   const beforeSend = options.deliveries.beforeSend
   if (beforeSend) {
-    const decision = await beforeSend({
-      payload,
-      attempt,
-      delivery: {
-        id: deliveryId,
-        event: delivery.event,
-        eventId: delivery.eventId ?? undefined,
-        trigger: delivery.trigger,
-        channel: delivery.channel,
-        template: delivery.templateSlug,
-        recipientKey: delivery.recipientKey ?? undefined,
-        recipientId: delivery.recipientId ?? undefined,
-        destination: delivery.destination ?? undefined,
-        idempotencyKey: delivery.idempotencyKey,
-        classification: delivery.classification ?? undefined,
-        category: delivery.category ?? undefined,
-        context: delivery.context ?? undefined,
-        scheduledFor: delivery.scheduledFor ?? undefined,
-      },
-    })
+    let decision: Awaited<ReturnType<typeof beforeSend>>
+    try {
+      decision = await beforeSend({
+        payload,
+        attempt,
+        delivery: {
+          id: deliveryId,
+          event: delivery.event,
+          eventId: delivery.eventId ?? undefined,
+          trigger: delivery.trigger,
+          channel: delivery.channel,
+          template: delivery.templateSlug,
+          recipientKey: delivery.recipientKey ?? undefined,
+          recipientId: delivery.recipientId ?? undefined,
+          destination: delivery.destination ?? undefined,
+          idempotencyKey: delivery.idempotencyKey,
+          classification: delivery.classification ?? undefined,
+          category: delivery.category ?? undefined,
+          context: delivery.context ?? undefined,
+          scheduledFor: delivery.scheduledFor ?? undefined,
+        },
+      })
+    } catch (error) {
+      // Count the attempt so the next one reports `attempt + 1`, then let the job retry.
+      // If the job's retries run out, `markDeliveryFailed` ends it `failed`.
+      await updateDelivery(payload, options, deliveryId, {
+        attempts: attempt,
+        lastError: `deliveries.beforeSend failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      })
+      throw error
+    }
     if (decision && decision.allow === false) {
       return stop(
         'cancelled',
@@ -349,7 +377,8 @@ export const sendDelivery = async ({
     hsm && !provider.capabilities.hsm ? { ...rendered, whatsappTemplate: undefined } : rendered
 
   // Only now is the delivery "sending": anything thrown before this point is safe to retry.
-  await updateDelivery(payload, options, deliveryId, { status: 'sending', attempts: attempt })
+  if (!(await claim('sending'))) return movedOn()
+  await updateDelivery(payload, options, deliveryId, { attempts: attempt })
   const call = await callProvider(
     provider,
     {
@@ -500,7 +529,11 @@ export const sendDelivery = async ({
   )
 }
 
-/** Marks a delivery failed after its send job exhausted retries. */
+/**
+ * Marks a delivery failed after its send job exhausted retries (for example a
+ * `deliveries.beforeSend` hook that kept throwing) and emits a `failed` lifecycle event.
+ * A delivery that already reached a final status is left alone. No fallback is created.
+ */
 export const markDeliveryFailed = async ({
   payload,
   options,
@@ -512,5 +545,38 @@ export const markDeliveryFailed = async ({
   deliveryId: string
   reason: string
 }) => {
-  await updateDelivery(payload, options, deliveryId, { status: 'failed', lastError: reason })
+  const delivery = (await payload.findByID({
+    collection: options.collections.deliveries as never,
+    id: deliveryId,
+    depth: 0,
+    overrideAccess: true,
+    disableErrors: true,
+  })) as DeliveryDoc | null
+  if (!delivery || FINAL_DELIVERY_STATUSES.has(delivery.status)) return
+  const status = 'failed'
+  const won = await claimDeliveryStatus({
+    payload,
+    options,
+    deliveryId,
+    from: delivery.status,
+    to: status,
+  })
+  if (!won) return
+  await updateDelivery(payload, options, deliveryId, { lastError: reason, nextAttemptAt: null })
+  await emitLifecycle(payload, options, {
+    stage: status,
+    event: delivery.event,
+    eventId: delivery.eventId ?? undefined,
+    trigger: delivery.trigger,
+    triggerSource:
+      delivery.triggerOrigin === 'admin' || delivery.triggerOrigin === 'code'
+        ? delivery.triggerOrigin
+        : undefined,
+    deliveryId,
+    channel: delivery.channel,
+    recipient: delivery.recipientKey,
+    reason,
+    attempt: delivery.attempts ?? undefined,
+    idempotencyKey: delivery.idempotencyKey,
+  })
 }

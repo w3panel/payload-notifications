@@ -324,10 +324,12 @@ notificationsPlugin({
   },
   observability: {
     // `context` carries `payload` and the delivery's `idempotencyKey`.
-    onEvent: async (event, { payload, idempotencyKey }) => {
-      // stages include `conditions-not-met` (nothing planned) and `duplicate` (key already held)
-      await writeAuditRow(payload, event, idempotencyKey)
+    onEvent: async (event, context) => {
+      // With key: 'recipient' (or planningStages: true) stages include
+      // `conditions-not-met` (nothing planned) and `duplicate` (key already held).
+      await writeAuditRow(context?.payload, event, context?.idempotencyKey)
     },
+    // planningStages: true, // the default with key: 'recipient'
   },
 })
 ```
@@ -337,6 +339,8 @@ notificationsPlugin({
   No migration is needed to switch modes.
 - A held key is not handed on when its delivery fails: retry the failed delivery (admin retry
   action) rather than planning the event again.
+- Each send job claims its delivery with a compare-and-set on the status, so two jobs for one
+  delivery can't both act (one veto and one send never both happen).
 - `isDuplicateKeyError(error)` is exported for your own unique writes (Postgres, SQLite / D1,
   MongoDB).
 

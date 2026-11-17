@@ -1,3 +1,5 @@
+import type { Payload } from 'payload'
+import type { NormalizedNotificationsPluginOptions } from '../types'
 import { normalizeEmail, normalizePhone } from '../recipients/resolve'
 
 /*
@@ -74,3 +76,21 @@ const SEND_ONCE_KEY = /^(.*)::[a-z]+::(?:email|phone|user|key)#[^:]+$/
 /** The event key of a send-once key, or undefined for any other key. */
 export const sendOnceEventKey = (idempotencyKey: string): string | undefined =>
   SEND_ONCE_KEY.exec(idempotencyKey)?.[1] || undefined
+
+/** The delivery holding an idempotency key, if any. */
+export const findDeliveryByKey = async (
+  payload: Payload,
+  options: Pick<NormalizedNotificationsPluginOptions, 'collections'>,
+  idempotencyKey: string,
+): Promise<{ id: string; status?: string } | undefined> => {
+  const existing = await payload.find({
+    collection: options.collections.deliveries as never,
+    where: { idempotencyKey: { equals: idempotencyKey } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+    pagination: false,
+  })
+  const doc = existing.docs?.[0] as { id: string | number; status?: string } | undefined
+  return doc ? { id: String(doc.id), status: doc.status } : undefined
+}

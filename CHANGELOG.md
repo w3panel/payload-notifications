@@ -7,22 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0-beta.5] - 2026-11-17
+## [0.4.0-beta.5] - 2026-11-18
 
-Send-once release. Everything is opt-in or additive: defaults keep 0.4.0-beta.4 behaviour, and there is no schema change (no migration).
+Send-once release. Everything is opt-in or additive: defaults keep 0.4.0-beta.4 behaviour (see the type note below), and there is no schema change (no migration).
 
 ### Added
 
 - `deliveries.key: 'trigger' | 'recipient'` (default `'trigger'`). `'recipient'` keys each delivery on event + channel + recipient only (`<idempotencyKey or eventId>::<channel>::<identity>`), so one recipient gets at most one message per event and channel however many triggers or templates match. Email, WhatsApp and SMS recipients are identified by their normalised address or number (SHA-256, so the key carries no address): one inbox reached as an account and as a static address counts once. The key lives in the existing unique `idempotencyKey` column, so a second plan for the same key (including two plans racing) finds the existing delivery instead of creating one. Fallback deliveries of a send-once delivery get a send-once key too, so a fallback never doubles a delivery the recipient already has on that channel
-- `deliveries.beforeSend({ payload, delivery, attempt })`: called before every send attempt of a trigger delivery. Return `{ allow: false, reason }` to cancel it: the delivery ends `cancelled` with that reason, the attempt is logged and a `cancelled` lifecycle event is emitted (no fallback). A thrown error leaves the delivery queued and the send job retries it
-- `observability.onEvent(event, context)`: the new second argument is `{ payload, idempotencyKey? }` (the delivery's key, when the event concerns one delivery). The key is never added to the event or to `observability.log` output
-- Lifecycle stage `conditions-not-met`: a matched trigger whose conditions (or `condition` function) did not hold at planning time, with the reason. Nothing is planned or logged to `notification-logs`
-- Lifecycle stage `duplicate`: planning found a delivery that already holds the key, so none was created (`deliveryId` is the existing delivery). Emitted in both key modes
-- Exports: `isDuplicateKeyError` (Postgres `23505` / "duplicate key", SQLite / libSQL / D1 "UNIQUE constraint failed" and `SQLITE_CONSTRAINT_UNIQUE`, MongoDB `E11000`, Payload's "Value must be unique" `ValidationError`; follows `cause` chains such as drizzle's "Failed query"), `buildSendOnceKey`, `deliveryRecipientIdentity`, `sendOnceEventKey`, and the types `NotificationDeliveryKeyMode`, `NotificationBeforeSendHook` / `Args` / `Delivery` / `Decision`, `NotificationLifecycleContext`
+- `deliveries.beforeSend({ payload, delivery, attempt })`: called before every send attempt of a trigger delivery. Return `{ allow: false, reason }` to cancel it: the delivery ends `cancelled` with that reason, the attempt is logged and a `cancelled` lifecycle event is emitted (no fallback). A thrown error counts the attempt (`attempts`, `lastError`; the next call gets `attempt + 1`) and leaves the delivery queued for the send job's retry. When the retries run out it ends `failed` with a `failed` lifecycle event and no fallback; a send-once key stays held, so only an admin retry can send it
+- `observability.onEvent(event, context)`: the new second argument is `{ payload, idempotencyKey? }` (the delivery's key, when the event concerns one delivery). It is always passed; the type keeps it optional so existing handler types fit. The key is never added to the event or to `observability.log` output
+- `observability.planningStages` (default: on with `deliveries.key: 'recipient'`, else off): also emit two planning stages. With the defaults no new stages reach `onEvent`
+  - `conditions-not-met`: a matched trigger whose conditions (or `condition` function) did not hold at planning time, with the reason. Nothing is planned or logged to `notification-logs`
+  - `duplicate`: planning found a delivery that already holds the key, so none was created (`deliveryId` is the existing delivery)
+- **Type note:** `NotificationLifecycleStage` gains `'conditions-not-met'` and `'duplicate'`. An exhaustive `switch` over it (one with a `never` check) needs the two new cases to compile, even if `planningStages` is off
+- Exports: `isDuplicateKeyError`, `buildSendOnceKey`, `deliveryRecipientIdentity`, `sendOnceEventKey`, `findDeliveryByKey`, `claimDeliveryStatus`, and the types `NotificationDeliveryKeyMode`, `NotificationBeforeSendHook` / `Args` / `Delivery` / `Decision`, `NotificationLifecycleContext`
+- CI runs on pull requests into `v4-new` (including the Postgres and MongoDB integration jobs)
 
 ### Changed
 
-- `isDuplicateKeyError` also matches driver error codes and wrapped (`cause`) errors; everything it matched before still matches
+- A send job claims a delivery with a compare-and-set on its status (one conditional `UPDATE … RETURNING` on Postgres / SQLite / D1, `findOneAndUpdate` on MongoDB). Ending a delivery before the provider call (cancelled, skipped, failed, unknown) and moving it to `sending` both require it to still have the status the job read; if another send job (say, a reconcile re-queue next to the original) moved it on, this one stops quietly. A delivery can no longer end both `cancelled` and `sent`
+- `markDeliveryFailed` (the send task's `onFail`) leaves deliveries that already reached a final status alone, and emits a `failed` lifecycle event
+- `isDuplicateKeyError` matches driver codes and constraint wording along the `cause` chain: Postgres `23505` / "duplicate key value violates unique constraint", SQLite / libSQL / D1 `SQLITE_CONSTRAINT_UNIQUE` / "UNIQUE constraint failed", MongoDB `11000` / "E11000 duplicate key", and Payload's "Value must be unique" field errors. It no longer matches the bare words "duplicate" or "already exists", and never judges drizzle's "Failed query: … params: …" wrapper by its text (the params can contain anything)
+- `createFallbackDelivery`, on a key collision, confirms a delivery holds the key and returns its ID; if none does, the error is rethrown instead of swallowed
 
 ## [0.4.0-beta.4] - 2026-11-11
 

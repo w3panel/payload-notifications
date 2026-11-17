@@ -45,11 +45,14 @@ export type NotificationLifecycleStage =
   | 'unknown'
   | 'cancelled'
   | 'delivered'
-  /** A matched trigger's conditions did not hold at planning time; nothing was planned. */
+  /**
+   * A matched trigger's conditions did not hold at planning time; nothing was planned.
+   * Emitted only with `observability.planningStages`.
+   */
   | 'conditions-not-met'
   /**
    * Planning found a delivery that already holds this delivery's key, so none was created.
-   * `deliveryId` is the existing delivery.
+   * `deliveryId` is the existing delivery. Emitted only with `observability.planningStages`.
    */
   | 'duplicate'
 
@@ -88,7 +91,8 @@ export type NotificationLifecycleContext = {
 
 export type NotificationLifecycleHook = (
   event: NotificationLifecycleEvent,
-  context: NotificationLifecycleContext,
+  /** Always passed since 0.4.0-beta.5; optional so older handler types still fit. */
+  context?: NotificationLifecycleContext,
 ) => void | Promise<void>
 
 /**

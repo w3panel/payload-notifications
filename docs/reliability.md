@@ -41,8 +41,22 @@ instead of planning again.
 `deliveries.beforeSend({ payload, delivery, attempt })` runs before every send attempt (after the
 already-final and interrupted-send checks, before consent, policy and rendering). Returning
 `{ allow: false, reason }` ends the delivery `cancelled` with `skipReason: reason`, writes the
-attempt log ("Cancelled: …") and emits a `cancelled` lifecycle event. No fallback is created. If the
-hook throws, nothing has been sent: the delivery stays `queued` and the send job retries it.
+attempt log ("Cancelled: …") and emits a `cancelled` lifecycle event. No fallback is created.
+
+If the hook throws, nothing has been sent. The attempt is counted (`attempts`, `lastError`, and the
+next call gets `attempt + 1`), the delivery stays `queued` and the send job retries it. When the job's
+retries run out, the delivery ends `failed` with a `failed` lifecycle event and no fallback. With
+`deliveries.key: 'recipient'` it keeps its key, so a new plan for the event finds it (`existing`)
+and only an admin retry can send it.
+
+### One send job per delivery
+
+Before acting, a send job claims the delivery with a compare-and-set on its status: one conditional
+`UPDATE … WHERE id = ? AND status = ? RETURNING id` on Postgres, SQLite and D1, `findOneAndUpdate` on
+MongoDB. Ending a delivery before the provider call (cancelled, skipped, failed, unknown) and moving it
+to `sending` both require the status the job read. If two send jobs run for one delivery (a reconcile
+re-queue next to the original job, say), the second finds the status changed and stops quietly, so a
+delivery can't end both `cancelled` and `sent`.
 
 ### Cross-trigger dedupe
 

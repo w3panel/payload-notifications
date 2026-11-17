@@ -325,7 +325,13 @@ export {
 } from './recipients'
 export type { ResolveRecipientsArgs, ResolveRecipientsResult } from './recipients'
 export { buildDeliveryKey, findDedupeMatch, planDeliveries } from './deliveries/plan'
-export { buildSendOnceKey, deliveryRecipientIdentity, sendOnceEventKey } from './deliveries/keys'
+export {
+  buildSendOnceKey,
+  deliveryRecipientIdentity,
+  findDeliveryByKey,
+  sendOnceEventKey,
+} from './deliveries/keys'
+export { claimDeliveryStatus } from './deliveries/claim'
 export { isDuplicateKeyError } from './data/errors'
 export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
 export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'

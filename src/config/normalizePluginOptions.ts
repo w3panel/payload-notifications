@@ -524,6 +524,10 @@ export const normalizePluginOptions = (
     observability: {
       onDispatch: options.observability?.onDispatch,
       onEvent: options.observability?.onEvent,
+      planningStages:
+        typeof options.observability?.planningStages === 'boolean'
+          ? options.observability.planningStages
+          : options.deliveries?.key === 'recipient',
       log: options.observability?.log === true,
     },
     rules,

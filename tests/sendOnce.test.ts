@@ -2,12 +2,14 @@ import { describe, expect, it, mock } from 'bun:test'
 import * as api from '../src/index'
 import { normalizePluginOptions } from '../src/config/normalizePluginOptions'
 import { isDuplicateKeyError } from '../src/data/errors'
+import { createFallbackDelivery } from '../src/deliveries/fallback'
 import {
   buildSendOnceKey,
   deliveryRecipientIdentity,
   sendOnceEventKey,
 } from '../src/deliveries/keys'
 import { planDeliveries } from '../src/deliveries/plan'
+import { markDeliveryFailed, sendDelivery } from '../src/deliveries/send'
 import { processEvent } from '../src/jobs/processEvent'
 import { sendNotification } from '../src/jobs/sendNotification'
 import { emitLifecycle } from '../src/observability'
@@ -321,21 +323,65 @@ describe('observability.onEvent context', () => {
     const onEvent = mock((_event: NotificationLifecycleEvent) => undefined)
     await emitLifecycle(
       createMemoryPayload().payload,
-      { observability: { onEvent, log: false } },
+      { observability: { onEvent, log: false, planningStages: false } },
       { stage: 'matched', event: 'x' },
     )
     expect(onEvent).toHaveBeenCalledTimes(1)
   })
 })
 
-describe('conditions-not-met lifecycle stage', () => {
-  it('reports a matched trigger whose conditions do not hold', async () => {
+describe('planning stages (conditions-not-met, duplicate)', () => {
+  it('are off by default with the default key, so beta.4 handlers see no new stages', async () => {
+    const memory = createMemoryPayload({ users })
+    const stages: string[] = []
+    const base = twoRoutes('alex@example.com')
+    const options = normalizePluginOptions({
+      channels: ['email', 'inapp', 'sms'],
+      providers: { custom: { sms: okSms } },
+      templates,
+      observability: { onEvent: (event) => void stages.push(event.stage) },
+      triggers: [
+        ...base.triggers,
+        {
+          slug: 'never',
+          event: 'order.paid',
+          condition: () => false,
+          recipients: [{ type: 'eventUser' }],
+          deliveries: [{ channel: 'email', template: 'order.paid' }],
+        },
+      ],
+    })
+    expect(options.observability.planningStages).toBe(false)
+    // The second run finds every key held and the 'never' trigger never matches.
+    await processEvent({ payload: memory.payload, event: paid, options })
+    const replay = await processEvent({ payload: memory.payload, event: paid, options })
+    expect(replay.deliveries.every((d) => d.status === 'existing')).toBe(true)
+    expect(new Set(stages)).toEqual(new Set(['matched', 'planned']))
+  })
+
+  it("default to on with deliveries.key 'recipient', and can be set either way", () => {
+    expect(
+      normalizePluginOptions({ deliveries: { key: 'recipient' } }).observability.planningStages,
+    ).toBe(true)
+    expect(
+      normalizePluginOptions({
+        deliveries: { key: 'recipient' },
+        observability: { planningStages: false },
+      }).observability.planningStages,
+    ).toBe(false)
+    expect(
+      normalizePluginOptions({ observability: { planningStages: true } }).observability
+        .planningStages,
+    ).toBe(true)
+  })
+
+  it('report a matched trigger whose conditions do not hold', async () => {
     const memory = createMemoryPayload({ users })
     const stages: NotificationLifecycleEvent[] = []
     const options = normalizePluginOptions({
       channels: ['email'],
       templates,
-      observability: { onEvent: (event) => void stages.push(event) },
+      observability: { planningStages: true, onEvent: (event) => void stages.push(event) },
       triggers: [
         {
           slug: 'dispatched',
@@ -472,18 +518,137 @@ describe('deliveries.beforeSend', () => {
     }
   })
 
-  it('leaves the delivery queued when the hook throws, so the job retries it', async () => {
+  it('counts each attempt when the hook throws, and the job retries it', async () => {
     const memory = createMemoryPayload({ users })
-    const options = build(async () => {
-      throw new Error('lookup failed')
+    const attempts: number[] = []
+    const options = build(async ({ attempt }) => {
+      attempts.push(attempt)
+      if (attempt < 3) throw new Error('lookup failed')
     })
     await processEvent({ payload: memory.payload, event: paid, options })
     await expect(sendQueued(memory, options as never)).rejects.toThrow('lookup failed')
     expect(memory.docs('notification-deliveries')[0]).toMatchObject({
       status: 'queued',
-      attempts: 0,
+      attempts: 1,
+      lastError: 'deliveries.beforeSend failed: lookup failed',
     })
-    expect(memory.sendEmail).not.toHaveBeenCalled()
+    await expect(sendQueued(memory, options as never)).rejects.toThrow('lookup failed')
+    await sendQueued(memory, options as never)
+    expect(attempts).toEqual([1, 2, 3])
+    expect(memory.docs('notification-deliveries')[0]).toMatchObject({
+      status: 'sent',
+      attempts: 3,
+    })
+    expect(memory.sendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('ends failed with a lifecycle event when the hook keeps throwing past the job retries', async () => {
+    const memory = createMemoryPayload({ users })
+    const stages: NotificationLifecycleEvent[] = []
+    const contexts: Array<NotificationLifecycleContext | undefined> = []
+    const options = normalizePluginOptions({
+      channels: ['email', 'sms'],
+      providers: { custom: { sms: okSms } },
+      templates,
+      deliveries: {
+        key: 'recipient',
+        beforeSend: async () => {
+          throw new Error('lookup failed')
+        },
+      },
+      observability: {
+        onEvent: (event, context) => {
+          stages.push(event)
+          contexts.push(context)
+        },
+      },
+      triggers: [
+        {
+          slug: 'paid-customer',
+          event: 'order.paid',
+          recipients: [{ type: 'eventUser' }],
+          deliveries: [
+            {
+              channel: 'email',
+              template: 'order.paid',
+              fallback: { channel: 'sms', on: ['policy', 'permanent', 'no-destination'] },
+            },
+          ],
+        },
+      ],
+    })
+    await processEvent({ payload: memory.payload, event: paid, options })
+    for (let run = 0; run < 3; run++) {
+      await expect(sendQueued(memory, options as never)).rejects.toThrow('lookup failed')
+    }
+    const [delivery] = memory.docs('notification-deliveries')
+    // What the send task's onFail does once Payload gives up on the job.
+    await markDeliveryFailed({
+      payload: memory.payload,
+      options,
+      deliveryId: String(delivery.id),
+      reason: 'lookup failed',
+    })
+
+    expect(delivery).toMatchObject({ status: 'failed', attempts: 3, lastError: 'lookup failed' })
+    expect(stages.at(-1)).toMatchObject({
+      stage: 'failed',
+      deliveryId: delivery.id,
+      reason: 'lookup failed',
+      attempt: 3,
+    })
+    expect(contexts.at(-1)?.idempotencyKey).toBe(delivery.idempotencyKey)
+    // No fallback, and the send-once key stays held: a re-plan finds this delivery.
+    expect(memory.docs('notification-deliveries')).toHaveLength(1)
+    const replan = await processEvent({ payload: memory.payload, event: paid, options })
+    expect(replan.deliveries[0]).toMatchObject({ status: 'existing', deliveryId: delivery.id })
+
+    // A delivery that already reached a final status is left alone.
+    delivery.status = 'sent'
+    const before = stages.length
+    await markDeliveryFailed({
+      payload: memory.payload,
+      options,
+      deliveryId: String(delivery.id),
+      reason: 'late',
+    })
+    expect(delivery.status).toBe('sent')
+    expect(stages).toHaveLength(before)
+  })
+
+  it('lets only one of two concurrent send jobs act: never both cancelled and sent', async () => {
+    for (const vetoFirst of [true, false]) {
+      const memory = createMemoryPayload({ users })
+      const stages: NotificationLifecycleEvent[] = []
+      // Both jobs pass the hook before either acts. The first caller is vetoed or allowed.
+      let release!: () => void
+      const bothChecked = new Promise<void>((resolve) => (release = resolve))
+      let calls = 0
+      const options = build(async () => {
+        const call = ++calls
+        if (call === 2) release()
+        await bothChecked
+        return call === 1 && vetoFirst ? { allow: false, reason: 'Held back' } : undefined
+      }, stages)
+      await processEvent({ payload: memory.payload, event: paid, options })
+      const { input } = (memory.queue.mock.calls[0] as unknown as [{ input: Doc }])[0]
+      const send = () =>
+        sendDelivery({ payload: memory.payload, input: input as never, options: options as never })
+      const results = await Promise.all([send(), send()])
+
+      const [delivery] = memory.docs('notification-deliveries')
+      const statuses = results.map((result) => result.status).sort()
+      const winner = vetoFirst ? 'cancelled' : 'sent'
+      expect(statuses).toEqual(['skipped', winner].sort())
+      expect(results.find((r) => r.status === 'skipped')?.reason).toBe(
+        'Delivery was handled by another send job',
+      )
+      expect(delivery.status).toBe(winner)
+      expect(memory.sendEmail).toHaveBeenCalledTimes(vetoFirst ? 0 : 1)
+      // The loser stops quietly: one terminal lifecycle event, one attempt log.
+      const terminal = stages.filter((e) => e.stage === 'cancelled' || e.stage === 'sent')
+      expect(terminal.map((e) => e.stage)).toEqual([winner])
+    }
   })
 
   it('is not called for a delivery that is already final', async () => {
@@ -535,6 +700,36 @@ describe('isDuplicateKeyError', () => {
     expect(isDuplicateKeyError(wrapped)).toBe(true)
   })
 
+  it('never matches "duplicate" in ordinary text or in a query wrapper', () => {
+    expect(isDuplicateKeyError(new Error('Duplicate of delivery 5 (dedupe key)'))).toBe(false)
+    expect(isDuplicateKeyError('Duplicate of delivery 5')).toBe(false)
+    expect(isDuplicateKeyError(new Error('relation "x" already exists'))).toBe(false)
+    // drizzle quotes the inserted values; a skip reason can say "duplicate key value".
+    const wrapped = new Error(
+      'Failed query: insert into "notification_deliveries" ("skip_reason") values (?)\n' +
+        'params: duplicate key value violates unique constraint (copied text)',
+      { cause: Object.assign(new Error('connection reset'), { code: 'ECONNRESET' }) },
+    )
+    expect(isDuplicateKeyError(wrapped)).toBe(false)
+    const wrappedNotNull = new Error('Failed query: insert … params: Duplicate of delivery 5', {
+      cause: Object.assign(new Error('NOT NULL constraint failed: deliveries.event'), {
+        code: 'SQLITE_CONSTRAINT_NOTNULL',
+      }),
+    })
+    expect(isDuplicateKeyError(wrappedNotNull)).toBe(false)
+  })
+
+  it('recognises MongoDB and Payload validation shapes', () => {
+    expect(isDuplicateKeyError(Object.assign(new Error('write failed'), { code: 11000 }))).toBe(
+      true,
+    )
+    expect(isDuplicateKeyError(new Error('E11000 duplicate key error collection: x'))).toBe(true)
+    const validation = Object.assign(new Error('The following field is invalid: idempotencyKey'), {
+      data: { errors: [{ message: 'Value must be unique', path: 'idempotencyKey' }] },
+    })
+    expect(isDuplicateKeyError(validation)).toBe(true)
+  })
+
   it('ignores other constraint and query errors', () => {
     const notNull = Object.assign(
       new Error('SQLITE_CONSTRAINT: NOT NULL constraint failed: deliveries.event'),
@@ -549,5 +744,52 @@ describe('isDuplicateKeyError', () => {
     )
     expect(isDuplicateKeyError(undefined)).toBe(false)
     expect(isDuplicateKeyError(null)).toBe(false)
+  })
+})
+
+describe('fallback key collisions', () => {
+  const primary = {
+    id: 'd1',
+    event: 'order.paid',
+    trigger: 'paid',
+    channel: 'sms',
+    templateSlug: 'order.paid',
+    recipientId: 'u1',
+    recipientKey: 'user:u1',
+    idempotencyKey: 'k1',
+    fallback: { channel: 'email' as const },
+    recipientDestinations: { email: 'alex@example.com' },
+  }
+  const options = normalizePluginOptions({ channels: ['email'], templates })
+
+  it('returns the delivery that already holds the fallback key', async () => {
+    const memory = createMemoryPayload({
+      'notification-deliveries': [{ id: 'held', idempotencyKey: 'k1::fallback:email' }],
+    })
+    const id = await createFallbackDelivery({
+      payload: memory.payload,
+      options,
+      primary,
+      reason: 'permanent',
+      detail: 'x',
+    })
+    expect(id).toBe('held')
+    expect(memory.queue).not.toHaveBeenCalled()
+  })
+
+  it('rethrows a duplicate-looking error when no delivery holds the key', async () => {
+    const memory = createMemoryPayload()
+    memory.payload.create = (async () => {
+      throw new Error('duplicate key value violates unique constraint "other_idx"')
+    }) as never
+    await expect(
+      createFallbackDelivery({
+        payload: memory.payload,
+        options,
+        primary,
+        reason: 'permanent',
+        detail: 'x',
+      }),
+    ).rejects.toThrow('other_idx')
   })
 })

@@ -200,19 +200,28 @@ export type NotificationsPluginOptions = {
      * and interrupted-send checks, before consent, policy and rendering). Return
      * `{ allow: false, reason }` to cancel the delivery: it ends `cancelled` with that
      * reason, the attempt is logged and a `cancelled` lifecycle event is emitted. No
-     * fallback is created. A thrown error fails the attempt before anything is sent, so
-     * the send job retries it.
+     * fallback is created. A thrown error counts as an attempt (`attempts` + 1,
+     * `lastError` set) but nothing is sent: the delivery stays `queued` and the send job
+     * retries it. When the job's retries run out the delivery ends `failed` with a
+     * `failed` lifecycle event and no fallback; with `key: 'recipient'` it keeps the
+     * send-once key, so only an admin retry can send it.
      */
     beforeSend?: NotificationBeforeSendHook
   }
   observability?: {
     onDispatch?: NotificationObservabilityHook
     /**
-     * Every lifecycle stage: matched, conditions-not-met, planned, duplicate, skipped,
-     * sent, retrying, failed, unknown, cancelled, delivered. The second argument carries
-     * `payload` and the delivery's `idempotencyKey`.
+     * Every lifecycle stage: matched, planned, skipped, sent, retrying, failed, unknown,
+     * cancelled, delivered (plus conditions-not-met and duplicate with `planningStages`).
+     * The second argument carries `payload` and the delivery's `idempotencyKey`.
      */
     onEvent?: NotificationLifecycleHook
+    /**
+     * Also emit the planning stages `conditions-not-met` (a matched trigger's conditions did
+     * not hold) and `duplicate` (the delivery key is already held). Default: true with
+     * `deliveries.key: 'recipient'`, else false, so existing handlers see no new stages.
+     */
+    planningStages?: boolean
     /** Structured `payload.logger` output per lifecycle stage (personal data masked). Default false. */
     log?: boolean
   }
@@ -418,6 +427,7 @@ export type NormalizedNotificationsPluginOptions = {
   observability: {
     onDispatch?: NotificationObservabilityHook
     onEvent?: NotificationLifecycleHook
+    planningStages: boolean
     log: boolean
   }
   rules: NotificationRule[]

@@ -24,10 +24,16 @@ The second argument is `{ payload, idempotencyKey? }`: the Payload instance, and
 idempotency key when the event concerns one delivery. The key can contain an address with the
 default `deliveries.key`, so it is never part of the event or the `log` output.
 
+Two planning stages are emitted only with `observability.planningStages` (on by default with
+`deliveries.key: 'recipient'`, off otherwise):
+
 - `conditions-not-met`: a matched trigger's conditions or `condition` function did not hold at
   planning time; `reason` says which. Nothing was planned.
 - `duplicate`: planning found a delivery holding this delivery's key; `deliveryId` is that
   delivery, `trigger` the one that was not planned.
+
+Both are part of the `NotificationLifecycleStage` type either way, so an exhaustive `switch` needs
+cases for them.
 
 Errors thrown by the hook are logged and never affect sending.
 
