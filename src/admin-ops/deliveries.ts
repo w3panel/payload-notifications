@@ -3,6 +3,7 @@ import type { NormalizedNotificationsPluginOptions } from '../types'
 import { createSensitiveFieldMatcher, redactContext } from '../data/sensitive'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { emitLifecycle } from '../observability'
+import { promoteStandby } from '../deliveries/standby'
 import { maskDestination } from '../recipients/resolve'
 import { denyUnless } from './access'
 
@@ -19,6 +20,7 @@ type DeliveryDoc = Record<string, unknown> & {
   recipientId?: string | null
   recipientKey?: string | null
   templateSlug?: string | null
+  idempotencyKey?: string | null
   context?: Record<string, unknown> | null
 }
 
@@ -182,6 +184,7 @@ export const retryDelivery = async (
     channel: delivery.channel as never,
     recipient: delivery.recipientKey,
     reason: 'Retried from the admin',
+    idempotencyKey: delivery.idempotencyKey,
   })
   return { ok: true }
 }
@@ -210,7 +213,9 @@ export const cancelDelivery = async (
     channel: delivery.channel as never,
     recipient: delivery.recipientKey,
     reason: 'Cancelled from the admin',
+    idempotencyKey: delivery.idempotencyKey,
   })
+  await promoteStandby({ payload, options, deliveryId: String(delivery.id) })
   return { ok: true }
 }
 

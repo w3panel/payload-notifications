@@ -41,6 +41,12 @@ export type {
   NotificationClassification,
   NotificationDispatchResult,
   NotificationDispatchStatus,
+  NotificationBeforeSendArgs,
+  NotificationBeforeSendDecision,
+  NotificationBeforeSendDelivery,
+  NotificationBeforeSendHook,
+  NotificationDeliveryKeyMode,
+  NotificationLifecycleContext,
   NotificationLifecycleEvent,
   NotificationLifecycleHook,
   NotificationLifecycleStage,
@@ -319,6 +325,18 @@ export {
 } from './recipients'
 export type { ResolveRecipientsArgs, ResolveRecipientsResult } from './recipients'
 export { buildDeliveryKey, findDedupeMatch, planDeliveries } from './deliveries/plan'
+export {
+  buildSendOnceKey,
+  deliveryRecipientIdentity,
+  findDeliveryByKey,
+  sendOnceEventKey,
+} from './deliveries/keys'
+export { claimDeliveryStatus } from './deliveries/claim'
+export type { DeliveryClaimFields } from './deliveries/claim'
+export { KEY_RELEASING_STATUSES, releaseDeliveryKey } from './deliveries/keys'
+export type { DeliveryKeyHolder } from './deliveries/keys'
+export { promoteStandby, standbyKey } from './deliveries/standby'
+export { isDuplicateKeyError } from './data/errors'
 export type { DeliveryPlanResult, PlannedDelivery } from './deliveries/plan'
 export { FINAL_DELIVERY_STATUSES, markDeliveryFailed, sendDelivery } from './deliveries/send'
 export { dispatchToChannel } from './channels/dispatch'

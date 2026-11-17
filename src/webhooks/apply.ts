@@ -96,6 +96,7 @@ export const applyStatusUpdate = async (
     recipient: delivery.recipientKey,
     reason: update.error,
     providerMessageId: update.providerMessageId,
+    idempotencyKey: delivery.idempotencyKey,
   })
   if (update.status === 'failed' && previousStatus !== 'failed') {
     await createFallbackDelivery({

@@ -1,7 +1,8 @@
+import type { Payload } from 'payload'
 import type { NotificationChannel } from './channels'
 import type { NotificationDataSource } from './data-sources'
 import type { NotificationClassification, NotificationEventPayload } from './events'
-import type { NotificationTemplateDefinition } from './templates'
+import type { NotificationTemplateContext, NotificationTemplateDefinition } from './templates'
 
 export type DispatchFailureClassification = 'retriable' | 'terminal'
 
@@ -44,6 +45,16 @@ export type NotificationLifecycleStage =
   | 'unknown'
   | 'cancelled'
   | 'delivered'
+  /**
+   * A matched trigger's conditions did not hold at planning time; nothing was planned.
+   * Emitted only with `observability.planningStages`.
+   */
+  | 'conditions-not-met'
+  /**
+   * Planning found a delivery that already holds this delivery's key, so none was created.
+   * `deliveryId` is the existing delivery. Emitted only with `observability.planningStages`.
+   */
+  | 'duplicate'
 
 /** One step of a notification's life, for `observability.onEvent`. */
 export type NotificationLifecycleEvent = {
@@ -67,7 +78,69 @@ export type NotificationLifecycleEvent = {
   at: string
 }
 
-export type NotificationLifecycleHook = (event: NotificationLifecycleEvent) => void | Promise<void>
+/** Second argument of `observability.onEvent`. */
+export type NotificationLifecycleContext = {
+  payload: Payload
+  /**
+   * The delivery's idempotency key (`notification-deliveries.idempotencyKey`), when the
+   * event concerns one delivery. It can contain an address with the default delivery key,
+   * so treat it as personal data.
+   */
+  idempotencyKey?: string
+}
+
+export type NotificationLifecycleHook = (
+  event: NotificationLifecycleEvent,
+  /** Always passed since 0.4.0-beta.5; optional so older handler types still fit. */
+  context?: NotificationLifecycleContext,
+) => void | Promise<void>
+
+/**
+ * What one delivery is unique on (`deliveries.key`):
+ * - `trigger`: event, trigger, recipient, channel and template (default).
+ * - `recipient`: event, recipient and channel. Two triggers or templates for the same
+ *   event never reach one recipient twice on a channel.
+ */
+export type NotificationDeliveryKeyMode = 'trigger' | 'recipient'
+
+/** The delivery about to be sent, for `deliveries.beforeSend`. */
+export type NotificationBeforeSendDelivery = {
+  id: string
+  event: string
+  eventId?: string
+  trigger: string
+  channel: NotificationChannel
+  template: string
+  /** `user:<id>`, `email:<address>` or `phone:<e164>`. */
+  recipientKey?: string
+  recipientId?: string
+  /** Raw email address or phone number. Personal data: do not log it. */
+  destination?: string
+  idempotencyKey: string
+  classification?: NotificationClassification
+  category?: string
+  /** Template context captured at planning time (`payload`, `recipient`, data sources). */
+  context?: NotificationTemplateContext
+  scheduledFor?: string
+}
+
+export type NotificationBeforeSendArgs = {
+  payload: Payload
+  delivery: NotificationBeforeSendDelivery
+  /** 1 on the first attempt, 2 on the first retry, and so on. */
+  attempt: number
+}
+
+/** Return `{ allow: false, reason }` to cancel the delivery; anything else sends it. */
+export type NotificationBeforeSendDecision = { allow: boolean; reason?: string }
+
+export type NotificationBeforeSendHook = (
+  args: NotificationBeforeSendArgs,
+) =>
+  | void
+  | NotificationBeforeSendDecision
+  | undefined
+  | Promise<void | NotificationBeforeSendDecision | undefined>
 
 export type NotificationSendInput = {
   userId: string

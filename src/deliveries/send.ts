@@ -18,11 +18,19 @@ import { emitLifecycle } from '../observability'
 import { createObservabilityEvent } from '../reliability'
 import { callProvider } from './providerCall'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
+import { claimDeliveryStatus, type DeliveryClaimFields } from './claim'
 import { recheckDelivery } from './recheck'
+import { promoteStandby } from './standby'
 import { retryDelayMs, type ResolvedRetryPolicy } from './retry'
 import { finalizeForChannel } from '../templates/channelContent'
 import { mergeTemplateDefinition, renderDefinition } from '../templates/renderDefinition'
 import { resolveTemplate } from '../templates/resolve'
+
+/**
+ * How long past the provider timeout a `sending` delivery counts as in flight in another
+ * job, rather than interrupted.
+ */
+const IN_FLIGHT_GRACE_MS = 30_000
 
 /** Statuses after which a delivery is never sent again by the send job. */
 export const FINAL_DELIVERY_STATUSES = new Set([
@@ -51,6 +59,8 @@ type DeliveryDoc = {
   trigger: string
   recipientAlias?: string | null
   recheckConditions?: boolean | null
+  scheduledFor?: string | null
+  updatedAt?: string | null
   category?: string | null
   templateVersion?: number | null
   templateLocale?: string | null
@@ -181,9 +191,22 @@ export const sendDelivery = async ({
       providerMessageId: result.providerMessageId,
       attempt,
       durationMs,
+      idempotencyKey: delivery.idempotencyKey,
     })
     return result
   }
+
+  /** Compare-and-set from the status this job read; false when another job moved it on. */
+  const readStatus = delivery.status
+  const claim = (to: string, fields?: DeliveryClaimFields) =>
+    claimDeliveryStatus({ payload, options, deliveryId, from: readStatus, to, fields })
+
+  /** Another send job got there first: stop quietly, it reports the outcome. */
+  const movedOn = (): NotificationDispatchResult => ({
+    channel: delivery.channel,
+    status: 'skipped',
+    reason: 'Delivery was handled by another send job',
+  })
 
   /** Ends the delivery without a provider call (policy, missing user, recheck). */
   const stop = async (
@@ -191,6 +214,12 @@ export const sendDelivery = async ({
     reason: string,
     outcome: DeliveryOutcome,
   ) => {
+    // Only the job that moves the delivery out of the status it read may end it.
+    const ended = await claim(
+      status,
+      status === 'failed' || status === 'unknown' ? { lastError: reason } : { skipReason: reason },
+    )
+    if (!ended) return movedOn()
     await writeNotificationLog({
       payload,
       options,
@@ -201,12 +230,6 @@ export const sendDelivery = async ({
       failureClassification: 'terminal',
       outcome,
     })
-    await updateDelivery(payload, options, deliveryId, {
-      status,
-      ...(status === 'failed' || status === 'unknown'
-        ? { lastError: reason }
-        : { skipReason: reason }),
-    })
     if (outcome === 'policy' || outcome === 'permanent') {
       await createFallbackDelivery({
         payload,
@@ -216,13 +239,75 @@ export const sendDelivery = async ({
         detail: reason,
       })
     }
-    return report({ channel: delivery.channel, status, reason }, 'terminal')
+    const result = await report({ channel: delivery.channel, status, reason }, 'terminal')
+    if (status !== 'unknown') await promoteStandby({ payload, options, deliveryId })
+    return result
   }
 
   // A previous attempt was interrupted after the provider call started: the
   // outcome is ambiguous, so never send again automatically.
   if (delivery.status === 'sending') {
+    // Claimed moments ago: another job's provider call may still be running (it can't
+    // outlast the provider timeout). Leave the delivery to that job; if it was really
+    // interrupted, a later run or reconciliation marks it `unknown`.
+    const claimedAt = delivery.updatedAt ? Date.parse(delivery.updatedAt) : Number.NaN
+    if (Date.now() - claimedAt < options.providers.timeoutMs + IN_FLIGHT_GRACE_MS) {
+      return movedOn()
+    }
     return stop('unknown', 'A previous send attempt was interrupted; outcome unknown', 'unknown')
+  }
+
+  // The application's veto. Nothing has been sent yet, so an error here is safe to retry.
+  const beforeSend = options.deliveries.beforeSend
+  if (beforeSend) {
+    let decision: Awaited<ReturnType<typeof beforeSend>>
+    try {
+      decision = await beforeSend({
+        payload,
+        attempt,
+        delivery: {
+          id: deliveryId,
+          event: delivery.event,
+          eventId: delivery.eventId ?? undefined,
+          trigger: delivery.trigger,
+          channel: delivery.channel,
+          template: delivery.templateSlug,
+          recipientKey: delivery.recipientKey ?? undefined,
+          recipientId: delivery.recipientId ?? undefined,
+          destination: delivery.destination ?? undefined,
+          idempotencyKey: delivery.idempotencyKey,
+          classification: delivery.classification ?? undefined,
+          category: delivery.category ?? undefined,
+          context: delivery.context ?? undefined,
+          scheduledFor: delivery.scheduledFor ?? undefined,
+        },
+      })
+    } catch (error) {
+      // Count the attempt so the next one reports `attempt + 1`, and add one to
+      // `maxAttempts` so the hook's failures don't use up the provider's retries. Then
+      // let the job retry; if its retries run out, `markDeliveryFailed` ends it `failed`.
+      // Bookkeeping errors are logged; the hook's error is what the job reports.
+      await claim(readStatus, {
+        attempts: attempt,
+        maxAttempts: (delivery.maxAttempts ?? 1) + 1,
+        lastError: `deliveries.beforeSend failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      }).catch((bookkeeping: unknown) => {
+        payload.logger?.error?.(
+          { err: bookkeeping },
+          `payload-notifications: could not record the failed beforeSend attempt of delivery ${deliveryId}`,
+        )
+      })
+      throw error
+    }
+    if (decision && decision.allow === false) {
+      return stop(
+        'cancelled',
+        decision.reason?.trim() || 'Cancelled by deliveries.beforeSend',
+        'cancelled',
+      )
+    }
   }
 
   // Consent and preferences are checked at send time against the current user.
@@ -315,7 +400,7 @@ export const sendDelivery = async ({
     hsm && !provider.capabilities.hsm ? { ...rendered, whatsappTemplate: undefined } : rendered
 
   // Only now is the delivery "sending": anything thrown before this point is safe to retry.
-  await updateDelivery(payload, options, deliveryId, { status: 'sending', attempts: attempt })
+  if (!(await claim('sending', { attempts: attempt }))) return movedOn()
   const call = await callProvider(
     provider,
     {
@@ -454,7 +539,7 @@ export const sendDelivery = async ({
       detail: call.message,
     })
   }
-  return report(
+  const failed = await report(
     {
       channel: delivery.channel,
       status,
@@ -464,9 +549,15 @@ export const sendDelivery = async ({
     'terminal',
     call.durationMs,
   )
+  if (status === 'failed') await promoteStandby({ payload, options, deliveryId })
+  return failed
 }
 
-/** Marks a delivery failed after its send job exhausted retries. */
+/**
+ * Marks a delivery failed after its send job exhausted retries (for example a
+ * `deliveries.beforeSend` hook that kept throwing) and emits a `failed` lifecycle event.
+ * A delivery that already reached a final status is left alone. No fallback is created.
+ */
 export const markDeliveryFailed = async ({
   payload,
   options,
@@ -478,5 +569,39 @@ export const markDeliveryFailed = async ({
   deliveryId: string
   reason: string
 }) => {
-  await updateDelivery(payload, options, deliveryId, { status: 'failed', lastError: reason })
+  const delivery = (await payload.findByID({
+    collection: options.collections.deliveries as never,
+    id: deliveryId,
+    depth: 0,
+    overrideAccess: true,
+    disableErrors: true,
+  })) as DeliveryDoc | null
+  if (!delivery || FINAL_DELIVERY_STATUSES.has(delivery.status)) return
+  const status = 'failed'
+  const won = await claimDeliveryStatus({
+    payload,
+    options,
+    deliveryId,
+    from: delivery.status,
+    to: status,
+    fields: { lastError: reason },
+  })
+  if (!won) return
+  await emitLifecycle(payload, options, {
+    stage: status,
+    event: delivery.event,
+    eventId: delivery.eventId ?? undefined,
+    trigger: delivery.trigger,
+    triggerSource:
+      delivery.triggerOrigin === 'admin' || delivery.triggerOrigin === 'code'
+        ? delivery.triggerOrigin
+        : undefined,
+    deliveryId,
+    channel: delivery.channel,
+    recipient: delivery.recipientKey,
+    reason,
+    attempt: delivery.attempts ?? undefined,
+    idempotencyKey: delivery.idempotencyKey,
+  })
+  await promoteStandby({ payload, options, deliveryId })
 }

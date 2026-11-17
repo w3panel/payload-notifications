@@ -1,5 +1,6 @@
 import type {
   NotificationAccessCheck,
+  NotificationDeliveryKeyMode,
   NotificationsPluginOptions,
   NormalizedNotificationsPluginOptions,
 } from '../types'
@@ -516,9 +517,17 @@ export const normalizePluginOptions = (
     policy: {
       canSend: options.policy?.canSend,
     },
+    deliveries: {
+      key: normalizeDeliveryKeyMode(options.deliveries?.key),
+      beforeSend: options.deliveries?.beforeSend,
+    },
     observability: {
       onDispatch: options.observability?.onDispatch,
       onEvent: options.observability?.onEvent,
+      planningStages:
+        typeof options.observability?.planningStages === 'boolean'
+          ? options.observability.planningStages
+          : options.deliveries?.key === 'recipient',
       log: options.observability?.log === true,
     },
     rules,
@@ -580,6 +589,14 @@ export const normalizePluginOptions = (
  * `notificationsPlugin()`. Exported for use when building options
  * programmatically outside the plugin entry point.
  */
+const normalizeDeliveryKeyMode = (value: unknown): NotificationDeliveryKeyMode => {
+  if (value === undefined || value === 'trigger') return 'trigger'
+  if (value === 'recipient') return 'recipient'
+  throw new Error(
+    `payload-notifications: deliveries.key must be 'trigger' or 'recipient', got ${JSON.stringify(value)}`,
+  )
+}
+
 export const validateNormalizedOptions = (
   options: NormalizedNotificationsPluginOptions,
 ): NormalizedNotificationsPluginOptions => {

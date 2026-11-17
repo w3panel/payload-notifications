@@ -18,6 +18,11 @@ export const testDb = (): TestDb =>
 
 let instance = 0
 
+// Payload skips the dev schema push when an instance's schema equals the previous
+// instance's (cached per process), which leaves the second one on an empty in-memory
+// database. Test files whose plugin options give the same collections must differ: pass a
+// marker collection via `collections` (see sendOnce.test.ts).
+
 // Adapters are imported by name so the typecheck does not need the optional ones.
 const importAdapter = (name: string) =>
   import(name) as Promise<Record<string, (args: unknown) => unknown>>
@@ -111,6 +116,15 @@ export const startPayload = async ({
     logger: { options: { level: 'error' } } as never,
   })
   const payload = await getPayload({ config, key: `integration-${instance}` } as never)
+  if (testDb() === 'mongodb') {
+    // Mongoose builds indexes in the background; unique-key tests need them in place.
+    const models = (payload.db as unknown as { collections?: Record<string, unknown> }).collections
+    await Promise.all(
+      Object.values(models ?? {}).map((model) =>
+        (model as { createIndexes?: () => Promise<unknown> }).createIndexes?.(),
+      ),
+    )
+  }
   const queue = 'notifications'
 
   const runJobs = async () => {

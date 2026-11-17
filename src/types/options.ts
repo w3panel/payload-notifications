@@ -8,7 +8,12 @@ import type {
   NotificationDataResolverRegistry,
   NotificationsDataOptions,
 } from './data-sources'
-import type { NotificationLifecycleHook, NotificationObservabilityHook } from './deliveries'
+import type {
+  NotificationBeforeSendHook,
+  NotificationDeliveryKeyMode,
+  NotificationLifecycleHook,
+  NotificationObservabilityHook,
+} from './deliveries'
 import type {
   CollectionEventConfig,
   NormalizedCollectionEventConfig,
@@ -178,10 +183,47 @@ export type NotificationsPluginOptions = {
       context: NotificationPolicyContext,
     ) => NotificationPolicyDecision | Promise<NotificationPolicyDecision>
   }
+  /** How trigger deliveries are keyed and checked before sending. */
+  deliveries?: {
+    /**
+     * What one delivery is unique on. `trigger` (default): event + trigger + recipient +
+     * channel + template. `recipient`: event + recipient + channel, so a recipient gets at
+     * most one message per event and channel however many triggers or templates match.
+     * Email, WhatsApp and SMS recipients are identified by their normalised address or
+     * number (hashed in the key), so one inbox reached as an account and as a static
+     * address counts once. Both modes use the unique `idempotencyKey` column: a second
+     * plan for the same key finds the existing delivery instead of creating one. With
+     * `'recipient'`, another trigger's delivery for a held key waits as a standby and is
+     * sent if the holder ends without sending; trigger `priority` decides who holds it.
+     */
+    key?: NotificationDeliveryKeyMode
+    /**
+     * Called before every send attempt of a trigger delivery (after the already-final
+     * and interrupted-send checks, before consent, policy and rendering). Return
+     * `{ allow: false, reason }` to cancel the delivery: it ends `cancelled` with that
+     * reason, the attempt is logged and a `cancelled` lifecycle event is emitted. No
+     * fallback is created. A thrown error counts as an attempt (`attempts` and
+     * `maxAttempts` + 1, `lastError` set) but nothing is sent: the delivery stays `queued`
+     * and the send job retries it. When the job's retries run out the delivery ends
+     * `failed` with a `failed` lifecycle event and no fallback; with `key: 'recipient'` a
+     * standby waiting behind it is sent instead.
+     */
+    beforeSend?: NotificationBeforeSendHook
+  }
   observability?: {
     onDispatch?: NotificationObservabilityHook
-    /** Every lifecycle stage: matched, planned, skipped, sent, retrying, failed, unknown, cancelled, delivered. */
+    /**
+     * Every lifecycle stage: matched, planned, skipped, sent, retrying, failed, unknown,
+     * cancelled, delivered (plus conditions-not-met and duplicate with `planningStages`).
+     * The second argument carries `payload` and the delivery's `idempotencyKey`.
+     */
     onEvent?: NotificationLifecycleHook
+    /**
+     * Also emit the planning stages `conditions-not-met` (a matched trigger's conditions did
+     * not hold) and `duplicate` (the delivery key is already held). Default: true with
+     * `deliveries.key: 'recipient'`, else false, so existing handlers see no new stages.
+     */
+    planningStages?: boolean
     /** Structured `payload.logger` output per lifecycle stage (personal data masked). Default false. */
     log?: boolean
   }
@@ -380,9 +422,14 @@ export type NormalizedNotificationsPluginOptions = {
       context: NotificationPolicyContext,
     ) => NotificationPolicyDecision | Promise<NotificationPolicyDecision>
   }
+  deliveries: {
+    key: NotificationDeliveryKeyMode
+    beforeSend?: NotificationBeforeSendHook
+  }
   observability: {
     onDispatch?: NotificationObservabilityHook
     onEvent?: NotificationLifecycleHook
+    planningStages: boolean
     log: boolean
   }
   rules: NotificationRule[]

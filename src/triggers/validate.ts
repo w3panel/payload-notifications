@@ -49,6 +49,10 @@ export const validateTrigger = (
     definitions.map((definition, index) => [recipientAlias(definition, index), definition]),
   )
 
+  if (trigger.priority !== undefined && !Number.isFinite(trigger.priority)) {
+    errors.push(`${owner}: priority must be a finite number`)
+  }
+
   if (trigger.source.type === 'collection') {
     const { collection, operation } = trigger.source
     const config = options.collectionEvents[collection]
