@@ -13,7 +13,13 @@ import { generateEventId } from '../events/registry'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
-import { buildSendOnceKey, findDeliveryByKey } from './keys'
+import {
+  buildSendOnceKey,
+  type DeliveryKeyHolder,
+  findDeliveryByKey,
+  releaseDeliveryKey,
+} from './keys'
+import { STANDBY_REASON_PREFIX, standbyKey } from './standby'
 import { evaluateTriggerPlan } from './evaluate'
 import { resolveTemplate } from '../templates/resolve'
 import { emitLifecycle } from '../observability'
@@ -22,7 +28,7 @@ import { resolveRetryPolicy } from './retry'
 import { createFallbackDelivery, type FallbackSource } from './fallback'
 import { matchTriggers, snapshotTrigger, type TriggerSnapshot } from '../triggers/match'
 import { resolveEffectiveTriggers } from '../triggers/registry'
-import { sendDelivery } from './send'
+import { FINAL_DELIVERY_STATUSES, sendDelivery } from './send'
 
 export type PlannedDelivery = {
   deliveryId?: string
@@ -170,7 +176,10 @@ export const planDeliveries = async ({
         operation: event.source.operation,
       })
     : []
-  const matched = [...bySource, ...byName.filter((entry) => !bySource.includes(entry))]
+  // Higher `priority` plans first (a stable sort keeps match order for ties).
+  const matched = [...bySource, ...byName.filter((entry) => !bySource.includes(entry))].sort(
+    (a, b) => (b.trigger.priority ?? 0) - (a.trigger.priority ?? 0),
+  )
   const result: DeliveryPlanResult = {
     eventId,
     matched: matched.map(snapshotTrigger),
@@ -367,7 +376,7 @@ const planTrigger = async ({
       status: 'queued',
     }
 
-    const holdsKey = async (existing: { id: string }) => {
+    const holdsKey = async (existing: { id: string }, note?: string) => {
       result.deliveries.push({ ...planned, deliveryId: existing.id, status: 'existing' })
       if (!options.observability.planningStages) return
       await emitLifecycle(payload, options, {
@@ -380,16 +389,55 @@ const planTrigger = async ({
         deliveryId: existing.id,
         channel: delivery.channel,
         recipient: recipient.key,
-        reason: `Delivery ${existing.id} already holds this delivery key`,
+        reason: `Delivery ${existing.id} already holds this delivery key${note ? `; ${note}` : ''}`,
         idempotencyKey,
       })
     }
 
+    // Send-once: another route's delivery may hold the key. If it ended without sending,
+    // take the key over; if it hasn't finished yet, wait behind it as a standby.
+    let standbyFor: DeliveryKeyHolder | undefined
     const existing = await findDeliveryByKey(payload, options, idempotencyKey)
     if (existing) {
-      await holdsKey(existing)
-      continue
+      const sendOnce = options.deliveries.key === 'recipient'
+      const route = { trigger: trigger.slug, template: delivery.template }
+      const otherRoute =
+        existing.trigger !== route.trigger || existing.templateSlug !== route.template
+      if (
+        sendOnce &&
+        (await releaseDeliveryKey({
+          payload,
+          options,
+          holder: existing,
+          idempotencyKey,
+          by: route,
+        }))
+      ) {
+        // The key is free: plan this delivery normally.
+      } else if (
+        sendOnce &&
+        otherRoute &&
+        destination &&
+        !FINAL_DELIVERY_STATUSES.has(existing.status ?? '')
+      ) {
+        const waiting = await findDeliveryByKey(
+          payload,
+          options,
+          standbyKey(idempotencyKey, route.trigger, route.template),
+        )
+        if (waiting) {
+          await holdsKey(existing, `standby ${waiting.id} waits behind it`)
+          continue
+        }
+        standbyFor = existing
+      } else {
+        await holdsKey(existing)
+        continue
+      }
     }
+    const recordKey = standbyFor
+      ? standbyKey(idempotencyKey, trigger.slug, delivery.template)
+      : idempotencyKey
 
     const duplicateOf = plan.dedupeKey
       ? await findDedupeMatch(payload, options, {
@@ -406,6 +454,11 @@ const planTrigger = async ({
       : destination
         ? undefined
         : `No ${delivery.channel} destination for recipient`
+    if (standbyFor && skipReason) {
+      // Nothing to wait for: this delivery would be skipped anyway.
+      await holdsKey(standbyFor)
+      continue
+    }
     const pinned = await pinTemplate(delivery.template, delivery.channel, recipient.locale)
     const record = {
       event: event.name,
@@ -418,7 +471,7 @@ const planTrigger = async ({
       templateSlug: delivery.template,
       templateVersion: pinned?.version,
       templateLocale: pinned?.locale,
-      status: skipReason ? 'skipped' : 'queued',
+      status: skipReason || standbyFor ? 'skipped' : 'queued',
       attempts: 0,
       recipientKey: recipient.key,
       recipientId: recipient.recipientId,
@@ -426,14 +479,16 @@ const planTrigger = async ({
       destination,
       destinationMasked: maskDestination(destination),
       classification,
-      idempotencyKey,
+      idempotencyKey: recordKey,
       dedupeKey: plan.dedupeKey,
       category: deliveryCategory(trigger.category, classification),
       ...(event.tenant ? { tenant: event.tenant } : {}),
       fallback: delivery.fallback,
       recipientDestinations: recipient.destinations,
       ...retryFields(resolveRetryPolicy(options, trigger.reliability, delivery.channel)),
-      skipReason,
+      skipReason: standbyFor
+        ? `${STANDBY_REASON_PREFIX} delivery ${standbyFor.id} holds the send-once key; sent only if it ends without sending`
+        : skipReason,
       scheduledFor: sendAt?.toISOString(),
       recheckConditions: trigger.schedule?.recheckConditions === true,
       context: {
@@ -452,12 +507,17 @@ const planTrigger = async ({
       })) as { id: string | number }
     } catch (error) {
       if (!isDuplicateKeyError(error)) throw error
-      const raced = await findDeliveryByKey(payload, options, idempotencyKey)
+      const raced = await findDeliveryByKey(payload, options, recordKey)
       if (!raced) throw error
-      await holdsKey(raced)
+      await holdsKey(standbyFor ?? raced)
       continue
     }
     const deliveryId = String(created.id)
+
+    if (standbyFor) {
+      await holdsKey(standbyFor, `standby ${deliveryId} waits behind it`)
+      continue
+    }
 
     if (skipReason) {
       await writeNotificationLog({

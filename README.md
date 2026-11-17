@@ -337,8 +337,10 @@ notificationsPlugin({
 - Both key modes use the unique `notification-deliveries.idempotencyKey` column: a second plan for
   the same key, including two plans racing, finds the existing delivery instead of creating one.
   No migration is needed to switch modes.
-- A held key is not handed on when its delivery fails: retry the failed delivery (admin retry
-  action) rather than planning the event again.
+- Another trigger's delivery for a held key waits as a standby. It is sent if the holder ends
+  without sending (skipped, cancelled or vetoed, failed), so a recipient never loses the message
+  to a route that didn't send. Give the route whose template a shared inbox should get a higher
+  trigger `priority`.
 - Each send job claims its delivery with a compare-and-set on the status, so two jobs for one
   delivery can't both act (one veto and one send never both happen).
 - `isDuplicateKeyError(error)` is exported for your own unique writes (Postgres, SQLite / D1,

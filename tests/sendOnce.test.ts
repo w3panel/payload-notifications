@@ -9,7 +9,9 @@ import {
   sendOnceEventKey,
 } from '../src/deliveries/keys'
 import { planDeliveries } from '../src/deliveries/plan'
+import { claimDeliveryStatus } from '../src/deliveries/claim'
 import { markDeliveryFailed, sendDelivery } from '../src/deliveries/send'
+import { reconcileDeliveries } from '../src/jobs/maintenance'
 import { processEvent } from '../src/jobs/processEvent'
 import { sendNotification } from '../src/jobs/sendNotification'
 import { emitLifecycle } from '../src/observability'
@@ -121,11 +123,19 @@ describe('deliveries.key', () => {
     })
     const result = await processEvent({ payload: memory.payload, event: paid, options })
 
-    const deliveries = memory.docs('notification-deliveries')
+    const all = memory.docs('notification-deliveries')
+    // The mailbox route waits as a standby: skipped, no send job, its own key.
+    const [standby] = all.filter((d) => d.trigger === 'paid-mailbox')
+    expect(standby).toMatchObject({ channel: 'email', status: 'skipped' })
+    expect(String(standby.skipReason)).toStartWith('Standby:')
+    const deliveries = all.filter((d) => d !== standby)
     expect(deliveries.map((d) => [d.trigger, d.channel])).toEqual([
       ['paid-customer', 'email'],
       ['paid-customer', 'inapp'],
     ])
+    expect(standby.idempotencyKey).toBe(
+      `${deliveries[0].idempotencyKey}::standby:paid-mailbox:order.paid.staff`,
+    )
     const emailKey = String(deliveries[0].idempotencyKey)
     expect(emailKey).toMatch(/^order:7:paid::email::email#[0-9a-f]{32}$/)
     expect(emailKey).not.toContain('alex')
@@ -140,7 +150,7 @@ describe('deliveries.key', () => {
       trigger: 'paid-mailbox',
       deliveryId: deliveries[0].id,
       channel: 'email',
-      reason: `Delivery ${deliveries[0].id} already holds this delivery key`,
+      reason: `Delivery ${deliveries[0].id} already holds this delivery key; standby ${standby.id} waits behind it`,
     })
     expect(memory.queue).toHaveBeenCalledTimes(2)
   })
@@ -154,7 +164,9 @@ describe('deliveries.key', () => {
       event: { ...paid, idempotencyKey: 'order:8:paid' },
       options,
     })
-    expect(memory.docs('notification-deliveries')).toHaveLength(6)
+    expect(
+      memory.docs('notification-deliveries').filter((d) => d.status !== 'skipped'),
+    ).toHaveLength(6)
   })
 
   it('finds the existing delivery when two plans race for the same key', async () => {
@@ -791,5 +803,389 @@ describe('fallback key collisions', () => {
         detail: 'x',
       }),
     ).rejects.toThrow('other_idx')
+  })
+})
+
+/** Runs every queued send job (including ones queued while running) once. */
+const runQueued = async (
+  memory: ReturnType<typeof createMemoryPayload>,
+  options: ReturnType<typeof normalizePluginOptions>,
+  from = 0,
+) => {
+  for (let index = from; index < memory.queue.mock.calls.length; index++) {
+    const { input } = (memory.queue.mock.calls[index] as unknown as [{ input: Doc }])[0]
+    await sendNotification({ payload: memory.payload, input: input as never, options })
+  }
+}
+
+describe('send-once standbys and key hand-over', () => {
+  const routes = (
+    extra: Partial<NotificationsPluginOptions> = {},
+    priorities: { customer?: number; mailbox?: number } = {},
+  ) => {
+    const base = twoRoutes('alex@example.com')
+    return normalizePluginOptions({
+      channels: ['email', 'inapp', 'sms'],
+      providers: { custom: { sms: okSms } },
+      templates,
+      deliveries: { key: 'recipient' },
+      triggers: base.triggers.map((trigger) => ({
+        ...trigger,
+        priority: trigger.slug === 'paid-customer' ? priorities.customer : priorities.mailbox,
+      })),
+      ...extra,
+    })
+  }
+  const emails = (memory: ReturnType<typeof createMemoryPayload>) =>
+    memory.sendEmail.mock.calls.map((call) => (call[0] as unknown as Doc).subject)
+
+  it('sends the standby when the key holder is vetoed', async () => {
+    const memory = createMemoryPayload({ users })
+    const stages: NotificationLifecycleEvent[] = []
+    const options = routes({
+      deliveries: {
+        key: 'recipient',
+        beforeSend: ({ delivery }) =>
+          delivery.trigger === 'paid-customer' && delivery.channel === 'email'
+            ? { allow: false, reason: 'Held back' }
+            : undefined,
+      },
+      observability: { onEvent: (event) => void stages.push(event) },
+    })
+    await processEvent({ payload: memory.payload, event: paid, options })
+    await runQueued(memory, options)
+
+    const docs = memory.docs('notification-deliveries')
+    const holder = docs.find((d) => d.trigger === 'paid-customer' && d.channel === 'email')!
+    const standby = docs.find((d) => d.trigger === 'paid-mailbox')!
+    expect(holder.status).toBe('cancelled')
+    expect(String(holder.idempotencyKey)).toEndWith(`::superseded:${holder.id}`)
+    expect(standby).toMatchObject({ status: 'sent', skipReason: null })
+    expect(String(standby.idempotencyKey)).toMatch(/^order:7:paid::email::email#[0-9a-f]{32}$/)
+    expect(emails(memory)).toEqual(['New order EF-7'])
+    expect(
+      stages.some(
+        (e) =>
+          e.stage === 'planned' &&
+          e.deliveryId === standby.id &&
+          e.reason?.includes(`delivery ${holder.id}`),
+      ),
+    ).toBe(true)
+  })
+
+  it('sends the standby when the holder fails for good, and cancels the failed holder', async () => {
+    const memory = createMemoryPayload(
+      { users },
+      {
+        sendEmail: mock(async (message: Doc) => {
+          if (message.subject === 'Order EF-7 paid') {
+            throw new ProviderError('Template rejected', { status: 422 })
+          }
+          return undefined
+        }) as never,
+      },
+    )
+    const options = routes({ reliability: { attempts: 1 } })
+    await processEvent({ payload: memory.payload, event: paid, options })
+    await runQueued(memory, options)
+    const docs = memory.docs('notification-deliveries')
+    const holder = docs.find((d) => d.trigger === 'paid-customer' && d.channel === 'email')!
+    const standby = docs.find((d) => d.trigger === 'paid-mailbox')!
+    // Cancelled, so an admin retry can't also send it.
+    expect(holder.status).toBe('cancelled')
+    expect(String(holder.skipReason)).toStartWith('Superseded')
+    expect(standby.status).toBe('sent')
+  })
+
+  it('leaves the standby skipped when the holder sends', async () => {
+    const memory = createMemoryPayload({ users })
+    const options = routes()
+    await processEvent({ payload: memory.payload, event: paid, options })
+    await runQueued(memory, options)
+    expect(emails(memory)).toEqual(['Order EF-7 paid'])
+    const standby = memory
+      .docs('notification-deliveries')
+      .find((d) => d.trigger === 'paid-mailbox')!
+    expect(standby.status).toBe('skipped')
+    // A replay adds nothing.
+    const before = memory.docs('notification-deliveries').length
+    await processEvent({ payload: memory.payload, event: paid, options })
+    expect(memory.docs('notification-deliveries')).toHaveLength(before)
+  })
+
+  it('lets trigger priority decide which route holds a shared inbox', async () => {
+    const memory = createMemoryPayload({ users })
+    const options = routes({}, { mailbox: 10 })
+    await processEvent({ payload: memory.payload, event: paid, options })
+    await runQueued(memory, options)
+    expect(emails(memory)).toEqual(['New order EF-7'])
+    expect(() =>
+      normalizePluginOptions({
+        channels: ['email'],
+        templates,
+        triggers: [{ ...twoRoutes('a@b.co').triggers[0], priority: Number.NaN }],
+      }),
+    ).toThrow('priority must be a finite number')
+  })
+
+  it('hands a key on to another route at re-planning when the holder ended unsent', async () => {
+    const memory = createMemoryPayload({ users })
+    const customerOnly = routes({
+      deliveries: {
+        key: 'recipient',
+        beforeSend: () => ({ allow: false, reason: 'Held back' }),
+      },
+    })
+    await processEvent({
+      payload: memory.payload,
+      event: paid,
+      options: { ...customerOnly, triggers: customerOnly.triggers.slice(0, 1) },
+    })
+    await runQueued(memory, customerOnly)
+    const holder = memory
+      .docs('notification-deliveries')
+      .find((d) => d.trigger === 'paid-customer' && d.channel === 'email')!
+    expect(holder.status).toBe('cancelled')
+
+    const mailboxOnly = routes()
+    const result = await processEvent({
+      payload: memory.payload,
+      event: paid,
+      options: { ...mailboxOnly, triggers: mailboxOnly.triggers.slice(1) },
+    })
+    expect(result.deliveries[0].status).toBe('queued')
+    expect(String(holder.idempotencyKey)).toEndWith(`::superseded:${holder.id}`)
+    // The same route replayed keeps finding its own (cancelled) delivery.
+    const replay = await processEvent({
+      payload: memory.payload,
+      event: paid,
+      options: { ...mailboxOnly, triggers: mailboxOnly.triggers.slice(1) },
+    })
+    expect(replay.deliveries[0].status).toBe('existing')
+  })
+})
+
+describe('send claims', () => {
+  const options = normalizePluginOptions({ channels: ['email'], templates })
+
+  it('leaves a freshly claimed sending delivery to the job that claimed it', async () => {
+    const memory = createMemoryPayload({
+      users,
+      'notification-deliveries': [
+        {
+          id: 'd1',
+          status: 'sending',
+          updatedAt: new Date().toISOString(),
+          channel: 'email',
+          event: 'order.paid',
+          trigger: 't',
+          templateSlug: 'order.paid',
+          idempotencyKey: 'k',
+        },
+        {
+          id: 'd2',
+          status: 'sending',
+          updatedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+          channel: 'email',
+          event: 'order.paid',
+          trigger: 't',
+          templateSlug: 'order.paid',
+          idempotencyKey: 'k2',
+        },
+      ],
+    })
+    const input = { userId: '', channel: 'email' as const, template: 'order.paid', event: 'e' }
+    const fresh = await sendDelivery({
+      payload: memory.payload,
+      input: { ...input, deliveryId: 'd1' },
+      options,
+    })
+    expect(fresh).toMatchObject({ status: 'skipped' })
+    expect(memory.docs('notification-deliveries')[0].status).toBe('sending')
+    const stale = await sendDelivery({
+      payload: memory.payload,
+      input: { ...input, deliveryId: 'd2' },
+      options,
+    })
+    expect(stale.status).toBe('unknown')
+  })
+
+  it('keeps provider retries when the hook threw first', async () => {
+    let calls = 0
+    const memory = createMemoryPayload(
+      { users },
+      {
+        sendEmail: mock(async () => {
+          throw new ProviderError('Busy', { status: 503 })
+        }) as never,
+      },
+    )
+    const opts = normalizePluginOptions({
+      channels: ['email'],
+      templates,
+      reliability: { attempts: 2 },
+      deliveries: {
+        beforeSend: () => {
+          if (++calls === 1) throw new Error('lookup failed')
+        },
+      },
+      triggers: [
+        {
+          slug: 'paid',
+          event: 'order.paid',
+          recipients: [{ type: 'eventUser' }],
+          deliveries: [{ channel: 'email', template: 'order.paid' }],
+        },
+      ],
+    })
+    await processEvent({ payload: memory.payload, event: paid, options: opts })
+    const [delivery] = memory.docs('notification-deliveries')
+    expect(delivery.maxAttempts).toBe(2)
+    const input = (memory.queue.mock.calls[0] as unknown as [{ input: Doc }])[0].input
+    await expect(
+      sendNotification({ payload: memory.payload, input: input as never, options: opts }),
+    ).rejects.toThrow('lookup failed')
+    expect(delivery).toMatchObject({ attempts: 1, maxAttempts: 3 })
+    // Attempt 2 reaches the provider, which fails retryably: one provider retry is left.
+    await sendNotification({ payload: memory.payload, input: input as never, options: opts })
+    expect(delivery).toMatchObject({ status: 'queued', attempts: 2 })
+  })
+
+  it("reports the hook's error even when recording the attempt fails", async () => {
+    const memory = createMemoryPayload({ users })
+    const opts = normalizePluginOptions({
+      channels: ['email'],
+      templates,
+      deliveries: {
+        beforeSend: () => {
+          throw new Error('lookup failed')
+        },
+      },
+      triggers: [
+        {
+          slug: 'paid',
+          event: 'order.paid',
+          recipients: [{ type: 'eventUser' }],
+          deliveries: [{ channel: 'email', template: 'order.paid' }],
+        },
+      ],
+    })
+    await processEvent({ payload: memory.payload, event: paid, options: opts })
+    memory.payload.update = (async () => {
+      throw new Error('connection terminated')
+    }) as never
+    const input = (memory.queue.mock.calls[0] as unknown as [{ input: Doc }])[0].input
+    await expect(
+      sendNotification({ payload: memory.payload, input: input as never, options: opts }),
+    ).rejects.toThrow('lookup failed')
+    expect(memory.logger.error).toHaveBeenCalled()
+  })
+
+  it('reports an unknown stale send from reconciliation', async () => {
+    const stages: NotificationLifecycleEvent[] = []
+    const opts = normalizePluginOptions({
+      channels: ['email'],
+      templates,
+      observability: { onEvent: (event) => void stages.push(event) },
+    })
+    const memory = createMemoryPayload({
+      'notification-deliveries': [
+        {
+          id: 'd1',
+          status: 'sending',
+          updatedAt: '2000-01-01T00:00:00.000Z',
+          channel: 'email',
+          event: 'order.paid',
+          trigger: 't',
+          idempotencyKey: 'k',
+        },
+      ],
+    })
+    await reconcileDeliveries(memory.payload, opts)
+    expect(stages).toEqual([
+      expect.objectContaining({
+        stage: 'unknown',
+        deliveryId: 'd1',
+        reason: 'Send did not finish; outcome unknown',
+      }),
+    ])
+  })
+})
+
+describe('claimDeliveryStatus on SQL adapters', () => {
+  const fakeSql = (result: (raw: string) => unknown, row?: (raw: string) => Doc) => {
+    const statements: string[] = []
+    const update = mock(async () => ({ docs: [] }))
+    const payload = {
+      db: {
+        drizzle: {},
+        schemaName: 'tenant_a',
+        tableNameMap: new Map([['notif_deliveries_v2', 'notif_deliveries_v2']]),
+        execute: async ({ raw }: { raw: string }) => {
+          statements.push(raw)
+          return result(raw)
+        },
+      },
+      findByID: async () => (row ? row(statements.at(-1) ?? '') : null),
+      update,
+      logger: { warn: mock(() => undefined), error: mock(() => undefined) },
+    }
+    return { payload: payload as never, statements, update }
+  }
+  const options = { collections: { deliveries: 'notifDeliveriesV2' } } as never
+  const nowIn = (raw: string) => /"updated_at" = '([^']+)'/.exec(raw)?.[1]
+
+  it('sets the status, fields and updated_at in one conditional statement', async () => {
+    const sql = fakeSql(() => ({ rows: [[1]] }))
+    const won = await claimDeliveryStatus({
+      payload: sql.payload,
+      options,
+      deliveryId: '12',
+      from: 'queued',
+      to: 'cancelled',
+      fields: { skipReason: "it's held", lastError: null, attempts: 2 },
+    })
+    expect(won).toBe(true)
+    expect(sql.statements).toHaveLength(1)
+    const [raw] = sql.statements
+    expect(raw).toStartWith(`UPDATE "tenant_a"."notif_deliveries_v2" SET "status" = 'cancelled'`)
+    expect(raw).toContain(`"skip_reason" = 'it''s held'`)
+    expect(raw).toContain('"last_error" = NULL')
+    expect(raw).toContain('"attempts" = 2')
+    expect(raw).toContain(`WHERE "id" = 12 AND "status" = 'queued' RETURNING "id"`)
+    expect(nowIn(raw)).toMatch(/^\d{4}-\d\d-\d\dT/)
+    expect(sql.update).not.toHaveBeenCalled()
+  })
+
+  it('reads the row back, and never re-applies, when the result shape is unknown', async () => {
+    const won = fakeSql(
+      () => ({ ok: true }),
+      (raw) => ({ status: 'sending', updatedAt: nowIn(raw) }),
+    )
+    expect(
+      await claimDeliveryStatus({
+        payload: won.payload,
+        options,
+        deliveryId: '12',
+        from: 'queued',
+        to: 'sending',
+      }),
+    ).toBe(true)
+    expect(won.update).not.toHaveBeenCalled()
+
+    const lost = fakeSql(
+      () => ({ ok: true }),
+      () => ({ status: 'cancelled', updatedAt: '2000-01-01T00:00:00.000Z' }),
+    )
+    expect(
+      await claimDeliveryStatus({
+        payload: lost.payload,
+        options,
+        deliveryId: '12',
+        from: 'queued',
+        to: 'sending',
+      }),
+    ).toBe(false)
+    expect(lost.update).not.toHaveBeenCalled()
   })
 })

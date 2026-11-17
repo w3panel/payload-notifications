@@ -16,6 +16,8 @@ const TIMEOUT = 60_000
 
 const lifecycle: Array<[NotificationLifecycleEvent, NotificationLifecycleContext | undefined]> = []
 let vetoReason: string | undefined
+/** When set, only this trigger's deliveries are vetoed. */
+let vetoTrigger: string | undefined
 /** Set by the race test: makes concurrent hook calls wait for each other. */
 let raceGate: (() => Promise<{ allow: boolean; reason?: string } | undefined>) | undefined
 
@@ -23,8 +25,12 @@ const pluginOptions: NotificationsPluginOptions = {
   channels: ['email', 'inapp'],
   deliveries: {
     key: 'recipient',
-    beforeSend: () =>
-      raceGate ? raceGate() : vetoReason ? { allow: false, reason: vetoReason } : undefined,
+    beforeSend: ({ delivery }) =>
+      raceGate
+        ? raceGate()
+        : vetoReason && (!vetoTrigger || delivery.trigger === vetoTrigger)
+          ? { allow: false, reason: vetoReason }
+          : undefined,
   },
   observability: { onEvent: (event, context) => void lifecycle.push([event, context]) },
   templates: {
@@ -54,7 +60,11 @@ describe('send once per event, recipient and channel (real database)', () => {
   let ownerId: string
 
   beforeAll(async () => {
-    t = await startPayload({ plugin: pluginOptions })
+    // A marker collection gives this file its own schema (see harness.ts).
+    t = await startPayload({
+      plugin: pluginOptions,
+      collections: [{ slug: 'send-once-marker', fields: [{ name: 'note', type: 'text' }] }],
+    })
     const owner = await createUser(t.payload, { email: 'owner@shop.test', name: 'Owner' })
     ownerId = String(owner.id)
   }, TIMEOUT)
@@ -277,6 +287,43 @@ describe('send once per event, recipient and channel (real database)', () => {
         expect(t.emails.length - sent).toBe(row.status === 'sent' ? 1 : 0)
       } finally {
         raceGate = undefined
+      }
+    },
+    TIMEOUT,
+  )
+
+  it(
+    'sends the waiting route when the key holder is vetoed',
+    async () => {
+      vetoReason = 'Held back'
+      vetoTrigger = 'paid-customer'
+      try {
+        const sent = t.emails.length
+        const options = normalizePluginOptions(pluginOptions)
+        await planDeliveries({
+          payload: t.payload,
+          event: {
+            name: 'order.paid',
+            idempotencyKey: 'order:5:paid',
+            userId: ownerId,
+            payload: { orderId: 'EF-5' },
+          },
+          options,
+        })
+        await t.runJobs()
+        expect(t.emails.slice(sent).map((email) => email.subject)).toEqual(['New order EF-5'])
+        const rows = await t.find('notification-deliveries', {
+          idempotencyKey: { like: 'order:5:paid' },
+        })
+        const holder = rows.find((row) => row.trigger === 'paid-customer')
+        const standby = rows.find((row) => row.trigger === 'paid-mailbox')
+        expect(holder).toMatchObject({ status: 'cancelled' })
+        expect(String(holder?.idempotencyKey)).toContain('::superseded:')
+        expect(standby).toMatchObject({ status: 'sent', skipReason: null })
+        expect(String(standby?.idempotencyKey)).toMatch(/^order:5:paid::email::email#[0-9a-f]{32}$/)
+      } finally {
+        vetoReason = undefined
+        vetoTrigger = undefined
       }
     },
     TIMEOUT,

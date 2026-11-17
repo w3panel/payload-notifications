@@ -192,7 +192,9 @@ export type NotificationsPluginOptions = {
      * Email, WhatsApp and SMS recipients are identified by their normalised address or
      * number (hashed in the key), so one inbox reached as an account and as a static
      * address counts once. Both modes use the unique `idempotencyKey` column: a second
-     * plan for the same key finds the existing delivery instead of creating one.
+     * plan for the same key finds the existing delivery instead of creating one. With
+     * `'recipient'`, another trigger's delivery for a held key waits as a standby and is
+     * sent if the holder ends without sending; trigger `priority` decides who holds it.
      */
     key?: NotificationDeliveryKeyMode
     /**
@@ -200,11 +202,11 @@ export type NotificationsPluginOptions = {
      * and interrupted-send checks, before consent, policy and rendering). Return
      * `{ allow: false, reason }` to cancel the delivery: it ends `cancelled` with that
      * reason, the attempt is logged and a `cancelled` lifecycle event is emitted. No
-     * fallback is created. A thrown error counts as an attempt (`attempts` + 1,
-     * `lastError` set) but nothing is sent: the delivery stays `queued` and the send job
-     * retries it. When the job's retries run out the delivery ends `failed` with a
-     * `failed` lifecycle event and no fallback; with `key: 'recipient'` it keeps the
-     * send-once key, so only an admin retry can send it.
+     * fallback is created. A thrown error counts as an attempt (`attempts` and
+     * `maxAttempts` + 1, `lastError` set) but nothing is sent: the delivery stays `queued`
+     * and the send job retries it. When the job's retries run out the delivery ends
+     * `failed` with a `failed` lifecycle event and no fallback; with `key: 'recipient'` a
+     * standby waiting behind it is sent instead.
      */
     beforeSend?: NotificationBeforeSendHook
   }

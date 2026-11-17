@@ -197,6 +197,12 @@ export type NotificationTrigger = {
   /** Overrides the event classification for these deliveries. */
   classification?: NotificationClassification
   /**
+   * Planning order among the triggers an event matches: higher first, ties keep match
+   * order. Default 0. With `deliveries.key: 'recipient'` the first trigger to plan for an
+   * inbox decides its template, so give the route whose message should win a higher priority.
+   */
+  priority?: number
+  /**
    * Preference category users opt in / out of (e.g. `order-updates`,
    * `newsletter`). Defaults to the classification.
    */

@@ -1,6 +1,8 @@
 import type { Payload } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
+import { emitLifecycle } from '../observability'
 import { normalizeEmail, normalizePhone } from '../recipients/resolve'
+import { claimDeliveryStatus } from './claim'
 
 /*
  * Send-once delivery keys (`deliveries.key: 'recipient'`). The default key is
@@ -77,12 +79,24 @@ const SEND_ONCE_KEY = /^(.*)::[a-z]+::(?:email|phone|user|key)#[^:]+$/
 export const sendOnceEventKey = (idempotencyKey: string): string | undefined =>
   SEND_ONCE_KEY.exec(idempotencyKey)?.[1] || undefined
 
+/** The delivery holding an idempotency key. */
+export type DeliveryKeyHolder = {
+  id: string
+  status?: string
+  trigger?: string
+  templateSlug?: string
+  event?: string
+  eventId?: string
+  channel?: string
+  recipientKey?: string
+}
+
 /** The delivery holding an idempotency key, if any. */
 export const findDeliveryByKey = async (
   payload: Payload,
   options: Pick<NormalizedNotificationsPluginOptions, 'collections'>,
   idempotencyKey: string,
-): Promise<{ id: string; status?: string } | undefined> => {
+): Promise<DeliveryKeyHolder | undefined> => {
   const existing = await payload.find({
     collection: options.collections.deliveries as never,
     where: { idempotencyKey: { equals: idempotencyKey } },
@@ -91,6 +105,80 @@ export const findDeliveryByKey = async (
     overrideAccess: true,
     pagination: false,
   })
-  const doc = existing.docs?.[0] as { id: string | number; status?: string } | undefined
-  return doc ? { id: String(doc.id), status: doc.status } : undefined
+  const doc = existing.docs?.[0] as Record<string, unknown> | undefined
+  if (!doc) return undefined
+  const text = (value: unknown) => (typeof value === 'string' ? value : undefined)
+  return {
+    id: String(doc.id),
+    status: text(doc.status),
+    trigger: text(doc.trigger),
+    templateSlug: text(doc.templateSlug),
+    event: text(doc.event),
+    eventId: text(doc.eventId),
+    channel: text(doc.channel),
+    recipientKey: text(doc.recipientKey),
+  }
+}
+
+/**
+ * Statuses that end a delivery with nothing sent. A send-once key held by such a delivery
+ * can be handed on to another trigger's delivery. `unknown` is not one: the provider may
+ * have delivered it.
+ */
+export const KEY_RELEASING_STATUSES = new Set(['skipped', 'cancelled', 'failed'])
+
+/**
+ * Hands a send-once key on when its holder ended without sending (skipped by policy,
+ * cancelled or vetoed, failed) and belongs to another trigger or template than `by`.
+ * Replays of the same route keep finding the holder, as before.
+ *
+ * A failed holder is cancelled first (compare-and-set), so an admin retry can't also send
+ * it. The holder's key is then renamed `<key>::superseded:<id>`, freeing the original.
+ * Returns true when the key is free for `by`.
+ */
+export const releaseDeliveryKey = async ({
+  payload,
+  options,
+  holder,
+  idempotencyKey,
+  by,
+}: {
+  payload: Payload
+  options: NormalizedNotificationsPluginOptions
+  holder: DeliveryKeyHolder
+  idempotencyKey: string
+  by: { trigger: string; template: string }
+}): Promise<boolean> => {
+  if (!holder.status || !KEY_RELEASING_STATUSES.has(holder.status)) return false
+  if (holder.trigger === by.trigger && holder.templateSlug === by.template) return false
+  const reason = `Superseded: trigger "${by.trigger}" took over its send-once key`
+  if (holder.status === 'failed') {
+    const cancelled = await claimDeliveryStatus({
+      payload,
+      options,
+      deliveryId: holder.id,
+      from: 'failed',
+      to: 'cancelled',
+      fields: { skipReason: reason },
+    })
+    if (!cancelled) return false
+    await emitLifecycle(payload, options, {
+      stage: 'cancelled',
+      event: holder.event,
+      eventId: holder.eventId,
+      trigger: holder.trigger,
+      deliveryId: holder.id,
+      channel: holder.channel as never,
+      recipient: holder.recipientKey,
+      reason,
+      idempotencyKey,
+    })
+  }
+  await payload.update({
+    collection: options.collections.deliveries as never,
+    id: holder.id,
+    data: { idempotencyKey: `${idempotencyKey}::superseded:${holder.id}` } as never,
+    overrideAccess: true,
+  })
+  return true
 }

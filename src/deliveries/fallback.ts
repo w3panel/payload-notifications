@@ -9,7 +9,7 @@ import type {
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
-import { buildSendOnceKey, findDeliveryByKey, sendOnceEventKey } from './keys'
+import { buildSendOnceKey, findDeliveryByKey, releaseDeliveryKey, sendOnceEventKey } from './keys'
 
 export type FallbackReason = 'permanent' | 'no-destination' | 'policy'
 
@@ -99,51 +99,65 @@ export const createFallbackDelivery = async ({
     return undefined
   }
 
-  let created: { id: string | number }
-  try {
-    created = (await payload.create({
-      collection: options.collections.deliveries as never,
-      overrideAccess: true,
-      data: {
-        event: primary.event,
-        eventId: primary.eventId,
-        trigger: primary.trigger,
-        triggerOrigin: primary.triggerOrigin,
-        triggerVersion: primary.triggerVersion,
-        triggerPolicy: primary.triggerPolicy,
-        channel: fallback.channel,
-        templateSlug: template,
-        status: 'queued',
-        attempts: 0,
-        maxAttempts: primary.maxAttempts ?? 1,
-        retryPolicy: primary.retryPolicy,
-        recipientKey: primary.recipientKey,
-        recipientId: primary.recipientId,
-        recipientAlias: primary.recipientAlias,
-        recipientDestinations: primary.recipientDestinations,
-        destination,
-        destinationMasked: maskDestination(destination),
-        classification: primary.classification,
-        category: primary.category,
-        ...(primary.tenant ? { tenant: primary.tenant } : {}),
-        idempotencyKey,
-        dedupeKey: primary.dedupeKey,
-        context: primary.context,
-        fallbackOf: toRelationId(payload, options.collections.deliveries, primary.id),
-        skipReason: null,
-        lastError: null,
-      } as never,
-    })) as { id: string | number }
-  } catch (error) {
-    if (!isDuplicateKeyError(error)) throw error
-    // The key is taken: an earlier run created this fallback, or (send-once keys) the
-    // recipient already has a delivery on this channel. Confirm it exists, else rethrow.
-    const existing = await findDeliveryByKey(payload, options, idempotencyKey)
-    if (!existing) throw error
-    payload.logger?.info?.(
-      `payload-notifications: fallback of delivery ${primary.id} to ${fallback.channel} not created: delivery ${existing.id} holds its key`,
-    )
-    return existing.id
+  // Up to two tries: the second after a send-once key was handed on (see releaseDeliveryKey).
+  let created: { id: string | number } | undefined
+  for (let tries = 0; !created; tries++) {
+    try {
+      created = (await payload.create({
+        collection: options.collections.deliveries as never,
+        overrideAccess: true,
+        data: {
+          event: primary.event,
+          eventId: primary.eventId,
+          trigger: primary.trigger,
+          triggerOrigin: primary.triggerOrigin,
+          triggerVersion: primary.triggerVersion,
+          triggerPolicy: primary.triggerPolicy,
+          channel: fallback.channel,
+          templateSlug: template,
+          status: 'queued',
+          attempts: 0,
+          maxAttempts: primary.maxAttempts ?? 1,
+          retryPolicy: primary.retryPolicy,
+          recipientKey: primary.recipientKey,
+          recipientId: primary.recipientId,
+          recipientAlias: primary.recipientAlias,
+          recipientDestinations: primary.recipientDestinations,
+          destination,
+          destinationMasked: maskDestination(destination),
+          classification: primary.classification,
+          category: primary.category,
+          ...(primary.tenant ? { tenant: primary.tenant } : {}),
+          idempotencyKey,
+          dedupeKey: primary.dedupeKey,
+          context: primary.context,
+          fallbackOf: toRelationId(payload, options.collections.deliveries, primary.id),
+          skipReason: null,
+          lastError: null,
+        } as never,
+      })) as { id: string | number }
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error
+      // The key is taken: an earlier run created this fallback, or (send-once keys) the
+      // recipient already has a delivery on this channel. Confirm it exists, else rethrow.
+      const existing = await findDeliveryByKey(payload, options, idempotencyKey)
+      if (!existing) throw error
+      const released =
+        tries === 0 &&
+        sendOnceEvent !== undefined &&
+        (await releaseDeliveryKey({
+          payload,
+          options,
+          holder: existing,
+          idempotencyKey,
+          by: { trigger: primary.trigger, template },
+        }))
+      if (released) continue
+      payload.logger?.info?.(
+        `payload-notifications: fallback of delivery ${primary.id} to ${fallback.channel} not created: delivery ${existing.id} holds its key`,
+      )
+      return existing.id
+    }
   }
 
   await payload.jobs.queue({

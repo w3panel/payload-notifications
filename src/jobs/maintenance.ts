@@ -1,6 +1,7 @@
 import type { Payload, TaskConfig, Where } from 'payload'
 import type { NormalizedNotificationsPluginOptions } from '../types'
 import { resolveProvider } from '../providers/builtin'
+import { emitLifecycle } from '../observability'
 import { applyStatusUpdate } from '../webhooks/apply'
 import { NOTIFICATION_SEND_TASK } from './constants'
 
@@ -12,7 +13,7 @@ const daysAgo = (days: number, now: Date) =>
 
 /**
  * Reconciliation: `sending` deliveries older than `reliability.staleSendingMinutes`
- * become `unknown`; `queued` ones that old get a new send job; `unknown` deliveries with a provider message ID are looked
+ * become `unknown` (with an `unknown` lifecycle event each); `queued` ones that old get a new send job; `unknown` deliveries with a provider message ID are looked
  * up with the provider's `getStatus` when it has one.
  */
 export const reconcileDeliveries = async (
@@ -30,6 +31,26 @@ export const reconcileDeliveries = async (
     data: { status: 'unknown', lastError: 'Send did not finish; outcome unknown' } as never,
     overrideAccess: true,
   })
+  for (const doc of ((stale as { docs?: unknown[] }).docs ?? []) as Array<
+    Record<string, unknown>
+  >) {
+    const text = (value: unknown) => (typeof value === 'string' ? value : undefined)
+    await emitLifecycle(payload, options, {
+      stage: 'unknown',
+      event: text(doc.event),
+      eventId: text(doc.eventId),
+      trigger: text(doc.trigger),
+      triggerSource:
+        doc.triggerOrigin === 'admin' || doc.triggerOrigin === 'code'
+          ? doc.triggerOrigin
+          : undefined,
+      deliveryId: String(doc.id),
+      channel: doc.channel as never,
+      recipient: text(doc.recipientKey),
+      reason: 'Send did not finish; outcome unknown',
+      idempotencyKey: text(doc.idempotencyKey),
+    })
+  }
 
   // `queued` deliveries whose send job never got created (planner crashed between the
   // delivery insert and the job insert) would wait forever. Re-queue them; the send

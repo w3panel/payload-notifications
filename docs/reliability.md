@@ -33,8 +33,26 @@ gets one email. A second plan for the key finds the existing delivery (result st
 `existing`, lifecycle stage `duplicate`). If two plans race, the unique index refuses the second
 insert, `isDuplicateKeyError` recognises it and the plan reports the existing delivery. Fallback
 deliveries of a send-once delivery use a send-once key for their own channel, so a fallback never
-doubles a delivery the recipient already has there. A failed delivery keeps its key: retry it
-instead of planning again.
+doubles a delivery the recipient already has there.
+
+**When the key holder doesn't send.** A delivery from another route (another trigger or template)
+never loses its message because the key holder ended without sending:
+
+- **Standby.** If the holder hasn't finished yet, the other route's delivery is stored as a
+  standby: `skipped`, `skipReason` "Standby: …", key `<key>::standby:<trigger>:<template>`, no send
+  job. If the holder then ends `skipped` (consent, policy), `cancelled` (veto, admin cancel) or
+  `failed`, the oldest standby takes over the key, is queued and emits `planned`. If the holder
+  sends (or ends `unknown`), standbys stay skipped.
+- **Hand-over at planning.** If the holder already ended that way, a plan from another route takes
+  the key over directly.
+- Either way the old holder's key is renamed `<key>::superseded:<id>`, and a `failed` holder is
+  moved to `cancelled` first, so an admin retry can't also send it.
+- Replays of the same route still find its own delivery (`existing`), whatever its status: retry a
+  failed delivery from the admin instead of planning again.
+
+**Which route wins a shared inbox.** Triggers plan in `priority` order (higher first, default 0,
+ties keep match order), so give the route whose template a shared inbox should get a higher
+`priority`. The others wait as standbys.
 
 ### Veto before send
 
@@ -44,19 +62,29 @@ already-final and interrupted-send checks, before consent, policy and rendering)
 attempt log ("Cancelled: …") and emits a `cancelled` lifecycle event. No fallback is created.
 
 If the hook throws, nothing has been sent. The attempt is counted (`attempts`, `lastError`, and the
-next call gets `attempt + 1`), the delivery stays `queued` and the send job retries it. When the job's
+next call gets `attempt + 1`) and `maxAttempts` grows by one, so hook failures don't use up the
+provider's retries. The delivery stays `queued` and the send job retries it. If recording the attempt
+fails, that error is logged and the hook's error is still the one the job reports. When the job's
 retries run out, the delivery ends `failed` with a `failed` lifecycle event and no fallback. With
-`deliveries.key: 'recipient'` it keeps its key, so a new plan for the event finds it (`existing`)
-and only an admin retry can send it.
+`deliveries.key: 'recipient'` a standby waiting behind it is sent instead; otherwise the delivery
+keeps its key and only an admin retry can send it.
 
 ### One send job per delivery
 
 Before acting, a send job claims the delivery with a compare-and-set on its status: one conditional
-`UPDATE … WHERE id = ? AND status = ? RETURNING id` on Postgres, SQLite and D1, `findOneAndUpdate` on
-MongoDB. Ending a delivery before the provider call (cancelled, skipped, failed, unknown) and moving it
-to `sending` both require the status the job read. If two send jobs run for one delivery (a reconcile
-re-queue next to the original job, say), the second finds the status changed and stops quietly, so a
-delivery can't end both `cancelled` and `sent`.
+`UPDATE … SET status, …, updated_at WHERE id = ? AND status = ? RETURNING id` on Postgres, SQLite and
+D1, `findOneAndUpdate` on MongoDB. The claim writes the attempt count, reason and timestamp in the
+same statement. Ending a delivery before the provider call (cancelled, skipped, failed, unknown) and
+moving it to `sending` both require the status the job read. If two send jobs run for one delivery (a
+reconcile re-queue next to the original job, say), the second finds the status changed and stops
+quietly, so a delivery can't end both `cancelled` and `sent`.
+
+- A job that finds a delivery `sending` within the provider timeout plus 30 seconds of its claim
+  leaves it to the job that claimed it. Older `sending` deliveries count as interrupted and end
+  `unknown`; reconciliation also marks them `unknown` after `reliability.staleSendingMinutes`, with
+  an `unknown` lifecycle event.
+- If a driver's result doesn't say how many rows changed, the claim reads the row back instead of
+  retrying. Adapters with no atomic path use a filtered update and log a warning once.
 
 ### Cross-trigger dedupe
 

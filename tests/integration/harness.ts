@@ -18,10 +18,10 @@ export const testDb = (): TestDb =>
 
 let instance = 0
 
-// Every instance gets a fresh database. Payload skips the dev schema push when the schema
-// equals the previous instance's (cached per process), which would leave a second
-// instance with the same collections on an empty database.
-process.env.PAYLOAD_FORCE_DRIZZLE_PUSH = 'true'
+// Payload skips the dev schema push when an instance's schema equals the previous
+// instance's (cached per process), which leaves the second one on an empty in-memory
+// database. Test files whose plugin options give the same collections must differ: pass a
+// marker collection via `collections` (see sendOnce.test.ts).
 
 // Adapters are imported by name so the typecheck does not need the optional ones.
 const importAdapter = (name: string) =>

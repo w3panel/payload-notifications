@@ -18,7 +18,11 @@ import { defineTrigger, notificationsPlugin } from '@wtree/payload-notifications
 const orderPaid = defineTrigger({
   slug: 'order-paid-customer', // stable ID: deliveries and overrides reference it
   event: 'order.paid', // or source: { type: 'event', event: 'order.*' }
-  data: { sources: [/* see data-sources.md */] },
+  data: {
+    sources: [
+      /* see data-sources.md */
+    ],
+  },
   recipients: [
     { type: 'context', path: 'customer.id', alias: 'customer' },
     { type: 'static', email: 'ops@example.com', alias: 'ops' },
@@ -30,6 +34,7 @@ const orderPaid = defineTrigger({
     { channel: 'email', template: 'ops.order-paid', recipient: 'ops' },
   ],
   classification: 'transactional', // optional; defaults to the event's classification
+  priority: 0, // optional; higher plans first (decides a shared inbox with deliveries.key 'recipient')
   admin: { policy: 'managed', overridable: ['enabled', 'deliveries'] },
 })
 
