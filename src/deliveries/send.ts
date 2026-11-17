@@ -51,6 +51,7 @@ type DeliveryDoc = {
   trigger: string
   recipientAlias?: string | null
   recheckConditions?: boolean | null
+  scheduledFor?: string | null
   category?: string | null
   templateVersion?: number | null
   templateLocale?: string | null
@@ -181,6 +182,7 @@ export const sendDelivery = async ({
       providerMessageId: result.providerMessageId,
       attempt,
       durationMs,
+      idempotencyKey: delivery.idempotencyKey,
     })
     return result
   }
@@ -223,6 +225,38 @@ export const sendDelivery = async ({
   // outcome is ambiguous, so never send again automatically.
   if (delivery.status === 'sending') {
     return stop('unknown', 'A previous send attempt was interrupted; outcome unknown', 'unknown')
+  }
+
+  // The application's veto. Nothing has been sent yet, so an error here is safe to retry.
+  const beforeSend = options.deliveries.beforeSend
+  if (beforeSend) {
+    const decision = await beforeSend({
+      payload,
+      attempt,
+      delivery: {
+        id: deliveryId,
+        event: delivery.event,
+        eventId: delivery.eventId ?? undefined,
+        trigger: delivery.trigger,
+        channel: delivery.channel,
+        template: delivery.templateSlug,
+        recipientKey: delivery.recipientKey ?? undefined,
+        recipientId: delivery.recipientId ?? undefined,
+        destination: delivery.destination ?? undefined,
+        idempotencyKey: delivery.idempotencyKey,
+        classification: delivery.classification ?? undefined,
+        category: delivery.category ?? undefined,
+        context: delivery.context ?? undefined,
+        scheduledFor: delivery.scheduledFor ?? undefined,
+      },
+    })
+    if (decision && decision.allow === false) {
+      return stop(
+        'cancelled',
+        decision.reason?.trim() || 'Cancelled by deliveries.beforeSend',
+        'cancelled',
+      )
+    }
   }
 
   // Consent and preferences are checked at send time against the current user.

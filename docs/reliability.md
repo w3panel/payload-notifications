@@ -10,6 +10,7 @@ behaviour described in [jobs-and-operations.md](./jobs-and-operations.md).
 | --------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | Event inbox (`eventsInbox`) | `eventId`                                                                                   | Queueing the same event twice             |
 | Delivery record             | `<idempotencyKey or eventId>::<trigger>::<recipient>::<channel>::<template>` (unique index) | Re-processing or replaying the same event |
+| Send-once delivery record   | `<idempotencyKey or eventId>::<channel>::<identity>` (`deliveries.key: 'recipient'`)        | A second message per event and channel    |
 | Dedupe key                  | Rendered `dedupe.key` + recipient + channel (+ window)                                      | Two triggers describing the same action   |
 
 - **Versions aren't part of the key.** Delivery keys deliberately leave out the trigger and template
@@ -17,6 +18,31 @@ behaviour described in [jobs-and-operations.md](./jobs-and-operations.md).
   handled. The versions are recorded on each delivery instead.
 - **Legacy fingerprints.** Direct sends without an `idempotencyKey` now use the `eventId`, so
   separate events no longer collide.
+
+### Send once per event, recipient and channel
+
+With `deliveries.key: 'recipient'` the delivery key leaves out trigger and template. The
+`<identity>` part is:
+
+- email: `email#<sha256 of the normalised address>` (trimmed, lower-cased)
+- WhatsApp / SMS: `phone#<sha256 of the normalised number>`
+- in-app / push, or no destination: `user#<id>`, else `key#<sha256 of the recipient key>`
+
+So an inbox reached as an account (`user:12`) and as a static address (`email:owner@shop.test`)
+gets one email. A second plan for the key finds the existing delivery (result status
+`existing`, lifecycle stage `duplicate`). If two plans race, the unique index refuses the second
+insert, `isDuplicateKeyError` recognises it and the plan reports the existing delivery. Fallback
+deliveries of a send-once delivery use a send-once key for their own channel, so a fallback never
+doubles a delivery the recipient already has there. A failed delivery keeps its key: retry it
+instead of planning again.
+
+### Veto before send
+
+`deliveries.beforeSend({ payload, delivery, attempt })` runs before every send attempt (after the
+already-final and interrupted-send checks, before consent, policy and rendering). Returning
+`{ allow: false, reason }` ends the delivery `cancelled` with `skipReason: reason`, writes the
+attempt log ("Cancelled: …") and emits a `cancelled` lifecycle event. No fallback is created. If the
+hook throws, nothing has been sent: the delivery stays `queued` and the send job retries it.
 
 ### Cross-trigger dedupe
 

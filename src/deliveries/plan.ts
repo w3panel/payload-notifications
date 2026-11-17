@@ -13,6 +13,7 @@ import { generateEventId } from '../events/registry'
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
+import { buildSendOnceKey } from './keys'
 import { evaluateTriggerPlan } from './evaluate'
 import { resolveTemplate } from '../templates/resolve'
 import { emitLifecycle } from '../observability'
@@ -57,6 +58,7 @@ export type DeliveryPlanResult = {
 /**
  * Delivery idempotency key: one per logical business event (the caller's
  * `idempotencyKey`, else `eventId`), trigger, recipient, channel and template.
+ * The default (`deliveries.key: 'trigger'`).
  */
 export const buildDeliveryKey = ({
   event,
@@ -314,7 +316,19 @@ const planTrigger = async ({
     payload.logger?.warn?.(`payload-notifications: ${warning}`)
   }
   if (!plan.ok) {
-    if (plan.outcome !== 'not-matched') await logTriggerSkip(plan.outcome, plan.reason)
+    if (plan.outcome !== 'not-matched') {
+      await logTriggerSkip(plan.outcome, plan.reason)
+    } else {
+      await emitLifecycle(payload, options, {
+        stage: 'conditions-not-met',
+        event: event.name,
+        eventId: event.eventId,
+        trigger: trigger.slug,
+        triggerSource: snapshot.origin,
+        triggerVersion: snapshot.version,
+        reason: plan.reason,
+      })
+    }
     return
   }
 
@@ -347,13 +361,22 @@ const planTrigger = async ({
   }
 
   for (const { delivery, recipient, recipientScope, destination, sendAt } of plan.items) {
-    const idempotencyKey = buildDeliveryKey({
-      event,
-      trigger: trigger.slug,
-      recipient,
-      channel: delivery.channel,
-      template: delivery.template,
-    })
+    const idempotencyKey =
+      options.deliveries.key === 'recipient'
+        ? await buildSendOnceKey({
+            eventKey: (event.idempotencyKey || event.eventId) as string,
+            channel: delivery.channel,
+            destination,
+            recipientId: recipient.recipientId,
+            recipientKey: recipient.key,
+          })
+        : buildDeliveryKey({
+            event,
+            trigger: trigger.slug,
+            recipient,
+            channel: delivery.channel,
+            template: delivery.template,
+          })
     const planned: PlannedDelivery = {
       trigger: trigger.slug,
       channel: delivery.channel,
@@ -361,9 +384,26 @@ const planTrigger = async ({
       status: 'queued',
     }
 
+    const holdsKey = async (existing: { id: string }) => {
+      result.deliveries.push({ ...planned, deliveryId: existing.id, status: 'existing' })
+      await emitLifecycle(payload, options, {
+        stage: 'duplicate',
+        event: event.name,
+        eventId: event.eventId,
+        trigger: trigger.slug,
+        triggerSource: snapshot.origin,
+        triggerVersion: snapshot.version,
+        deliveryId: existing.id,
+        channel: delivery.channel,
+        recipient: recipient.key,
+        reason: `Delivery ${existing.id} already holds this delivery key`,
+        idempotencyKey,
+      })
+    }
+
     const existing = await findDeliveryByKey(payload, options, idempotencyKey)
     if (existing) {
-      result.deliveries.push({ ...planned, deliveryId: existing.id, status: 'existing' })
+      await holdsKey(existing)
       continue
     }
 
@@ -430,7 +470,7 @@ const planTrigger = async ({
       if (!isDuplicateKeyError(error)) throw error
       const raced = await findDeliveryByKey(payload, options, idempotencyKey)
       if (!raced) throw error
-      result.deliveries.push({ ...planned, deliveryId: raced.id, status: 'existing' })
+      await holdsKey(raced)
       continue
     }
     const deliveryId = String(created.id)
@@ -469,6 +509,7 @@ const planTrigger = async ({
         channel: delivery.channel,
         recipient: recipient.key,
         reason: skipReason,
+        idempotencyKey,
       })
       if (!duplicateOf) {
         await createFallbackDelivery({
@@ -507,6 +548,7 @@ const planTrigger = async ({
       deliveryId,
       channel: delivery.channel,
       recipient: recipient.key,
+      idempotencyKey,
     })
   }
 }

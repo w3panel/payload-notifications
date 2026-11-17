@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.5] - 2026-11-17
+
+Send-once release. Everything is opt-in or additive: defaults keep 0.4.0-beta.4 behaviour, and there is no schema change (no migration).
+
+### Added
+
+- `deliveries.key: 'trigger' | 'recipient'` (default `'trigger'`). `'recipient'` keys each delivery on event + channel + recipient only (`<idempotencyKey or eventId>::<channel>::<identity>`), so one recipient gets at most one message per event and channel however many triggers or templates match. Email, WhatsApp and SMS recipients are identified by their normalised address or number (SHA-256, so the key carries no address): one inbox reached as an account and as a static address counts once. The key lives in the existing unique `idempotencyKey` column, so a second plan for the same key (including two plans racing) finds the existing delivery instead of creating one. Fallback deliveries of a send-once delivery get a send-once key too, so a fallback never doubles a delivery the recipient already has on that channel
+- `deliveries.beforeSend({ payload, delivery, attempt })`: called before every send attempt of a trigger delivery. Return `{ allow: false, reason }` to cancel it: the delivery ends `cancelled` with that reason, the attempt is logged and a `cancelled` lifecycle event is emitted (no fallback). A thrown error leaves the delivery queued and the send job retries it
+- `observability.onEvent(event, context)`: the new second argument is `{ payload, idempotencyKey? }` (the delivery's key, when the event concerns one delivery). The key is never added to the event or to `observability.log` output
+- Lifecycle stage `conditions-not-met`: a matched trigger whose conditions (or `condition` function) did not hold at planning time, with the reason. Nothing is planned or logged to `notification-logs`
+- Lifecycle stage `duplicate`: planning found a delivery that already holds the key, so none was created (`deliveryId` is the existing delivery). Emitted in both key modes
+- Exports: `isDuplicateKeyError` (Postgres `23505` / "duplicate key", SQLite / libSQL / D1 "UNIQUE constraint failed" and `SQLITE_CONSTRAINT_UNIQUE`, MongoDB `E11000`, Payload's "Value must be unique" `ValidationError`; follows `cause` chains such as drizzle's "Failed query"), `buildSendOnceKey`, `deliveryRecipientIdentity`, `sendOnceEventKey`, and the types `NotificationDeliveryKeyMode`, `NotificationBeforeSendHook` / `Args` / `Delivery` / `Decision`, `NotificationLifecycleContext`
+
+### Changed
+
+- `isDuplicateKeyError` also matches driver error codes and wrapped (`cause`) errors; everything it matched before still matches
+
 ## [0.4.0-beta.4] - 2026-11-11
 
 ### Fixed

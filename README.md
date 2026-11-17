@@ -299,6 +299,47 @@ const config = {
 }
 ```
 
+### Send once per event, recipient and channel
+
+```ts
+import { isDuplicateKeyError } from '@wtree/payload-notifications'
+
+notificationsPlugin({
+  // Opt in to app-level emit keys too, so a repeated save or job retry is the same event.
+  requireIdempotencyKey: ['transactional'],
+  deliveries: {
+    // 'trigger' (default): event + trigger + recipient + channel + template.
+    // 'recipient': event + recipient + channel. Two triggers or templates for the same event
+    // never reach one inbox / phone twice on a channel. Email, WhatsApp and SMS recipients are
+    // identified by their normalised (hashed) destination, so an account and a static address
+    // with the same mailbox count once.
+    key: 'recipient',
+    // Veto a delivery right before each send attempt. It ends `cancelled` with the reason.
+    beforeSend: async ({ payload, delivery, attempt }) => {
+      const order = delivery.context?.payload?.orderId
+      if (order && (await isAlreadyOutForDelivery(payload, order))) {
+        return { allow: false, reason: 'Held back: order already out for delivery' }
+      }
+    },
+  },
+  observability: {
+    // `context` carries `payload` and the delivery's `idempotencyKey`.
+    onEvent: async (event, { payload, idempotencyKey }) => {
+      // stages include `conditions-not-met` (nothing planned) and `duplicate` (key already held)
+      await writeAuditRow(payload, event, idempotencyKey)
+    },
+  },
+})
+```
+
+- Both key modes use the unique `notification-deliveries.idempotencyKey` column: a second plan for
+  the same key, including two plans racing, finds the existing delivery instead of creating one.
+  No migration is needed to switch modes.
+- A held key is not handed on when its delivery fails: retry the failed delivery (admin retry
+  action) rather than planning the event again.
+- `isDuplicateKeyError(error)` is exported for your own unique writes (Postgres, SQLite / D1,
+  MongoDB).
+
 ## Provider configuration reference
 
 | Provider | Channel    | Required fields                   |
@@ -314,7 +355,8 @@ The package exposes helpers to support retry-safe delivery and structured observ
 - `buildDeliveryFingerprint(input)` creates a deterministic deduplication key stored on `notification-logs.fingerprint`.
 - `classifyDispatchFailure(error)` marks failures as `retriable` or `terminal` (accepts `Error` or string).
 - `createObservabilityEvent(input)` shapes structured monitoring payloads.
-- Trigger-based sends are deduplicated by the unique `notification-deliveries.idempotencyKey`; direct sends block duplicates from already-completed fingerprints.
+- Trigger-based sends are deduplicated by the unique `notification-deliveries.idempotencyKey` (see `deliveries.key` for send-once per event, recipient and channel); direct sends block duplicates from already-completed fingerprints.
+- `isDuplicateKeyError(error)` recognises unique-constraint violations from every Payload database adapter.
 - Retriable failures throw into Payload job retries (2 additional attempts, exponential backoff from 5s).
 
 ## Testing and CI

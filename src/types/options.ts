@@ -8,7 +8,12 @@ import type {
   NotificationDataResolverRegistry,
   NotificationsDataOptions,
 } from './data-sources'
-import type { NotificationLifecycleHook, NotificationObservabilityHook } from './deliveries'
+import type {
+  NotificationBeforeSendHook,
+  NotificationDeliveryKeyMode,
+  NotificationLifecycleHook,
+  NotificationObservabilityHook,
+} from './deliveries'
 import type {
   CollectionEventConfig,
   NormalizedCollectionEventConfig,
@@ -178,9 +183,35 @@ export type NotificationsPluginOptions = {
       context: NotificationPolicyContext,
     ) => NotificationPolicyDecision | Promise<NotificationPolicyDecision>
   }
+  /** How trigger deliveries are keyed and checked before sending. */
+  deliveries?: {
+    /**
+     * What one delivery is unique on. `trigger` (default): event + trigger + recipient +
+     * channel + template. `recipient`: event + recipient + channel, so a recipient gets at
+     * most one message per event and channel however many triggers or templates match.
+     * Email, WhatsApp and SMS recipients are identified by their normalised address or
+     * number (hashed in the key), so one inbox reached as an account and as a static
+     * address counts once. Both modes use the unique `idempotencyKey` column: a second
+     * plan for the same key finds the existing delivery instead of creating one.
+     */
+    key?: NotificationDeliveryKeyMode
+    /**
+     * Called before every send attempt of a trigger delivery (after the already-final
+     * and interrupted-send checks, before consent, policy and rendering). Return
+     * `{ allow: false, reason }` to cancel the delivery: it ends `cancelled` with that
+     * reason, the attempt is logged and a `cancelled` lifecycle event is emitted. No
+     * fallback is created. A thrown error fails the attempt before anything is sent, so
+     * the send job retries it.
+     */
+    beforeSend?: NotificationBeforeSendHook
+  }
   observability?: {
     onDispatch?: NotificationObservabilityHook
-    /** Every lifecycle stage: matched, planned, skipped, sent, retrying, failed, unknown, cancelled, delivered. */
+    /**
+     * Every lifecycle stage: matched, conditions-not-met, planned, duplicate, skipped,
+     * sent, retrying, failed, unknown, cancelled, delivered. The second argument carries
+     * `payload` and the delivery's `idempotencyKey`.
+     */
     onEvent?: NotificationLifecycleHook
     /** Structured `payload.logger` output per lifecycle stage (personal data masked). Default false. */
     log?: boolean
@@ -379,6 +410,10 @@ export type NormalizedNotificationsPluginOptions = {
     canSend?: (
       context: NotificationPolicyContext,
     ) => NotificationPolicyDecision | Promise<NotificationPolicyDecision>
+  }
+  deliveries: {
+    key: NotificationDeliveryKeyMode
+    beforeSend?: NotificationBeforeSendHook
   }
   observability: {
     onDispatch?: NotificationObservabilityHook

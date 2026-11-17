@@ -18,6 +18,11 @@ export const testDb = (): TestDb =>
 
 let instance = 0
 
+// Every instance gets a fresh database. Payload skips the dev schema push when the schema
+// equals the previous instance's (cached per process), which would leave a second
+// instance with the same collections on an empty database.
+process.env.PAYLOAD_FORCE_DRIZZLE_PUSH = 'true'
+
 // Adapters are imported by name so the typecheck does not need the optional ones.
 const importAdapter = (name: string) =>
   import(name) as Promise<Record<string, (args: unknown) => unknown>>

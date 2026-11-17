@@ -19,6 +19,7 @@ type DeliveryDoc = Record<string, unknown> & {
   recipientId?: string | null
   recipientKey?: string | null
   templateSlug?: string | null
+  idempotencyKey?: string | null
   context?: Record<string, unknown> | null
 }
 
@@ -182,6 +183,7 @@ export const retryDelivery = async (
     channel: delivery.channel as never,
     recipient: delivery.recipientKey,
     reason: 'Retried from the admin',
+    idempotencyKey: delivery.idempotencyKey,
   })
   return { ok: true }
 }
@@ -210,6 +212,7 @@ export const cancelDelivery = async (
     channel: delivery.channel as never,
     recipient: delivery.recipientKey,
     reason: 'Cancelled from the admin',
+    idempotencyKey: delivery.idempotencyKey,
   })
   return { ok: true }
 }

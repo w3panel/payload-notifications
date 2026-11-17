@@ -9,6 +9,7 @@ import type {
 import { NOTIFICATION_SEND_TASK } from '../jobs/constants'
 import { writeNotificationLog } from '../jobs/writeLog'
 import { maskDestination } from '../recipients/resolve'
+import { buildSendOnceKey, sendOnceEventKey } from './keys'
 
 export type FallbackReason = 'permanent' | 'no-destination' | 'policy'
 
@@ -63,7 +64,18 @@ export const createFallbackDelivery = async ({
 
   const destination =
     primary.recipientDestinations?.[fallback.channel as keyof RecipientDestinations] ?? undefined
-  const idempotencyKey = `${primary.idempotencyKey}::fallback:${fallback.channel}`
+  // A send-once primary gets a send-once fallback key: if the recipient already has a
+  // delivery for this event on the fallback channel, the unique key stops a second one.
+  const sendOnceEvent = sendOnceEventKey(primary.idempotencyKey)
+  const idempotencyKey = sendOnceEvent
+    ? await buildSendOnceKey({
+        eventKey: sendOnceEvent,
+        channel: fallback.channel,
+        destination,
+        recipientId: primary.recipientId,
+        recipientKey: primary.recipientKey,
+      })
+    : `${primary.idempotencyKey}::fallback:${fallback.channel}`
   const template = fallback.template || primary.templateSlug
 
   if (!destination) {
